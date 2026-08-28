@@ -14,6 +14,10 @@ _Avoid_: Puff (as a record), Hit, Log, Entry
 A wanted-one-didn't moment, recorded as a bare timestamp. Carries no intensity or trigger.
 _Avoid_: Craving, Temptation, Urge (unqualified)
 
+**Clear Day**:
+A Logical Day you have declared had no Puff Sessions. A deliberate assertion, never an inferred zero — it is the only way a day with nothing on it becomes Known. Writing a Puff Session into a Clear Day drops the mark.
+_Avoid_: Zero Day, Clean Day, Abstinent Day, Rest Day
+
 **Merge Window**:
 The short period after a Puff Session during which another tap increments that session's puff count rather than creating a new one.
 
@@ -23,10 +27,14 @@ The short period after a Puff Session during which another tap increments that s
 The 04:00-to-04:00 local period that all daily aggregation is computed against. Deliberately not the calendar day.
 _Avoid_: Day (unqualified), Date
 
+**Known Logical Day**:
+A Logical Day the app has evidence about: it carries a Puff Session, a Resisted Urge, or a Clear Day. Its complement is an **Unknown Logical Day**, which is an absence of evidence and not a record of zero. Opening the app is not evidence.
+_Avoid_: Logged Day, Empty Day, Missed Day, Gap Day
+
 ### The programme
 
 **Baseline**:
-The first seven Logical Days, during which Puff Sessions are recorded but no Target is shown or enforced.
+The first seven Known Logical Days, during which Puff Sessions are recorded but no Target is shown or enforced. An Unknown Logical Day extends the Baseline rather than closing it — the origin of every Target is never taken from a day the app knows nothing about.
 
 **Baseline Average**:
 The mean puff count per Logical Day across the Baseline. The origin point for every Target that follows. Frozen when the Baseline closes: a Puff Session backfilled into the Baseline window afterwards is still recorded, but does not move the origin.
@@ -36,7 +44,7 @@ The puff allowance for a Logical Day. The first Target is 90% of the Baseline Av
 _Avoid_: Goal, Limit, Quota, Allowance
 
 **Ratchet**:
-The mechanism that lowers the Target. It steps down by 10% (minimum one puff) once five of the last seven Logical Days were Met — counting only Logical Days from the current Ratchet Step onward, so each step down has to be earned again at the new Target. It never raises the Target, never lowers it on a schedule, and never lowers it twice for the same seven days.
+The mechanism that lowers the Target. It steps down by 10% (minimum one puff) once five of the seven most recent completed Logical Days were Met — counting only Logical Days strictly after the current Ratchet Step, so each step down has to be earned again at the new Target and the day a Target changed is never judged against it. Unknown Logical Days are not Met, so a stretch of unlogged days stalls the Ratchet rather than advancing it. It never raises the Target, never lowers it on a schedule, and never lowers it twice for the same seven days.
 _Avoid_: Taper, Schedule, Plan
 
 **Ratchet Step**:
@@ -44,13 +52,13 @@ A single act of the Ratchet: the Target became this number, from this Logical Da
 _Avoid_: Adjustment, Change, Level
 
 **Met**:
-Said of a Logical Day whose total puff count is at or below its Target.
+Said of a completed, Known Logical Day whose total puff count is at or below its Target. An Unknown Logical Day is never Met, and a Logical Day still in progress is not yet judged either way.
 
 **Pace**:
 The Target divided across waking hours, surfaced as the time the next Puff Session would be due. A read-out derived from the Target, not a second mechanism.
 
 **Momentum**:
-A running score over Met Logical Days: a Met day adds one, a day that is not Met subtracts one, and it never falls below zero or resets. Deliberately not a count of consecutive days — one bad day costs a point, not everything you have built.
+A running score over Met Logical Days: a Met day adds one, a day that is not Met subtracts one, and it never falls below zero or resets. Unknown Logical Days move it in neither direction: it holds across a gap and resumes where it left off. Deliberately not a count of consecutive days — one bad day costs a point, not everything you have built.
 _Avoid_: Streak, Chain, Combo
 
 **Projected Quit Date**:
