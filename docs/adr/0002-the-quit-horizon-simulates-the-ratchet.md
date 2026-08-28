@@ -1,0 +1,21 @@
+# The Quit Horizon simulates the Ratchet rather than fitting a curve
+
+The obvious way to project a quit date is to regress puff allowance against time and read off the x-intercept. We do the opposite: we run the Ratchet's own arithmetic forward from the current Target to zero, count the Steps, and multiply by the observed **Step Cadence**. Regression re-estimates, from three noisy points, a rule we already hold exactly.
+
+The descent is not a free variable. `T - max(1, round(0.1 × T))`, applied repeatedly, determines the entire remaining sequence from any Target — and the step *count* barely moves with the Baseline: 16 Steps from a Baseline Average of 20 puffs a day, 26 from 60, 35 from 150. The only unknown in the whole projection is how many Logical Days a Step takes. Simulation isolates that single estimated parameter; a fitted curve buries it among coefficients and then has to be coaxed into bending the right way, because the 10% is multiplicative down to a Target of 10 and linear at one puff a Step below it.
+
+## Considered options
+
+- **Simulate the rule forward** (chosen). One estimated parameter. Deceleration and the one-puff floor emerge from the rule rather than from a curve chosen to imitate it.
+- **Fit a curve to Target over time.** Rejected as above: it estimates what is already known and hides what isn't.
+- **Estimate from the Met rate** rather than from observed Step intervals. It would produce a Horizon about a week earlier, since Met days accrue before Steps do. Rejected: it is a second estimator that will disagree with the first, and it assumes Met days are independent when a bad week is plainly one event and not five. Two horizons discredit both.
+
+## Consequences
+
+- **Steps Remaining and the Quit Horizon are separate readouts**, because one is exact and the other is a guess, and a single number would re-hide which is which. Steps Remaining is a property of the rule and never lurches; the Horizon carries all of the uncertainty.
+- **Step Cadence is measured over the whole programme** — elapsed Logical Days from the first Ratchet Step to the latest, over the number of intervals. It takes no window parameter and needs no stall detector, since a stall merely lengthens the interval containing it, and its sensitivity to any one interval decays as `1/n`, so the Horizon calms down as the programme lengthens. The price is that a rough opening month never fully washes out.
+- **Silence is a valid reading, twice over.** There is no Horizon before two Ratchet Steps exist, and none at all during the Baseline, which has no Target and therefore no Steps to count. And once the open interval since the last Step exceeds twice the Step Cadence, the Horizon is withdrawn rather than recomputed. Steps Remaining stands alone in every one of those cases.
+- **A stall makes the Horizon disappear; it never makes it creep.** Counting the open interval live would be marginally more honest and would push the date out roughly three and a half days for every day not stepped — a month away costing three months of Horizon, displayed while the month is already going badly. That is the shape of a penalty attached to not logging, which this design refuses everywhere else (see [ADR 0001](./0001-unlogged-days-are-unknown-not-zero.md)).
+- **The Horizon is deliberately imprecise, and less pressure than a date.** Months beyond twelve weeks, weeks between two and twelve, an actual date only under two weeks — by which point two Steps or fewer remain and the date is genuinely knowable. False precision is what makes such a number visibly lurch, and a date you have learned to distrust exerts no pressure at all.
+- **It lengthens on screen, and is never announced.** Both readouts live in Stats and appear nowhere on the logging screen — no badge, no notification, no copy remarking that the Horizon moved. You see it when you go looking for it.
+- **The terminal is Target 0, on an assumption the endgame has yet to confirm** — that the Ratchet writes the final `1 → 0` Step itself, rather than stopping at 1 and handing that last decision to the user. If the endgame puts the floor at 1, the Horizon shortens by one interval and nothing else changes. Both readouts retire at Target 0; what replaces them is the endgame's to decide.
