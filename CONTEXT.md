@@ -73,3 +73,7 @@ _Avoid_: Pace (which means something else here), Rate, Velocity, Speed
 **Quit Horizon**:
 How far off the end of the programme looks: Steps Remaining at the Step Cadence kept so far. An estimate, and named as one — a horizon is a region, not a point. Shown as a duration that coarsens with distance and hardens into an actual date only once it is close enough to deserve one. It lengthens as readily as it shortens, and it is absent whenever it would be a guess: before any Step Cadence exists, and once a stall has made the existing one a lie. The app's pressure signal in place of a fixed deadline, and deliberately a soft one.
 _Avoid_: Projected Quit Date, Deadline, ETA, Target Date, Finish Line
+
+**Longest Gap**:
+The longest stretch between consecutive Puff Sessions lying wholly within Known Logical Days, the still-running stretch included. A stretch crossing an Unknown Logical Day is not evidence that you did not vape and is never eligible, so the figure is a floor on your best run rather than a measure of it — and after a long absence it is smaller, not larger, than the calendar suggests.
+_Avoid_: Longest Break, Clean Time, Abstinence, Time Since Last Puff
