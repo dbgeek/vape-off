@@ -77,3 +77,9 @@ _Avoid_: Projected Quit Date, Deadline, ETA, Target Date, Finish Line
 **Longest Gap**:
 The longest stretch between consecutive Puff Sessions lying wholly within Known Logical Days, the still-running stretch included. A stretch crossing an Unknown Logical Day is not evidence that you did not vape and is never eligible, so the figure is a floor on your best run rather than a measure of it — and after a long absence it is smaller, not larger, than the calendar suggests.
 _Avoid_: Longest Break, Clean Time, Abstinence, Time Since Last Puff
+
+### The record
+
+**Backup**:
+A complete copy of everything the app has been told: every Puff Session, Resisted Urge and Clear Day, together with every Ratchet Step. Because the app holds no derived state, a Backup is the whole of what cannot be recomputed — and, there being no sync, it is the only way a history reaches another device. Restoring one **replaces** the app's history rather than merging into it, so the app never holds two accounts of the same period and never has to decide between them.
+_Avoid_: Sync, Save, Snapshot, Archive, Export (as a noun for the file)
