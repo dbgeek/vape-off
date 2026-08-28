@@ -19,7 +19,7 @@ A Logical Day you have declared had no Puff Sessions. A deliberate assertion, ne
 _Avoid_: Zero Day, Clean Day, Abstinent Day, Rest Day
 
 **Merge Window**:
-The short period after a Puff Session during which another tap increments that session's puff count rather than creating a new one.
+The 90 seconds after a tap during which another tap increments that Puff Session's puff count rather than creating a new one. It **slides**: every tap pushes the window out again, so a sitting of any length stays a single Puff Session. The session keeps the timestamp of its first tap, which is therefore when the pickup began, not when it ended.
 
 ### Time
 
@@ -55,7 +55,8 @@ _Avoid_: Adjustment, Change, Level
 Said of a completed, Known Logical Day whose total puff count is at or below its Target. An Unknown Logical Day is never Met, and a Logical Day still in progress is not yet judged either way.
 
 **Pace**:
-The Target divided across waking hours, surfaced as the time the next Puff Session would be due. A read-out derived from the Target, not a second mechanism.
+Whatever is left of the Target, spread across the waking hours that are left, surfaced as the time the next Puff Session would be due. **Rolling, not a fixed schedule from waking**: cut into fixed slots from the start of the day, the read-out goes stale the moment you drop under it and reads *now* for the rest of the day, saying nothing. Rolling, it re-spreads after every Puff Session and keeps meaning something all day. A read-out derived from the Target, not a second mechanism — and a passive one, since nothing on the device can fire a notification to push it.
+_Avoid_: Schedule, Budget, Slots
 
 **Momentum**:
 A running score over Met Logical Days: a Met day adds one, a day that is not Met subtracts one, and it never falls below zero or resets. Unknown Logical Days move it in neither direction: it holds across a gap and resumes where it left off. Deliberately not a count of consecutive days — one bad day costs a point, not everything you have built.
