@@ -62,5 +62,14 @@ _Avoid_: Schedule, Budget, Slots
 A running score over Met Logical Days: a Met day adds one, a day that is not Met subtracts one, and it never falls below zero or resets. Unknown Logical Days move it in neither direction: it holds across a gap and resumes where it left off. Deliberately not a count of consecutive days — one bad day costs a point, not everything you have built.
 _Avoid_: Streak, Chain, Combo
 
-**Projected Quit Date**:
-The date the Target is expected to reach zero, extrapolated from the observed rate of Ratchet descent. It moves as that rate changes, and is the app's pressure signal in place of a fixed deadline.
+**Steps Remaining**:
+The number of Ratchet Steps between the current Target and zero. Exact, never estimated: the Ratchet's arithmetic is fixed, so the entire descent from any Target is already determined and only its speed is open. Undefined during the Baseline, which has no Target to count down from.
+_Avoid_: Steps Left, Countdown, Progress, Levels
+
+**Step Cadence**:
+How long a Ratchet Step takes, averaged across every Step so far — the one quantity in the programme that is estimated rather than derived. Distinct from Pace, which is a reading within a single Logical Day; Step Cadence is measured in Logical Days per Step and spans the whole programme. A stall inflates it rather than hiding in it, because the interval containing the stall is simply a long one.
+_Avoid_: Pace (which means something else here), Rate, Velocity, Speed
+
+**Quit Horizon**:
+How far off the end of the programme looks: Steps Remaining at the Step Cadence kept so far. An estimate, and named as one — a horizon is a region, not a point. Shown as a duration that coarsens with distance and hardens into an actual date only once it is close enough to deserve one. It lengthens as readily as it shortens, and it is absent whenever it would be a guess: before any Step Cadence exists, and once a stall has made the existing one a lie. The app's pressure signal in place of a fixed deadline, and deliberately a soft one.
+_Avoid_: Projected Quit Date, Deadline, ETA, Target Date, Finish Line
