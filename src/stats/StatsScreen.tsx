@@ -143,19 +143,31 @@ export function StatsScreen({
   const [backupCardDismissed, setBackupCardDismissed] = useState(false)
   const [programmeDetailsOpen, setProgrammeDetailsOpen] = useState(false)
   const [stepBackOpen, setStepBackOpen] = useState(false)
+  const [stepBackError, setStepBackError] = useState<string>()
 
   useEffect(() => {
     let alive = true
-    source.load().then(
-      (loaded) => {
-        if (alive) setSnapshot(loaded)
-      },
-      () => {
-        if (alive) setError('Stats are unavailable.')
-      },
-    )
+    function refresh() {
+      source.load().then(
+        (loaded) => {
+          if (alive) {
+            setSnapshot(loaded)
+            setError(undefined)
+          }
+        },
+        () => {
+          if (alive) setError('Stats are unavailable.')
+        },
+      )
+    }
+    function refreshWhenVisible() {
+      if (document.visibilityState === 'visible') refresh()
+    }
+    refresh()
+    document.addEventListener('visibilitychange', refreshWhenVisible)
     return () => {
       alive = false
+      document.removeEventListener('visibilitychange', refreshWhenVisible)
     }
   }, [source])
 
@@ -196,11 +208,19 @@ export function StatsScreen({
   }
 
   function confirmStepBack() {
-    void source.declareStepBack().then((loaded) => {
-      setSnapshot(loaded)
-      setStepBackOpen(false)
-      setProgrammeDetailsOpen(false)
-    })
+    setStepBackError(undefined)
+    void source.declareStepBack().then(
+      (loaded) => {
+        setSnapshot(loaded)
+        setStepBackOpen(false)
+        setProgrammeDetailsOpen(false)
+      },
+      (reason: unknown) => {
+        setStepBackError(
+          reason instanceof Error ? reason.message : 'The Target could not be changed.',
+        )
+      },
+    )
   }
 
   return (
@@ -247,7 +267,7 @@ export function StatsScreen({
         </section>
       ) : null}
 
-      {installed ? <p className="backup-line">{backupDays === 0 ? 'Last backup: up to date.' : `Last backup: ${backupDays} Logical ${backupDays === 1 ? 'Day' : 'Days'} ago.`}</p> : null}
+      {installed && backupDays > 0 ? <p className="backup-line">{`Last backup: ${backupDays} Logical ${backupDays === 1 ? 'Day' : 'Days'} ago.`}</p> : null}
       {showBackupCard ? (
         <section className="backup-card" role="region" aria-label="Backup status">
           <button type="button" aria-label="Dismiss backup card" onClick={dismissBackupCard}>×</button>
@@ -256,7 +276,7 @@ export function StatsScreen({
         </section>
       ) : null}
 
-      {targetZero ? (
+      {view.programme.status === 'target-zero' && view.programme.stepBackAvailable ? (
         <section className="programme-details">
           <button type="button" onClick={() => setProgrammeDetailsOpen((open) => !open)}>Programme details</button>
           {programmeDetailsOpen ? (
@@ -269,6 +289,7 @@ export function StatsScreen({
         <section className="step-back-dialog" role="dialog" aria-modal="true" aria-label="Step back to Target 1">
           <h2>Step back to Target 1</h2>
           <p>Target 1 returns from this Logical Day.</p>
+          {stepBackError ? <p aria-live="polite">{stepBackError}</p> : null}
           <div>
             <button type="button" onClick={() => setStepBackOpen(false)}>Keep Target 0</button>
             <button type="button" onClick={confirmStepBack}>Set Target to 1</button>

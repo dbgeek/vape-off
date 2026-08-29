@@ -175,6 +175,27 @@ describe('Stats', () => {
     expect(screen.queryByRole('region', { name: 'Backup status' })).not.toBeInTheDocument()
   })
 
+  it('keeps backup status silent until the first uncovered Known Logical Day', async () => {
+    render(
+      <StatsScreen
+        source={source({
+          record: {
+            ...emptyRecord,
+            clearDays: [{ logicalDay: '2026-08-29', at: '2026-08-29T12:00:00.000Z', tz: 'UTC' }],
+            ratchetSteps: [step('2026-08-20', 5)],
+          },
+          exports: [{ id: 'backup', logicalDay: '2026-08-29', at: '2026-08-29T13:00:00.000Z' }],
+          backupCardDismissedAt: 0,
+        })}
+        clock={clock}
+        installed
+      />,
+    )
+
+    await screen.findByRole('heading', { name: 'Stats' })
+    expect(screen.queryByText(/Last backup:/)).not.toBeInTheDocument()
+  })
+
   it('makes Longest Gap the Target 0 headline and puts step-back behind a deliberate trip', async () => {
     const record = {
       ...emptyRecord,
@@ -202,5 +223,46 @@ describe('Stats', () => {
     const dialog = screen.getByRole('dialog', { name: 'Step back to Target 1' })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Set Target to 1' }))
     await waitFor(() => expect(statsSource.declareStepBack).toHaveBeenCalledOnce())
+  })
+
+  it('withholds same-day step-back and reports a rejected confirmation', async () => {
+    const sameDaySource = source({
+      record: { ...emptyRecord, ratchetSteps: [step('2026-08-29', 0)] },
+      exports: [],
+      backupCardDismissedAt: 0,
+    })
+    const { unmount } = render(<StatsScreen source={sameDaySource} clock={clock} installed />)
+    await screen.findByRole('heading', { name: 'Stats' })
+    expect(screen.queryByRole('button', { name: 'Programme details' })).not.toBeInTheDocument()
+    unmount()
+
+    const availableSource = source({
+      record: { ...emptyRecord, ratchetSteps: [step('2026-08-20', 0)] },
+      exports: [],
+      backupCardDismissedAt: 0,
+    })
+    vi.mocked(availableSource.declareStepBack).mockRejectedValue(
+      new Error('You have already changed your target today'),
+    )
+    render(<StatsScreen source={availableSource} clock={clock} installed />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Programme details' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Step back to Target 1' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Set Target to 1' }))
+    expect(await screen.findByText('You have already changed your target today')).toBeInTheDocument()
+  })
+
+  it('refreshes programme readings when the app returns to view', async () => {
+    const statsSource = source({
+      record: { ...emptyRecord, ratchetSteps: [step('2026-08-20', 5)] },
+      exports: [],
+      backupCardDismissedAt: 0,
+    })
+    render(<StatsScreen source={statsSource} clock={clock} installed />)
+    await screen.findByRole('heading', { name: 'Stats' })
+
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' })
+    document.dispatchEvent(new Event('visibilitychange'))
+
+    await waitFor(() => expect(statsSource.load).toHaveBeenCalledTimes(2))
   })
 })

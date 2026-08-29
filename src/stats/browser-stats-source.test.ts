@@ -1,5 +1,5 @@
 import 'fake-indexeddb/auto'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { VapeOffDatabase } from '../store/database.ts'
 import { createBrowserStatsSource } from './browser-stats-source.ts'
 
@@ -34,10 +34,15 @@ describe('browser Stats source', () => {
       at: '2026-08-27T12:00:00.000Z',
       logicalDay: '2026-08-27',
     })
+    const badge = {
+      setAppBadge: vi.fn().mockResolvedValue(undefined),
+      clearAppBadge: vi.fn().mockResolvedValue(undefined),
+    }
     const source = createBrowserStatsSource(db, {
       now: () => new Date('2026-08-29T12:00:00.000Z'),
       timeZone: () => 'UTC',
       randomUUID: () => 'step-back',
+      badge,
     })
 
     await expect(source.load()).resolves.toMatchObject({
@@ -45,6 +50,7 @@ describe('browser Stats source', () => {
       exports: [{ id: 'backup' }],
       backupCardDismissedAt: 0,
     })
+    expect(badge.clearAppBadge).toHaveBeenCalled()
 
     await source.dismissBackupCard(31)
     await expect(source.load()).resolves.toMatchObject({ backupCardDismissedAt: 31 })
@@ -53,5 +59,6 @@ describe('browser Stats source', () => {
     expect(steppedBack.record.ratchetSteps).toContainEqual(
       expect.objectContaining({ id: 'step-back', target: 1, kind: 'declared' }),
     )
+    expect(badge.setAppBadge).toHaveBeenCalledWith(1)
   })
 })

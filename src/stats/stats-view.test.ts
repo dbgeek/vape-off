@@ -87,19 +87,35 @@ describe('the Stats view', () => {
       ...emptyRecord,
       puffSessions: [
         session('first', '2026-08-20', '2026-08-20T12:00:00.000Z', 1),
-        session('second', '2026-08-22', '2026-08-22T12:00:00.000Z', 1),
+        session('second', '2026-08-23', '2026-08-23T12:00:00.000Z', 1),
       ],
-      clearDays: [clearDay('2026-08-23'), clearDay('2026-08-24')],
+      clearDays: [clearDay('2026-08-23'), clearDay('2026-08-24'), clearDay('2026-08-25')],
       ratchetSteps: [step('2026-08-19', 5)],
     }
     const exports: ExportRecord[] = [
       { id: 'backup', at: '2026-08-21T12:00:00.000Z', logicalDay: '2026-08-21' },
     ]
 
-    const view = buildStatsView(record, exports, new Date('2026-08-24T18:00:00.000Z'), 'UTC')
+    const view = buildStatsView(record, exports, new Date('2026-08-25T18:00:00.000Z'), 'UTC')
 
     expect(view.backup.uncoveredKnownDays).toBe(3)
     expect(view.longestGap).toEqual({ milliseconds: 54 * 60 * 60 * 1000, disqualifiedByUnknownDay: true })
+  })
+
+  it('does not qualify Longest Gap when an excluded interval is shorter than the honest figure', () => {
+    const record = {
+      ...emptyRecord,
+      puffSessions: [
+        session('first', '2026-08-20', '2026-08-20T12:00:00.000Z', 1),
+        session('second', '2026-08-22', '2026-08-22T12:00:00.000Z', 1),
+      ],
+      clearDays: [clearDay('2026-08-23'), clearDay('2026-08-24')],
+      ratchetSteps: [step('2026-08-19', 5)],
+    }
+
+    const view = buildStatsView(record, [], new Date('2026-08-24T18:00:00.000Z'), 'UTC')
+
+    expect(view.longestGap).toEqual({ milliseconds: 54 * 60 * 60 * 1000, disqualifiedByUnknownDay: false })
   })
 
   it('retires programme estimates at Target 0 while keeping Longest Gap and Momentum', () => {
@@ -112,9 +128,21 @@ describe('the Stats view', () => {
 
     const view = buildStatsView(record, [], new Date('2026-08-29T18:00:00.000Z'), 'UTC')
 
-    expect(view.programme).toMatchObject({ status: 'target-zero', momentum: 1 })
+    expect(view.programme).toMatchObject({ status: 'target-zero', momentum: 1, stepBackAvailable: true })
     expect(view.programme).not.toHaveProperty('stepsRemaining')
     expect(view.programme).not.toHaveProperty('quitHorizon')
     expect(view.longestGap.milliseconds).toBe(54 * 60 * 60 * 1000)
+  })
+
+  it('withholds the step-back on a Logical Day that already carries a Step', () => {
+    const record = {
+      ...emptyRecord,
+      clearDays: [clearDay('2026-08-29')],
+      ratchetSteps: [step('2026-08-29', 0)],
+    }
+
+    const view = buildStatsView(record, [], new Date('2026-08-29T18:00:00.000Z'), 'UTC')
+
+    expect(view.programme).toMatchObject({ status: 'target-zero', stepBackAvailable: false })
   })
 })

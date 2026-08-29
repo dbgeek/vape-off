@@ -1,6 +1,7 @@
 import {
   dayTotal,
   isKnown,
+  knownLogicalDayKeys,
   targetOn,
   type DayLedgerRecord,
 } from '../domain/day-ledger.ts'
@@ -42,7 +43,7 @@ export type ProgrammeView =
       stepsRemaining: StepsRemaining
       quitHorizon: QuitHorizon
     }
-  | { status: 'target-zero'; target: 0; momentum: number }
+  | { status: 'target-zero'; target: 0; momentum: number; stepBackAvailable: boolean }
 
 export interface StatsView {
   dial: {
@@ -66,14 +67,6 @@ function shiftLogicalDay(logicalDay: LogicalDayKey, days: number): LogicalDayKey
   return date.toISOString().slice(0, 10)
 }
 
-function knownLogicalDays(record: DayLedgerRecord): Set<LogicalDayKey> {
-  return new Set([
-    ...record.puffSessions.map((session) => session.logicalDay),
-    ...record.resistedUrges.map((urge) => urge.logicalDay),
-    ...record.clearDays.map((day) => day.logicalDay),
-  ])
-}
-
 function hourOf(at: string, timeZone: string): number {
   const hour = new Intl.DateTimeFormat('en-GB-u-hc-h23', {
     timeZone,
@@ -89,7 +82,7 @@ function hourOf(at: string, timeZone: string): number {
 function dial(record: DayLedgerRecord, today: LogicalDayKey): StatsView['dial'] {
   const firstDay = shiftLogicalDay(today, -(DIAL_WINDOW_DAYS - 1))
   const inWindow = (logicalDay: LogicalDayKey) => logicalDay >= firstDay && logicalDay <= today
-  const knownDays = [...knownLogicalDays(record)].filter(inWindow).length
+  const knownDays = [...knownLogicalDayKeys(record)].filter(inWindow).length
   const hours = Array.from({ length: 24 }, (_, index) => ({
     hour: (index + LOGICAL_DAY_START_HOUR) % 24,
     puffs: 0,
@@ -129,11 +122,18 @@ function dial(record: DayLedgerRecord, today: LogicalDayKey): StatsView['dial'] 
 function programme(record: DayLedgerRecord, today: LogicalDayKey): ProgrammeView {
   const target = targetOn(record, today)
   if (target === undefined) {
-    const knownDays = [...knownLogicalDays(record)].filter((logicalDay) => logicalDay < today).length
+    const knownDays = [...knownLogicalDayKeys(record)].filter((logicalDay) => logicalDay < today).length
     return { status: 'baseline', knownDays: Math.min(knownDays, 7), requiredDays: 7 }
   }
   const score = momentum(record, today)
-  if (target === 0) return { status: 'target-zero', target, momentum: score }
+  if (target === 0) {
+    return {
+      status: 'target-zero',
+      target,
+      momentum: score,
+      stepBackAvailable: !record.ratchetSteps.some((step) => step.effectiveFrom === today),
+    }
+  }
   return {
     status: 'active',
     target,
@@ -155,18 +155,39 @@ function trend(record: DayLedgerRecord, today: LogicalDayKey): TrendDay[] {
   })
 }
 
-function hasDisqualifiedGap(record: DayLedgerRecord, today: LogicalDayKey): boolean {
-  const sessions = [...record.puffSessions].sort((left, right) => left.at.localeCompare(right.at))
+function intervalIsKnown(
+  knownDays: ReadonlySet<LogicalDayKey>,
+  start: LogicalDayKey,
+  end: LogicalDayKey,
+): boolean {
+  for (let day = start; day <= end; day = shiftLogicalDay(day, 1)) {
+    if (!knownDays.has(day)) return false
+  }
+  return true
+}
+
+function hasDisqualifiedGap(
+  record: DayLedgerRecord,
+  now: Date,
+  today: LogicalDayKey,
+  honestGap: number | undefined,
+): boolean {
+  const sessions = [...record.puffSessions].sort(
+    (left, right) => Date.parse(left.at) - Date.parse(right.at),
+  )
   if (sessions.length === 0) return false
-  const knownDays = knownLogicalDays(record)
-  const intervals = sessions.slice(1).map((session, index) => [sessions[index]!.logicalDay, session.logicalDay] as const)
-  intervals.push([sessions.at(-1)!.logicalDay, today])
-  return intervals.some(([start, end]) => {
-    for (let day = start; day <= end; day = shiftLogicalDay(day, 1)) {
-      if (!knownDays.has(day)) return true
-    }
-    return false
+  const knownDays = knownLogicalDayKeys(record)
+  const excludedDurations = sessions.slice(1).flatMap((session, index) => {
+    const previous = sessions[index]!
+    return intervalIsKnown(knownDays, previous.logicalDay, session.logicalDay)
+      ? []
+      : [Date.parse(session.at) - Date.parse(previous.at)]
   })
+  const latest = sessions.at(-1)!
+  if (!intervalIsKnown(knownDays, latest.logicalDay, today)) {
+    excludedDurations.push(now.getTime() - Date.parse(latest.at))
+  }
+  return excludedDurations.some((duration) => duration > (honestGap ?? -Infinity))
 }
 
 function uncoveredKnownDays(
@@ -177,7 +198,7 @@ function uncoveredKnownDays(
     (latest, item) => (latest === undefined || item.logicalDay > latest ? item.logicalDay : latest),
     undefined,
   )
-  return [...knownLogicalDays(record)].filter(
+  return [...knownLogicalDayKeys(record)].filter(
     (logicalDay) => latestBackup === undefined || logicalDay > latestBackup,
   ).length
 }
@@ -189,13 +210,14 @@ export function buildStatsView(
   timeZone: string,
 ): StatsView {
   const today = logicalDayKeyOf(now, timeZone)
+  const gap = longestGap(record, now, today)
   return {
     dial: dial(record, today),
     programme: programme(record, today),
     trend: trend(record, today),
     longestGap: {
-      milliseconds: longestGap(record, now, today),
-      disqualifiedByUnknownDay: hasDisqualifiedGap(record, today),
+      milliseconds: gap,
+      disqualifiedByUnknownDay: hasDisqualifiedGap(record, now, today, gap),
     },
     backup: { uncoveredKnownDays: uncoveredKnownDays(record, exports) },
   }

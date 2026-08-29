@@ -1,4 +1,5 @@
 import type { DayLedgerRecord } from '../domain/day-ledger.ts'
+import { updateBadge, type BadgeController } from '../shell/badge.ts'
 import { VapeOffDatabase } from '../store/database.ts'
 import { getMeta, setMeta } from '../store/meta.ts'
 import { openDatabase } from '../store/open-database.ts'
@@ -9,12 +10,14 @@ export interface BrowserStatsEnvironment {
   now: () => Date
   timeZone: () => string
   randomUUID: () => string
+  badge: BadgeController
 }
 
 const browserEnvironment: BrowserStatsEnvironment = {
   now: () => new Date(),
   timeZone: () => Intl.DateTimeFormat().resolvedOptions().timeZone,
   randomUUID: () => crypto.randomUUID(),
+  badge: navigator,
 }
 
 async function readRecord(db: VapeOffDatabase): Promise<DayLedgerRecord> {
@@ -54,11 +57,26 @@ export function createBrowserStatsSource(
     }
   }
 
+  async function readFreshSnapshot(): Promise<StatsSnapshot> {
+    const snapshot = await readSnapshot()
+    try {
+      await updateBadge(
+        snapshot.record,
+        environment.now(),
+        environment.timeZone(),
+        environment.badge,
+      )
+    } catch {
+      // Badging is best-effort; Stats readings and the record remain available.
+    }
+    return snapshot
+  }
+
   return {
     async load() {
       await ensureOpen()
       await evaluate(db, environment)
-      return readSnapshot()
+      return readFreshSnapshot()
     },
     async dismissBackupCard(uncoveredKnownDays) {
       await ensureOpen()
@@ -67,7 +85,7 @@ export function createBrowserStatsSource(
     async declareStepBack() {
       await ensureOpen()
       await declareStepBack(db, environment)
-      return readSnapshot()
+      return readFreshSnapshot()
     },
   }
 }
