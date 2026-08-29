@@ -2,11 +2,12 @@ import type { DayLedgerRecord } from '../domain/day-ledger.ts'
 import type { VapeOffDatabase } from './database.ts'
 
 /**
- * The whole record in one read.
+ * The whole record in one read, shared by the session and by the Ratchet, which
+ * has to make the same read inside its own transaction.
  *
- * It sits below the session rather than inside it so that the Ratchet, which
- * has to read within its own transaction, and the session, which reads outside
- * one, are reading the same four tables the same way.
+ * It sits below the session rather than inside it because the session imports
+ * the Ratchet's `evaluate`: holding the read here is what keeps the two modules
+ * from importing each other.
  */
 export async function readRecord(db: VapeOffDatabase): Promise<DayLedgerRecord> {
   const [puffSessions, resistedUrges, clearDays, ratchetSteps] = await Promise.all([

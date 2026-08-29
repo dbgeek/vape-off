@@ -1,7 +1,6 @@
 import type { DayLedgerRecord } from '../domain/day-ledger.ts'
 import { deviceTimeZone } from '../domain/logical-day.ts'
 import { updateBadge, type BadgeController } from '../shell/badge.ts'
-import { buildIdentity, type BuildIdentity } from '../shell/build-identity.ts'
 import { browserDatabase } from './browser-database.ts'
 import type { VapeOffDatabase } from './database.ts'
 import { openDatabase } from './open-database.ts'
@@ -10,10 +9,13 @@ import { evaluate, type EvaluationResult } from './ratchet-writes.ts'
 
 /**
  * The connection's owner: one session sits behind Track, Stats and Backup, and
- * holds everything that is true of the store rather than of a screen — when the
- * database opens, how the whole record is read, when the Ratchet is evaluated,
- * that the badge follows a read, and that a deleted database is reopened here
- * and nowhere else. The adapters keep only the operations their screen calls.
+ * owns the lifecycle none of them owns alone — when the database opens, how the
+ * whole record is read, when the Ratchet is evaluated, that the badge follows a
+ * read, and that a deleted database is reopened here and nowhere else. The
+ * adapters keep only the operations their screen calls.
+ *
+ * The badge sits on its environment because refreshing it is the session's job.
+ * A slice's own extras stay with the slice.
  */
 
 /** The browser facts every store operation draws on. */
@@ -26,18 +28,16 @@ export interface StoreEnvironment {
 /** What a write needs: a zone to stamp with and an id. Writes are told the instant. */
 export type WriteEnvironment = Pick<StoreEnvironment, 'timeZone' | 'randomUUID'>
 
-/** The shared facts, plus the two the slices add: Track and Stats badge, Backup stamps the build. */
+/** The shared facts, plus the badge the session keeps in step with the record. */
 export interface SessionEnvironment extends StoreEnvironment {
   badge: BadgeController
-  appBuild: BuildIdentity
 }
 
-export const browserEnvironment: SessionEnvironment = {
+const browserEnvironment: SessionEnvironment = {
   now: () => new Date(),
   timeZone: () => deviceTimeZone(),
   randomUUID: () => crypto.randomUUID(),
   badge: navigator,
-  appBuild: buildIdentity,
 }
 
 export interface StoreSession {

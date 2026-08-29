@@ -1,4 +1,5 @@
 import { instantOf, logicalDayKeyOf } from '../domain/logical-day.ts'
+import { buildIdentity, type BuildIdentity } from '../shell/build-identity.ts'
 import { SCHEMA_VERSION } from '../store/database.ts'
 import { getOrCreateInstallId, setMeta } from '../store/meta.ts'
 import { browserSession, type StoreSession } from '../store/session.ts'
@@ -56,6 +57,7 @@ function readFile(file: File): Promise<string> {
 
 export function createBrowserBackupSource(
   session: StoreSession,
+  appBuild: BuildIdentity = buildIdentity,
   handOff: (file: File) => Promise<BackupHandoff> = handOffBackup,
 ): BackupSource {
   const { db, environment } = session
@@ -113,7 +115,7 @@ export function createBrowserBackupSource(
       const exportedAt = instantOf(now, timeZone)
       const backup = createBackupFile(record, {
         schemaVersion: SCHEMA_VERSION,
-        appBuild: environment.appBuild,
+        appBuild,
         exportedAt,
         installId: record.installId,
       })

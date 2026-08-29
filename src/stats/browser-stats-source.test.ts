@@ -44,7 +44,6 @@ describe('browser Stats source', () => {
       timeZone: () => 'UTC',
       randomUUID: () => 'step-back',
       badge,
-      appBuild: { sha: 'abc1234', builtAt: '2026-08-29T08:00:00.000Z' },
     }))
 
     await expect(source.load()).resolves.toMatchObject({

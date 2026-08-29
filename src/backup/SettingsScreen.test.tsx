@@ -87,8 +87,8 @@ describe('Settings Backup', () => {
           timeZone: () => 'UTC',
           randomUUID: () => 'current-backup',
           badge: {},
-          appBuild: { sha: 'abc1234', builtAt: '2026-08-29T08:00:00.000Z' },
         }),
+        { sha: 'abc1234', builtAt: '2026-08-29T08:00:00.000Z' },
         handOff,
       )
       render(<SettingsScreen source={backupSource} installed />)

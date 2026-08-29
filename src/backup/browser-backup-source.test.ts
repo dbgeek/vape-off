@@ -36,6 +36,8 @@ function sessionFor(db: VapeOffDatabase, environment: Omit<SessionEnvironment, '
   return createStoreSession(db, { ...environment, badge: {} })
 }
 
+const appBuild = { sha: 'abc1234', builtAt: '2026-08-29T08:00:00.000Z' }
+
 const emptyRecord: BackupRecord = {
   puffSessions: [],
   resistedUrges: [],
@@ -75,8 +77,8 @@ describe('browser Backup source', () => {
         now: () => new Date('2026-08-29T12:34:56.789Z'),
         timeZone: () => 'UTC',
         randomUUID: () => 'current-backup',
-        appBuild: { sha: 'abc1234', builtAt: '2026-08-29T08:00:00.000Z' },
       }),
+      appBuild,
       handOff,
     )
 
@@ -114,8 +116,8 @@ describe('browser Backup source', () => {
         now: () => new Date('2026-08-29T12:34:56.789Z'),
         timeZone: () => 'UTC',
         randomUUID: () => 'failed-backup',
-        appBuild: { sha: 'abc1234', builtAt: '2026-08-29T08:00:00.000Z' },
       }),
+      appBuild,
       vi.fn().mockRejectedValue(new DOMException('Cancelled', 'AbortError')),
     )
 
@@ -188,7 +190,6 @@ describe('browser Backup source', () => {
       now: () => new Date('2026-08-29T12:00:00.000Z'),
       timeZone: () => 'UTC',
       randomUUID: () => 'restore-record',
-      appBuild: { sha: 'abc1234', builtAt: '2026-08-29T08:00:00.000Z' },
     }))
 
     await source.restore(await source.prepareRestore(backupFile(restored)))
@@ -223,7 +224,6 @@ describe('browser Backup source', () => {
       now: () => new Date('2026-08-29T12:00:00.000Z'),
       timeZone: () => 'UTC',
       randomUUID: () => 'colliding-id',
-      appBuild: { sha: 'abc1234', builtAt: '2026-08-29T08:00:00.000Z' },
     }))
     const candidate = await source.prepareRestore(backupFile({
       ...emptyRecord,
@@ -261,7 +261,6 @@ describe('browser Backup source', () => {
       now: () => new Date('2026-08-29T12:00:00.000Z'),
       timeZone: () => 'UTC',
       randomUUID: () => 'new-install',
-      appBuild: { sha: 'abc1234', builtAt: '2026-08-29T08:00:00.000Z' },
     }))
     const candidate = await source.prepareRestore(backupFile({
       ...emptyRecord,

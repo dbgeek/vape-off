@@ -24,7 +24,6 @@ function environmentFor(overrides: Partial<SessionEnvironment> = {}): SessionEnv
     timeZone: () => 'UTC',
     randomUUID: () => crypto.randomUUID(),
     badge: {},
-    appBuild: { sha: 'abc1234', builtAt: '2026-08-29T08:00:00.000Z' },
     ...overrides,
   }
 }
