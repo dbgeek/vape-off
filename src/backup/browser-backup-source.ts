@@ -1,5 +1,6 @@
 import { buildIdentity, type BuildIdentity } from '../shell/build-identity.ts'
-import { SCHEMA_VERSION, VapeOffDatabase } from '../store/database.ts'
+import { browserDatabase } from '../store/browser-database.ts'
+import { SCHEMA_VERSION, type VapeOffDatabase } from '../store/database.ts'
 import { instantOf, logicalDayKeyOf } from '../store/logical-day.ts'
 import { getOrCreateInstallId, setMeta } from '../store/meta.ts'
 import { openDatabase } from '../store/open-database.ts'
@@ -28,6 +29,7 @@ export interface BackupSource {
   backUp: (record: LoadedBackupRecord) => Promise<BackupResult>
   prepareRestore: (file: File) => Promise<PreparedRestore>
   restore: (candidate: PreparedRestore) => Promise<void>
+  recover: (candidate: PreparedRestore) => Promise<void>
 }
 
 export interface BrowserBackupEnvironment {
@@ -75,6 +77,42 @@ export function createBrowserBackupSource(
   handOff: (file: File) => Promise<BackupHandoff> = handOffBackup,
 ): BackupSource {
   let opening: Promise<void> | undefined
+
+  async function replaceRecord(candidate: PreparedRestore): Promise<void> {
+    const now = environment.now()
+    const timeZone = environment.timeZone()
+    await db.transaction(
+      'rw',
+      db.puffSessions,
+      db.resistedUrges,
+      db.clearDays,
+      db.ratchetSteps,
+      db.exports,
+      async () => {
+        await Promise.all([
+          db.puffSessions.clear(),
+          db.resistedUrges.clear(),
+          db.clearDays.clear(),
+          db.ratchetSteps.clear(),
+          db.exports.clear(),
+        ])
+        await Promise.all([
+          db.puffSessions.bulkAdd([...candidate.record.puffSessions]),
+          db.resistedUrges.bulkAdd([...candidate.record.resistedUrges]),
+          db.clearDays.bulkAdd([...candidate.record.clearDays]),
+          db.ratchetSteps.bulkAdd([...candidate.record.ratchetSteps]),
+          db.exports.bulkAdd([...candidate.record.exports]),
+        ])
+        await db.exports.add({
+          id: environment.randomUUID(),
+          at: instantOf(now, timeZone),
+          logicalDay: logicalDayKeyOf(now, timeZone),
+          restoredFrom: candidate.installId,
+        })
+      },
+    )
+    await evaluate(db, environment)
+  }
 
   async function ensureOpen(): Promise<void> {
     if (db.isOpen()) return
@@ -136,41 +174,18 @@ export function createBrowserBackupSource(
 
     async restore(candidate) {
       await ensureOpen()
-      const now = environment.now()
-      const timeZone = environment.timeZone()
-      await db.transaction(
-        'rw',
-        db.puffSessions,
-        db.resistedUrges,
-        db.clearDays,
-        db.ratchetSteps,
-        db.exports,
-        async () => {
-          await Promise.all([
-            db.puffSessions.clear(),
-            db.resistedUrges.clear(),
-            db.clearDays.clear(),
-            db.ratchetSteps.clear(),
-            db.exports.clear(),
-          ])
-          await Promise.all([
-            db.puffSessions.bulkAdd([...candidate.record.puffSessions]),
-            db.resistedUrges.bulkAdd([...candidate.record.resistedUrges]),
-            db.clearDays.bulkAdd([...candidate.record.clearDays]),
-            db.ratchetSteps.bulkAdd([...candidate.record.ratchetSteps]),
-            db.exports.bulkAdd([...candidate.record.exports]),
-          ])
-          await db.exports.add({
-            id: environment.randomUUID(),
-            at: instantOf(now, timeZone),
-            logicalDay: logicalDayKeyOf(now, timeZone),
-            restoredFrom: candidate.installId,
-          })
-        },
-      )
-      await evaluate(db, environment)
+      await replaceRecord(candidate)
+    },
+
+    async recover(candidate) {
+      db.close()
+      await db.delete()
+      const opened = await openDatabase(db, environment.randomUUID)
+      if (opened.status !== 'ok') throw new Error(`Database is ${opened.status}`)
+      opening = Promise.resolve()
+      await replaceRecord(candidate)
     },
   }
 }
 
-export const browserBackupSource = createBrowserBackupSource(new VapeOffDatabase())
+export const browserBackupSource = createBrowserBackupSource(browserDatabase)

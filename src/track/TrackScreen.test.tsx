@@ -227,6 +227,7 @@ describe('Track', () => {
       backUp: vi.fn(),
       prepareRestore: vi.fn().mockResolvedValue(prepared),
       restore: vi.fn().mockResolvedValue(undefined),
+      recover: vi.fn().mockResolvedValue(undefined),
     }
     render(
       <TrackScreen

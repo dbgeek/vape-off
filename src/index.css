@@ -41,6 +41,113 @@ select:focus-visible {
   outline-offset: 3px;
 }
 
+.startup-loading,
+.install-wall,
+.exception-screen {
+  min-height: 100%;
+}
+
+.install-wall,
+.exception-screen {
+  display: grid;
+  place-items: center;
+  padding: calc(2rem + env(safe-area-inset-top, 0px)) 1.25rem
+    calc(2rem + env(safe-area-inset-bottom, 0px));
+}
+
+.install-wall-content,
+.exception-content {
+  width: min(100%, 32rem);
+}
+
+.share-glyph {
+  display: grid;
+  width: 3.5rem;
+  height: 3.5rem;
+  place-items: center;
+  margin-bottom: 2rem;
+  border: 1px solid color-mix(in srgb, #f2c46d 55%, transparent);
+  border-radius: 1rem;
+  color: #f2c46d;
+  font-size: 2rem;
+}
+
+.exception-kicker {
+  color: #f2c46d;
+  font-size: 0.65rem;
+  font-weight: 620;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.install-wall h1,
+.exception-screen h1 {
+  margin-top: 0.55rem;
+  font-size: clamp(2.6rem, 13vw, 5rem);
+  font-weight: 520;
+  letter-spacing: -0.065em;
+  line-height: 0.92;
+}
+
+.install-wall-content > p:last-of-type,
+.exception-content > p:not(.exception-kicker, .build-identity) {
+  margin-top: 1.2rem;
+  color: var(--color-muted);
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+
+.continue-anyway {
+  margin-top: 2.5rem;
+  border: 0;
+  background: transparent;
+  color: var(--color-muted);
+  font-size: 0.72rem;
+  text-decoration: underline;
+  text-underline-offset: 0.25rem;
+}
+
+.exception-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.65rem;
+  margin-top: 2rem;
+}
+
+.exception-actions button,
+.recovery-picker {
+  display: grid;
+  min-height: 3.25rem;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--color-paper) 30%, transparent);
+  border-radius: 999px;
+  background: transparent;
+  padding: 0.75rem;
+  color: var(--color-paper);
+  font-size: 0.75rem;
+  text-align: center;
+}
+
+.recovery-picker {
+  border-color: #f2c46d;
+  color: #f2c46d;
+}
+
+.recovery-picker input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.build-identity {
+  margin-top: 2rem;
+  color: var(--color-muted);
+  font-size: 0.65rem;
+  font-variant-numeric: tabular-nums;
+}
+
 .track-screen {
   position: relative;
   display: flex;

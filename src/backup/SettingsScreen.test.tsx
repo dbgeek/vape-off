@@ -10,6 +10,7 @@ import {
 } from './browser-backup-source.ts'
 import { BackupFileError } from './backup-file.ts'
 import { SettingsScreen } from './SettingsScreen.tsx'
+import { buildIdentity, formatBuildIdentity } from '../shell/build-identity.ts'
 
 const loadedRecord: LoadedBackupRecord = {
   installId: 'install-id',
@@ -45,10 +46,21 @@ function source(): BackupSource {
     }),
     prepareRestore: vi.fn().mockResolvedValue(preparedRestore),
     restore: vi.fn().mockResolvedValue(undefined),
+    recover: vi.fn().mockResolvedValue(undefined),
   }
 }
 
 describe('Settings Backup', () => {
+  it('carries the build identity from the first run', async () => {
+    render(<SettingsScreen source={source()} installed />)
+
+    expect(screen.getByRole('region', { name: 'Build' })).toHaveTextContent(
+      formatBuildIdentity(buildIdentity),
+    )
+    expect(await screen.findByRole('button', { name: 'Back up now' })).toBeInTheDocument()
+    expect(screen.getByText('Restore from a backup')).toBeInTheDocument()
+  })
+
   it('builds and starts sharing a 2.5 MB Backup inside the button click', async () => {
     const db = new VapeOffDatabase(`settings-large-backup-${crypto.randomUUID()}`)
     await db.open()

@@ -1,6 +1,7 @@
 import type { DayLedgerRecord } from '../domain/day-ledger.ts'
 import { updateBadge, type BadgeController } from '../shell/badge.ts'
-import { VapeOffDatabase } from '../store/database.ts'
+import type { VapeOffDatabase } from '../store/database.ts'
+import { browserDatabase } from '../store/browser-database.ts'
 import {
   deletePuffSession,
   deleteResistedUrge,
@@ -144,4 +145,4 @@ export function createBrowserTrackSource(
   }
 }
 
-export const browserTrackSource = createBrowserTrackSource(new VapeOffDatabase())
+export const browserTrackSource = createBrowserTrackSource(browserDatabase)

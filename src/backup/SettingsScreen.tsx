@@ -7,6 +7,7 @@ import {
   type PreparedRestore,
 } from './browser-backup-source.ts'
 import { useRestore } from './use-restore.ts'
+import { formatBuildIdentity } from '../shell/build-identity.ts'
 
 export function SettingsScreen({
   source,
@@ -122,6 +123,11 @@ export function SettingsScreen({
         ) : null}
         {backupError ? <p role="alert">The Backup could not be handed off.</p> : null}
         {restoreError ? <p role="alert">{restoreError}</p> : null}
+      </section>
+
+      <section className="settings-section" aria-labelledby="build-heading">
+        <h2 id="build-heading">Build</h2>
+        <p className="build-identity">{formatBuildIdentity()}</p>
       </section>
 
       {pendingRestore && record ? (

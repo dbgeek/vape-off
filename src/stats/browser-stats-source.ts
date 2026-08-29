@@ -1,6 +1,7 @@
 import type { DayLedgerRecord } from '../domain/day-ledger.ts'
 import { updateBadge, type BadgeController } from '../shell/badge.ts'
-import { VapeOffDatabase } from '../store/database.ts'
+import type { VapeOffDatabase } from '../store/database.ts'
+import { browserDatabase } from '../store/browser-database.ts'
 import { getMeta, setMeta } from '../store/meta.ts'
 import { openDatabase } from '../store/open-database.ts'
 import { declareStepBack, evaluate } from '../store/ratchet-writes.ts'
@@ -90,4 +91,4 @@ export function createBrowserStatsSource(
   }
 }
 
-export const browserStatsSource = createBrowserStatsSource(new VapeOffDatabase())
+export const browserStatsSource = createBrowserStatsSource(browserDatabase)

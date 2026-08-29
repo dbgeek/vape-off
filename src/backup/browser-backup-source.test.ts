@@ -239,4 +239,39 @@ describe('browser Backup source', () => {
     }])
     await expect(getMeta(db, 'installId')).resolves.toBe('destination-install')
   })
+
+  it('recovers a database that cannot be trusted only after the Backup is prepared', async () => {
+    const db = new VapeOffDatabase(`browser-recovery-source-${crypto.randomUUID()}`)
+    databases.push(db)
+    await db.open()
+    await db.meta.add({ key: 'installId', value: 'unreadable-install' })
+    await db.puffSessions.add({
+      id: 'unreadable-session',
+      at: '2026-08-28T12:00:00.000Z',
+      lastTapAt: '2026-08-28T12:00:00.000Z',
+      count: 9,
+      logicalDay: '2026-08-28',
+      tz: 'UTC',
+    })
+    const source = createBrowserBackupSource(db, {
+      now: () => new Date('2026-08-29T12:00:00.000Z'),
+      timeZone: () => 'UTC',
+      randomUUID: () => 'new-install',
+      appBuild: { sha: 'abc1234', builtAt: '2026-08-29T08:00:00.000Z' },
+    })
+    const candidate = await source.prepareRestore(backupFile({
+      ...emptyRecord,
+      clearDays: [{
+        logicalDay: '2026-08-20',
+        at: '2026-08-20T12:00:00.000Z',
+        tz: 'UTC',
+      }],
+    }))
+
+    await source.recover(candidate)
+
+    await expect(db.puffSessions.toArray()).resolves.toEqual([])
+    await expect(db.clearDays.toArray()).resolves.toEqual(candidate.record.clearDays)
+    await expect(getMeta(db, 'installId')).resolves.toBe('new-install')
+  })
 })

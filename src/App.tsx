@@ -1,7 +1,17 @@
+import { useEffect, useState } from 'react'
 import { formatBuildIdentity } from './shell/build-identity.ts'
 import { isStandalone } from './shell/install-state.ts'
 import { pathFor, ROUTES, useRoute, type Route } from './shell/routing.ts'
-import { browserBackupSource, type BackupSource } from './backup/browser-backup-source.ts'
+import {
+  browserStartupSource,
+  type ShellState,
+  type StartupSource,
+} from './shell/startup-state.ts'
+import {
+  browserBackupSource,
+  type BackupSource,
+  type PreparedRestore,
+} from './backup/browser-backup-source.ts'
 import { SettingsScreen } from './backup/SettingsScreen.tsx'
 import { browserStatsSource } from './stats/browser-stats-source.ts'
 import { StatsScreen, type StatsSource } from './stats/StatsScreen.tsx'
@@ -24,17 +34,189 @@ const TITLES: Record<Route, string> = {
   settings: 'Settings',
 }
 
+function InstallWall({ onContinue }: { onContinue: () => void }) {
+  return (
+    <main className="install-wall">
+      <div className="install-wall-content">
+        <span className="share-glyph" aria-hidden="true">⇧</span>
+        <p className="exception-kicker">Before you begin</p>
+        <h1>Install vape-off</h1>
+        <p>In Safari, tap Share, then Add to Home Screen. Open vape-off from the new icon so your record is not kept in a temporary browser tab.</p>
+        <button type="button" className="continue-anyway" onClick={onContinue}>Continue anyway</button>
+      </div>
+    </main>
+  )
+}
+
+function FailedOpenScreen({
+  backupSource,
+  onRecovered,
+  onRetry,
+}: {
+  backupSource: BackupSource
+  onRecovered: () => void
+  onRetry: () => void
+}) {
+  const [candidate, setCandidate] = useState<PreparedRestore>()
+  const [recovering, setRecovering] = useState(false)
+  const [recoveryError, setRecoveryError] = useState<string>()
+
+  async function selectBackup(file: File) {
+    setRecoveryError(undefined)
+    try {
+      setCandidate(await backupSource.prepareRestore(file))
+    } catch {
+      setRecoveryError('This is not a valid vape-off backup.')
+    }
+  }
+
+  async function recover() {
+    if (!candidate || recovering) return
+    setRecovering(true)
+    setRecoveryError(undefined)
+    try {
+      await backupSource.recover(candidate)
+      onRecovered()
+    } catch {
+      setRecoveryError('The database could not be rebuilt from this Backup.')
+    } finally {
+      setRecovering(false)
+    }
+  }
+
+  return (
+    <main className="exception-screen">
+      <div className="exception-content">
+        <p className="exception-kicker">The database did not open</p>
+        <h1>Your record could not be opened</h1>
+        <p>Your data is likely still intact. You can try opening it again, or recover from a Backup.</p>
+        <div className="exception-actions">
+          <button type="button" onClick={onRetry}>Try again</button>
+          <label className="recovery-picker">
+            Restore from a backup
+            <input
+              type="file"
+              accept="application/json,.json"
+              disabled={recovering}
+              onChange={(event) => {
+                const file = event.currentTarget.files?.[0]
+                event.currentTarget.value = ''
+                if (file) void selectBackup(file)
+              }}
+            />
+          </label>
+        </div>
+        {recoveryError ? <p role="alert">{recoveryError}</p> : null}
+        <p className="build-identity">{formatBuildIdentity()}</p>
+      </div>
+      {candidate ? (
+        <div className="restore-dialog" role="dialog" aria-modal="true" aria-labelledby="recovery-title">
+          <h2 id="recovery-title">Replace unreadable database?</h2>
+          <p>
+            This will delete the unreadable database on this device and replace it with the{' '}
+            {candidate.logicalDayCount} Logical Days in this Backup.
+          </p>
+          <div>
+            <button type="button" disabled={recovering} onClick={() => setCandidate(undefined)}>
+              Keep database
+            </button>
+            <button type="button" disabled={recovering} onClick={() => void recover()}>
+              Delete database and restore
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </main>
+  )
+}
+
+function OlderThanDataScreen() {
+  return (
+    <main className="exception-screen">
+      <div className="exception-content">
+        <p className="exception-kicker">Update required</p>
+        <h1>This app is older than your data</h1>
+        <p>Update vape-off, then open it again. Your record was written by a newer build and has not been changed.</p>
+        <p className="build-identity">{formatBuildIdentity()}</p>
+      </div>
+    </main>
+  )
+}
+
 export function App({
   trackSource = browserTrackSource,
   statsSource = browserStatsSource,
   backupSource = browserBackupSource,
+  shellState: shellStateOverride,
+  startupSource = browserStartupSource,
+  installed: installedOverride,
 }: {
   trackSource?: TrackSource
   statsSource?: StatsSource
   backupSource?: BackupSource
+  shellState?: ShellState
+  startupSource?: StartupSource
+  installed?: boolean
 }) {
   const [route, navigate] = useRoute()
-  const installed = isStandalone()
+  const installed = installedOverride ?? isStandalone()
+  const [loadedShellState, setLoadedShellState] = useState<ShellState>()
+  const [continuedAnyway, setContinuedAnyway] = useState(false)
+  const shellState = shellStateOverride ?? loadedShellState
+
+  useEffect(() => {
+    if (shellStateOverride) return
+    let live = true
+    startupSource.load().then((state) => {
+      if (live) setLoadedShellState(state)
+    })
+    return () => {
+      live = false
+    }
+  }, [shellStateOverride, startupSource])
+
+  if (!shellState) {
+    return <main className="startup-loading" aria-label="Opening vape-off" />
+  }
+
+  if (shellState.status === 'failed-open') {
+    return (
+      <FailedOpenScreen
+        backupSource={backupSource}
+        onRecovered={() => {
+          if (shellStateOverride) return
+          setLoadedShellState(undefined)
+          void startupSource.load().then(setLoadedShellState)
+        }}
+        onRetry={() => {
+          if (shellStateOverride) return
+          setLoadedShellState(undefined)
+          void startupSource.load().then(setLoadedShellState)
+        }}
+      />
+    )
+  }
+
+  if (shellState.status === 'older-than-data') {
+    return <OlderThanDataScreen />
+  }
+
+  if (
+    shellState.status === 'ready'
+    && !installed
+    && !shellState.hasHistory
+    && !shellState.installWallBypassed
+    && !continuedAnyway
+  ) {
+    return (
+      <InstallWall
+        onContinue={() => {
+          setContinuedAnyway(true)
+          if (!shellStateOverride) void startupSource.continueAnyway()
+        }}
+      />
+    )
+  }
 
   return (
     <div className="flex h-full flex-col overflow-hidden pt-safe-t">
@@ -57,8 +239,19 @@ export function App({
         ))}
       </nav>
 
-      {route === 'track' ? <TrackScreen source={trackSource} backupSource={backupSource} /> : null}
-      {route === 'stats' ? <StatsScreen source={statsSource} /> : null}
+      {route === 'track' ? (
+        <TrackScreen
+          source={trackSource}
+          backupSource={backupSource}
+          installed={installed}
+          forceInstallBar={
+            !installed
+            && shellState.status === 'ready'
+            && (!shellState.hasHistory || shellState.installWallBypassed || continuedAnyway)
+          }
+        />
+      ) : null}
+      {route === 'stats' ? <StatsScreen source={statsSource} installed={installed} /> : null}
       {route === 'settings' ? (
         <SettingsScreen
           source={backupSource}
@@ -67,18 +260,6 @@ export function App({
         />
       ) : null}
 
-      {/*
-        The build identity. Updates are silent, so this is the only way to tell
-        what is running. It lives in Settings from S11; until Settings exists it
-        sits here, above the home indicator.
-      */}
-      <footer
-        className={`${route === 'track' ? 'hidden' : ''} px-5 pt-3 pb-safe-b text-center text-xs text-muted`}
-      >
-        <p className="pb-3">
-          {formatBuildIdentity()} · {installed ? 'installed' : 'in a tab'}
-        </p>
-      </footer>
     </div>
   )
 }

@@ -3,6 +3,7 @@ import type { VapeOffDatabase } from './database.ts'
 export interface MetaValues {
   installId: string
   firstRunCardDismissed: boolean
+  installWallBypassed: boolean
   lastBackupNagDismissedAt: number
 }
 

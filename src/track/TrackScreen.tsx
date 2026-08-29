@@ -356,11 +356,13 @@ export function TrackScreen({
   backupSource = browserBackupSource,
   clock = browserClock,
   installed = isStandalone(),
+  forceInstallBar = false,
 }: {
   source: TrackSource
   backupSource?: BackupSource
   clock?: TrackClock
   installed?: boolean
+  forceInstallBar?: boolean
 }) {
   const [record, setRecord] = useState<DayLedgerRecord>(emptyRecord)
   const [now, setNow] = useState(clock.now)
@@ -491,7 +493,7 @@ export function TrackScreen({
 
       {loadFailed ? <p className="track-load-error">Track could not read your record.</p> : null}
 
-      {!installed && (recordHasHistory || restoreDoorOpen) ? (
+      {!installed && (forceInstallBar || recordHasHistory || restoreDoorOpen) ? (
         <aside className="install-bar" aria-label="Install vape-off">
           <strong>Install vape-off</strong>
           <span>Share → Add to Home Screen. Keep this tab open until the icon appears.</span>
