@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { DayLedgerRecord } from '../domain/day-ledger.ts'
+import { deviceTimeZone, formatLogicalDay } from '../domain/logical-day.ts'
 import type { QuitHorizon } from '../domain/readouts.ts'
 import { isStandalone } from '../shell/install-state.ts'
 import type { ExportRecord } from '../store/records.ts'
@@ -24,7 +25,7 @@ export interface StatsClock {
 
 const browserClock: StatsClock = {
   now: () => new Date(),
-  timeZone: () => Intl.DateTimeFormat().resolvedOptions().timeZone,
+  timeZone: () => deviceTimeZone(),
 }
 
 function polarPoint(radius: number, index: number): { x: number; y: number } {
@@ -121,11 +122,7 @@ function formatDuration(milliseconds: number | undefined): string {
 
 function formatHorizon(horizon: QuitHorizon): string {
   if (horizon.status !== 'available') return '—'
-  if (horizon.precision === 'date') {
-    return new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(
-      new Date(`${horizon.value}T12:00:00.000Z`),
-    )
-  }
+  if (horizon.precision === 'date') return formatLogicalDay(horizon.value)
   return `about ${horizon.value} ${horizon.precision}`
 }
 

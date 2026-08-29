@@ -1,4 +1,5 @@
 import type { DayLedgerRecord } from '../domain/day-ledger.ts'
+import { deviceTimeZone } from '../domain/logical-day.ts'
 import { updateBadge, type BadgeController } from '../shell/badge.ts'
 import type { VapeOffDatabase } from '../store/database.ts'
 import { browserDatabase } from '../store/browser-database.ts'
@@ -16,7 +17,7 @@ export interface BrowserStatsEnvironment {
 
 const browserEnvironment: BrowserStatsEnvironment = {
   now: () => new Date(),
-  timeZone: () => Intl.DateTimeFormat().resolvedOptions().timeZone,
+  timeZone: () => deviceTimeZone(),
   randomUUID: () => crypto.randomUUID(),
   badge: navigator,
 }

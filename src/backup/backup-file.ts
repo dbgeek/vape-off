@@ -1,3 +1,4 @@
+import { isTimeZone } from '../domain/logical-day.ts'
 import type { BuildIdentity } from '../shell/build-identity.ts'
 import type {
   ClearDay,
@@ -72,7 +73,6 @@ function isNonemptyString(value: unknown): value is string {
 
 const INSTANT_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}(?:Z|[+-]\d{2}:\d{2})$/
 const LOGICAL_DAY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/
-const validTimeZones = new Map<string, boolean>()
 
 function isInstant(value: unknown): value is Instant {
   return isString(value)
@@ -94,18 +94,8 @@ function isLogicalDayKey(value: unknown): value is LogicalDayKey {
     && date.getUTCDate() === day
 }
 
-function isTimeZone(value: unknown): value is string {
-  if (!isNonemptyString(value)) return false
-  const cached = validTimeZones.get(value)
-  if (cached !== undefined) return cached
-  let valid = true
-  try {
-    new Intl.DateTimeFormat('en', { timeZone: value }).format(0)
-  } catch {
-    valid = false
-  }
-  validTimeZones.set(value, valid)
-  return valid
+function isTimeZoneKey(value: unknown): value is string {
+  return isNonemptyString(value) && isTimeZone(value)
 }
 
 function isIntegerAtLeast(value: unknown, minimum: number): value is number {
@@ -119,7 +109,7 @@ function hasStrings(value: UnknownRecord, keys: readonly string[]): boolean {
 function hasEventStamp(value: UnknownRecord): boolean {
   return isInstant(value.at)
     && isLogicalDayKey(value.logicalDay)
-    && isTimeZone(value.tz)
+    && isTimeZoneKey(value.tz)
 }
 
 function isPuffSession(value: unknown): value is PuffSession {

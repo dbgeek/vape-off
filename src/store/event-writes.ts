@@ -1,5 +1,5 @@
 import type { VapeOffDatabase } from './database.ts'
-import { instantOf, stampEvent } from './logical-day.ts'
+import { deviceTimeZone, instantOf, stampEvent } from '../domain/logical-day.ts'
 import type { ClearDay, PuffSession, ResistedUrge } from './records.ts'
 
 export interface EventWriteEnvironment {
@@ -8,7 +8,7 @@ export interface EventWriteEnvironment {
 }
 
 const browserEnvironment: EventWriteEnvironment = {
-  timeZone: () => Intl.DateTimeFormat().resolvedOptions().timeZone,
+  timeZone: () => deviceTimeZone(),
   randomUUID: () => crypto.randomUUID(),
 }
 
