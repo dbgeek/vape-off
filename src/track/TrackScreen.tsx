@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { dayTotal, targetOn, type DayLedgerRecord } from '../domain/day-ledger.ts'
+import { isMergeWindowOpen } from '../domain/merge-window.ts'
 import { pace } from '../domain/readouts.ts'
 import { logicalDayKeyOf } from '../store/logical-day.ts'
 import type { PuffSession } from '../store/records.ts'
 
-const MERGE_WINDOW_MS = 90 * 1000
 const LOGICAL_DAY_START_MINUTE = 4 * 60
 
 const emptyRecord: DayLedgerRecord = {
@@ -72,7 +72,7 @@ function targetReachedSession(
   sessions: readonly PuffSession[],
   target: number | undefined,
 ): PuffSession | undefined {
-  if (target === undefined || sessions.length === 0) return undefined
+  if (target === undefined || target === 0 || sessions.length === 0) return undefined
   let runningTotal = 0
   return sessions.find((session) => {
     runningTotal += session.count
@@ -94,8 +94,9 @@ export function TrackScreen({
 }) {
   const [record, setRecord] = useState<DayLedgerRecord>(emptyRecord)
   const [now, setNow] = useState(clock.now)
-  const [writing, setWriting] = useState(false)
+  const [pendingWrites, setPendingWrites] = useState(0)
   const [loadFailed, setLoadFailed] = useState(false)
+  const writeQueue = useRef<Promise<void>>(Promise.resolve())
   const timeZone = clock.timeZone()
   const today = logicalDayKeyOf(now, timeZone)
 
@@ -130,28 +131,28 @@ export function TrackScreen({
   const reachedIndex = reached ? sessions.indexOf(reached) : -1
   const openSession = [...sessions]
     .reverse()
-    .find((session) => {
-      const elapsed = now.getTime() - Date.parse(session.lastTapAt)
-      return elapsed >= 0 && elapsed <= MERGE_WINDOW_MS
-    })
+    .find((session) => isMergeWindowOpen(session.lastTapAt, now))
   const paceReading = pace(record, now, timeZone)
   const ghostSlots =
     paceReading?.slots.filter((slot) => Date.parse(slot) > now.getTime()) ?? []
 
-  async function write(operation: (at: Date) => Promise<DayLedgerRecord>) {
-    if (writing) return
+  function write(operation: (at: Date) => Promise<DayLedgerRecord>) {
     const at = clock.now()
-    setWriting(true)
-    try {
-      setRecord(await operation(at))
-      setNow(at)
-    } finally {
-      setWriting(false)
-    }
+    setPendingWrites((count) => count + 1)
+    writeQueue.current = writeQueue.current.then(async () => {
+      try {
+        setRecord(await operation(at))
+        setNow(at)
+      } catch {
+        setLoadFailed(true)
+      } finally {
+        setPendingWrites((count) => count - 1)
+      }
+    })
   }
 
   return (
-    <main className="track-screen" aria-busy={writing || undefined}>
+    <main className="track-screen" aria-busy={pendingWrites > 0 || undefined}>
       <header className="track-header">
         <div>
           <p className="track-kicker">Logical Day</p>
@@ -183,12 +184,12 @@ export function TrackScreen({
           />
         ))}
 
-        {reached ? (
+        {target === 0 || reached ? (
           <div
-            className="target-reached"
-            style={{ top: `${timelinePosition(reached.at, now, timeZone)}%` }}
+            className={`target-reached${target === 0 ? ' at-boundary' : ''}`}
+            style={{ top: target === 0 ? '0%' : `${timelinePosition(reached!.at, now, timeZone)}%` }}
           >
-            <span>Target reached {formatTime(reached.at, timeZone)}</span>
+            <span>Target reached {target === 0 ? '04:00' : formatTime(reached!.at, timeZone)}</span>
           </div>
         ) : null}
 
@@ -197,7 +198,7 @@ export function TrackScreen({
           return (
             <span
               key={session.id}
-              className={`puff-mark${reachedIndex >= 0 && index > reachedIndex ? ' over-target' : ''}${openSession?.id === session.id ? ' open-mark' : ''}`}
+              className={`puff-mark${target === 0 || (reachedIndex >= 0 && index > reachedIndex) ? ' over-target' : ''}${openSession?.id === session.id ? ' open-mark' : ''}`}
               style={{
                 top: `${timelinePosition(session.at, now, timeZone)}%`,
                 width: `${size}px`,
@@ -231,16 +232,14 @@ export function TrackScreen({
         <button
           type="button"
           className="resisted-button"
-          disabled={writing}
-          onClick={() => void write(source.logResistedUrge)}
+          onClick={() => write(source.logResistedUrge)}
         >
           Resisted
         </button>
         <button
           type="button"
           className="puff-button"
-          disabled={writing}
-          onClick={() => void write(source.logPuff)}
+          onClick={() => write(source.logPuff)}
         >
           {openSession ? `+1 → ${openSession.count + 1}` : 'PUFF'}
         </button>

@@ -1,8 +1,7 @@
+import { isMergeWindowOpen } from '../domain/merge-window.ts'
 import type { VapeOffDatabase } from './database.ts'
 import { instantOf, stampEvent } from './logical-day.ts'
 import type { PuffSession } from './records.ts'
-
-const MERGE_WINDOW_MS = 90 * 1000
 
 export interface TrackWriteEnvironment {
   timeZone: () => string
@@ -24,10 +23,7 @@ export async function logPuff(
   return db.transaction('rw', db.puffSessions, db.clearDays, async () => {
     const sessions = await db.puffSessions.toArray()
     const openSession = sessions
-      .filter((session) => {
-        const sinceLastTap = at.getTime() - Date.parse(session.lastTapAt)
-        return sinceLastTap >= 0 && sinceLastTap <= MERGE_WINDOW_MS
-      })
+      .filter((session) => isMergeWindowOpen(session.lastTapAt, at))
       .sort((left, right) => Date.parse(right.lastTapAt) - Date.parse(left.lastTapAt))[0]
 
     if (openSession) {

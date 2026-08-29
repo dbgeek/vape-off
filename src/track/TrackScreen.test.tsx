@@ -118,4 +118,49 @@ describe('Track', () => {
     expect(screen.getByLabelText('Puff Session, 1 puff at 20:00')).toHaveClass('over-target')
     expect(screen.queryByText(/failed|limit|should|warning/i)).not.toBeInTheDocument()
   })
+
+  it('queues every blind tap while the previous write is still settling', async () => {
+    let settleFirstWrite!: (record: DayLedgerRecord) => void
+    const firstWrite = new Promise<DayLedgerRecord>((resolve) => {
+      settleFirstWrite = resolve
+    })
+    const trackSource = source(emptyRecord)
+    vi.mocked(trackSource.logPuff)
+      .mockImplementationOnce(() => firstWrite)
+      .mockResolvedValueOnce(emptyRecord)
+
+    render(
+      <TrackScreen
+        source={trackSource}
+        clock={{ now: () => new Date('2026-08-29T12:00:00.000Z'), timeZone: () => 'UTC' }}
+      />,
+    )
+    await screen.findByLabelText('Puffs today')
+
+    fireEvent.click(screen.getByRole('button', { name: 'PUFF' }))
+    fireEvent.click(screen.getByRole('button', { name: 'PUFF' }))
+    await waitFor(() => expect(trackSource.logPuff).toHaveBeenCalledTimes(1))
+    expect(screen.getByRole('button', { name: 'PUFF' })).not.toBeDisabled()
+
+    settleFirstWrite(emptyRecord)
+    await waitFor(() => expect(trackSource.logPuff).toHaveBeenCalledTimes(2))
+  })
+
+  it('places Target 0 at the opening boundary and colors every Puff Session after it', async () => {
+    render(
+      <TrackScreen
+        source={source({
+          ...emptyRecord,
+          puffSessions: [session('first', '2026-08-29T10:00:00.000Z', 1)],
+          ratchetSteps: [target(0)],
+        })}
+        clock={{ now: () => new Date('2026-08-29T12:00:00.000Z'), timeZone: () => 'UTC' }}
+      />,
+    )
+
+    const fact = await screen.findByText('Target reached 04:00')
+    expect(fact.parentElement).toHaveStyle({ top: '0%' })
+    expect(screen.getByLabelText('Puff Session, 1 puff at 10:00')).toHaveClass('over-target')
+    expect(screen.getByRole('button', { name: 'PUFF' })).toHaveClass('puff-button')
+  })
 })

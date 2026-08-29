@@ -165,6 +165,10 @@ button {
   white-space: nowrap;
 }
 
+.target-reached.at-boundary span {
+  transform: translateY(0.8rem);
+}
+
 .puff-mark,
 .resisted-mark,
 .pace-slot {
