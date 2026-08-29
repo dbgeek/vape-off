@@ -171,7 +171,7 @@ select:focus-visible {
 
 .timeline {
   position: relative;
-  min-height: 21rem;
+  min-height: 12rem;
   flex: 1;
   margin: 1rem 0 0;
   overflow: visible;
@@ -540,6 +540,11 @@ select:focus-visible {
   min-height: 2.75rem;
   border-radius: 999px;
   padding: 0.6rem 1rem;
+}
+
+.record-editor-error {
+  color: #ef8b84;
+  font-size: 0.72rem;
 }
 
 .delete-action {

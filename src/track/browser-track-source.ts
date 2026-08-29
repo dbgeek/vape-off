@@ -54,13 +54,12 @@ export function createBrowserTrackSource(
     await opening
   }
 
-  async function refresh(at: Date, dismissCard: boolean): Promise<DayLedgerRecord> {
+  async function refresh(at: Date): Promise<DayLedgerRecord> {
     await evaluate(db, {
       now: () => at,
       timeZone: environment.timeZone,
       randomUUID: environment.randomUUID,
     })
-    if (dismissCard) await setMeta(db, 'firstRunCardDismissed', true)
     const record = await readRecord(db)
     try {
       await updateBadge(record, at, environment.timeZone(), environment.badge)
@@ -70,10 +69,15 @@ export function createBrowserTrackSource(
     return record
   }
 
+  async function refreshAfterWrite(at: Date): Promise<DayLedgerRecord> {
+    await setMeta(db, 'firstRunCardDismissed', true)
+    return refresh(at)
+  }
+
   return {
     async load() {
       await ensureOpen()
-      return refresh(environment.now(), false)
+      return refresh(environment.now())
     },
     async loadFirstRunCardDismissed() {
       await ensureOpen()
@@ -82,12 +86,12 @@ export function createBrowserTrackSource(
     async logPuff(at) {
       await ensureOpen()
       await logPuff(db, at, environment)
-      return refresh(at, true)
+      return refreshAfterWrite(at)
     },
     async logResistedUrge(at) {
       await ensureOpen()
       await writeResistedUrge(db, at, environment)
-      return refresh(at, true)
+      return refreshAfterWrite(at)
     },
     async dismissFirstRunCard() {
       await ensureOpen()
@@ -96,7 +100,7 @@ export function createBrowserTrackSource(
     async declareClearDay(at) {
       await ensureOpen()
       await writeClearDay(db, at, environment)
-      return refresh(environment.now(), true)
+      return refreshAfterWrite(environment.now())
     },
     async addPuffSession(input) {
       await ensureOpen()
@@ -105,37 +109,37 @@ export function createBrowserTrackSource(
         { at: input.at, lastTapAt: input.at, count: input.count },
         environment,
       )
-      return refresh(environment.now(), true)
+      return refreshAfterWrite(environment.now())
     },
     async addResistedUrge(at) {
       await ensureOpen()
       await writeResistedUrge(db, at, environment)
-      return refresh(environment.now(), true)
+      return refreshAfterWrite(environment.now())
     },
     async updatePuffSession(id, input) {
       await ensureOpen()
       await updatePuffSession(db, id, input, environment)
-      return refresh(environment.now(), true)
+      return refreshAfterWrite(environment.now())
     },
     async deletePuffSession(id) {
       await ensureOpen()
       await deletePuffSession(db, id)
-      return refresh(environment.now(), true)
+      return refreshAfterWrite(environment.now())
     },
     async updateResistedUrge(id, at) {
       await ensureOpen()
       await updateResistedUrge(db, id, at, environment)
-      return refresh(environment.now(), true)
+      return refreshAfterWrite(environment.now())
     },
     async deleteResistedUrge(id) {
       await ensureOpen()
       await deleteResistedUrge(db, id)
-      return refresh(environment.now(), true)
+      return refreshAfterWrite(environment.now())
     },
     async declareHandover() {
       await ensureOpen()
       await declareHandover(db, environment)
-      return refresh(environment.now(), true)
+      return refreshAfterWrite(environment.now())
     },
   }
 }

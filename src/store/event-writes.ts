@@ -54,10 +54,15 @@ export async function writeClearDay(
   db: VapeOffDatabase,
   at: Date,
   environment: EventWriteEnvironment = browserEnvironment,
-): Promise<ClearDay> {
+): Promise<ClearDay | undefined> {
   const record = stampEvent(at, environment.timeZone())
-  await db.clearDays.put(record)
-  return record
+  return db.transaction('rw', db.puffSessions, db.clearDays, async () => {
+    const hasPuffSession =
+      (await db.puffSessions.where('logicalDay').equals(record.logicalDay).count()) > 0
+    if (hasPuffSession) return undefined
+    await db.clearDays.put(record)
+    return record
+  })
 }
 
 export interface PuffSessionEdit {

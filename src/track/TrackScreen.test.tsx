@@ -241,6 +241,17 @@ describe('Track', () => {
     expect(screen.queryByRole('region', { name: 'Catch up' })).not.toBeInTheDocument()
   })
 
+  it('offers catch-up when stored Ratchet decisions outlive hard-deleted events', async () => {
+    render(
+      <TrackScreen
+        source={source({ ...emptyRecord, ratchetSteps: [target(4)] })}
+        clock={{ now: () => new Date('2026-08-29T12:00:00.000Z'), timeZone: () => 'UTC' }}
+      />,
+    )
+
+    expect(within(await screen.findByRole('region', { name: 'Catch up' })).getAllByRole('article')).toHaveLength(7)
+  })
+
   it('allows today to be declared Clear and surfaces the earned handover at Target 1', async () => {
     const clearDays = ['22', '23', '24', '25', '26'].map((day) => ({
       at: `2026-08-${day}T12:00:00.000Z`,
@@ -329,5 +340,30 @@ describe('Track', () => {
         count: 3,
       }),
     )
+  })
+
+  it('keeps the editor open for invalid counts and future events', async () => {
+    const trackSource = source(emptyRecord)
+    render(
+      <TrackScreen
+        source={trackSource}
+        clock={{ now: () => new Date('2026-08-29T12:00:00.000Z'), timeZone: () => 'UTC' }}
+      />,
+    )
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Add past event' }))
+    const dialog = screen.getByRole('dialog', { name: 'Add to the record' })
+    fireEvent.change(within(dialog).getByLabelText('Puff count'), { target: { value: '0' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save changes' }))
+    expect(within(dialog).getByText('Enter a whole puff count of at least 1.')).toBeInTheDocument()
+    expect(trackSource.addPuffSession).not.toHaveBeenCalled()
+
+    fireEvent.change(within(dialog).getByLabelText('Puff count'), { target: { value: '1' } })
+    fireEvent.change(within(dialog).getByLabelText('Time'), {
+      target: { value: '2026-08-30T12:00' },
+    })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save changes' }))
+    expect(within(dialog).getByText('Choose a time that has already happened.')).toBeInTheDocument()
+    expect(trackSource.addPuffSession).not.toHaveBeenCalled()
   })
 })

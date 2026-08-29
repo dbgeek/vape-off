@@ -64,7 +64,8 @@ describe('event writes', () => {
       logicalDay: '2026-08-29',
       tz: 'Europe/Stockholm',
     })
-    await expect(db.clearDays.get(clearDay.logicalDay)).resolves.toEqual({
+    expect(clearDay).toBeDefined()
+    await expect(db.clearDays.get(clearDay!.logicalDay)).resolves.toEqual({
       at: '2026-08-30T03:59:00.000+02:00',
       logicalDay: '2026-08-29',
       tz: 'Europe/Stockholm',
@@ -88,6 +89,20 @@ describe('event writes', () => {
     )
 
     await expect(db.puffSessions.get(session.id)).resolves.toEqual(session)
+    await expect(db.clearDays.get('2026-08-28')).resolves.toBeUndefined()
+  })
+
+  it('does not declare a Clear Day when the Logical Day already has a Puff Session', async () => {
+    const db = new VapeOffDatabase(`event-writes-test-${crypto.randomUUID()}`)
+    databases.push(db)
+    const environment = {
+      timeZone: () => 'UTC',
+      randomUUID: () => '4f341b0a-b09a-4ddc-b68c-e570b20c90db',
+    }
+    const at = new Date('2026-08-28T12:00:00.000Z')
+    await writePuffSession(db, { at, lastTapAt: at, count: 1 }, environment)
+
+    await expect(writeClearDay(db, at, environment)).resolves.toBeUndefined()
     await expect(db.clearDays.get('2026-08-28')).resolves.toBeUndefined()
   })
 

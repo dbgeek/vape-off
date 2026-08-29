@@ -187,6 +187,7 @@ function RecordEditor({
   record,
   today,
   timeZone,
+  now,
   mutate,
   close,
 }: {
@@ -195,6 +196,7 @@ function RecordEditor({
   record: DayLedgerRecord
   today: string
   timeZone: string
+  now: Date
   mutate: (operation: () => Promise<DayLedgerRecord>) => void
   close: () => void
 }) {
@@ -209,6 +211,7 @@ function RecordEditor({
     after: number
     apply: () => void
   }>()
+  const [validationError, setValidationError] = useState<string>()
   const title =
     editor.kind === 'puff'
       ? 'Edit Puff Session'
@@ -232,16 +235,35 @@ function RecordEditor({
   }
 
   function save() {
-    const editedAt = instantFromDateTimeInput(at, timeZone)
+    setValidationError(undefined)
+    const parsedCount = Number(count)
+    if (
+      (editor.kind === 'puff' || (editor.kind === 'new' && eventKind === 'puff')) &&
+      (!Number.isInteger(parsedCount) || parsedCount < 1)
+    ) {
+      setValidationError('Enter a whole puff count of at least 1.')
+      return
+    }
+    let editedAt: Date
+    try {
+      editedAt = instantFromDateTimeInput(at, timeZone)
+    } catch {
+      setValidationError('Enter a date and time.')
+      return
+    }
+    if (editedAt.getTime() > now.getTime()) {
+      setValidationError('Choose a time that has already happened.')
+      return
+    }
     const stamp = stampEvent(editedAt, timeZone)
     if (editor.kind === 'puff') {
-      const edited = { ...editor.session, ...stamp, count: Number(count) }
+      const edited = { ...editor.session, ...stamp, count: parsedCount }
       const draft = {
         ...record,
         puffSessions: record.puffSessions.map((session) => session.id === edited.id ? edited : session),
         clearDays: record.clearDays.filter((day) => day.logicalDay !== edited.logicalDay),
       }
-      confirmMomentumChange(draft, () => finish(() => source.updatePuffSession(editor.session.id, { at: editedAt, count: Number(count) })))
+      confirmMomentumChange(draft, () => finish(() => source.updatePuffSession(editor.session.id, { at: editedAt, count: parsedCount })))
     } else if (editor.kind === 'urge') {
       const edited = { id: editor.urge.id, ...stamp }
       const draft = {
@@ -252,10 +274,10 @@ function RecordEditor({
     } else if (eventKind === 'puff') {
       const draft = {
         ...record,
-        puffSessions: [...record.puffSessions, { id: 'preview', ...stamp, lastTapAt: stamp.at, count: Number(count) }],
+        puffSessions: [...record.puffSessions, { id: 'preview', ...stamp, lastTapAt: stamp.at, count: parsedCount }],
         clearDays: record.clearDays.filter((day) => day.logicalDay !== stamp.logicalDay),
       }
-      confirmMomentumChange(draft, () => finish(() => source.addPuffSession({ at: editedAt, count: Number(count) })))
+      confirmMomentumChange(draft, () => finish(() => source.addPuffSession({ at: editedAt, count: parsedCount })))
     } else {
       const draft = {
         ...record,
@@ -293,7 +315,12 @@ function RecordEditor({
       ) : null}
       <label>
         Time
-        <input type="datetime-local" value={at} onChange={(event) => setAt(event.target.value)} />
+        <input
+          type="datetime-local"
+          max={dateTimeInputValue(now, timeZone)}
+          value={at}
+          onChange={(event) => setAt(event.target.value)}
+        />
       </label>
       {(editor.kind === 'puff' || (editor.kind === 'new' && eventKind === 'puff')) ? (
         <label>
@@ -305,6 +332,7 @@ function RecordEditor({
         {editor.kind !== 'new' ? <button type="button" className="delete-action" onClick={remove}>Delete</button> : null}
         <button type="button" className="primary-action" onClick={save}>Save changes</button>
       </div>
+      {validationError ? <p className="record-editor-error" role="alert">{validationError}</p> : null}
       {confirmation ? (
         <div className="momentum-confirmation" role="alertdialog" aria-label="Momentum change">
           <p>This will change your momentum from {confirmation.before} to {confirmation.after}.</p>
@@ -384,11 +412,13 @@ export function TrackScreen({
     ...record.resistedUrges.map((urge) => urge.logicalDay),
     ...record.clearDays.map((day) => day.logicalDay),
   ].sort()[0]
+  const earliestEvidenceDay =
+    earliestKnownDay ?? [...record.ratchetSteps].sort((left, right) => left.effectiveFrom.localeCompare(right.effectiveFrom))[0]?.effectiveFrom
   const catchUpDays = recordHasHistory
     ? completedDays(7, today).filter(
         (logicalDay) =>
-          earliestKnownDay !== undefined &&
-          logicalDay > earliestKnownDay &&
+          earliestEvidenceDay !== undefined &&
+          logicalDay > earliestEvidenceDay &&
           !isKnown(record, logicalDay),
       )
     : []
@@ -595,6 +625,7 @@ export function TrackScreen({
           record={record}
           today={today}
           timeZone={timeZone}
+          now={now}
           mutate={mutate}
           close={() => setEditor(undefined)}
         />
