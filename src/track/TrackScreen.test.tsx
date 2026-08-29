@@ -414,4 +414,24 @@ describe('Track', () => {
     expect(within(dialog).getByText('Choose a time that has already happened.')).toBeInTheDocument()
     expect(trackSource.addPuffSession).not.toHaveBeenCalled()
   })
+
+  it('re-evaluates the Ratchet when the app returns to view', async () => {
+    const trackSource = source({ ...emptyRecord, ratchetSteps: [target(24)] })
+    render(
+      <TrackScreen
+        source={trackSource}
+        clock={{ now: () => new Date('2026-08-29T12:00:00.000Z'), timeZone: () => 'UTC' }}
+      />,
+    )
+    await screen.findByText('0 / 24')
+
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' })
+    document.dispatchEvent(new Event('visibilitychange'))
+    expect(trackSource.load).toHaveBeenCalledTimes(1)
+
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' })
+    document.dispatchEvent(new Event('visibilitychange'))
+
+    await waitFor(() => expect(trackSource.load).toHaveBeenCalledTimes(2))
+  })
 })

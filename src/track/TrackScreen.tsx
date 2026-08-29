@@ -397,10 +397,28 @@ export function TrackScreen({
         if (live) setLoadFailed(true)
       },
     )
+    // The Ratchet evaluates on every cold start and on every return to view: an
+    // app parked in the switcher for days wakes with a stale Target and a stale
+    // badge until something is written. The reload queues behind any in-flight
+    // write so it cannot overwrite a record a tap is still producing.
+    function refreshWhenVisible() {
+      if (document.visibilityState !== 'visible') return
+      setNow(clock.now())
+      writeQueue.current = writeQueue.current.then(async () => {
+        try {
+          const refreshed = await source.load()
+          if (live) setRecord(refreshed)
+        } catch {
+          if (live) setLoadFailed(true)
+        }
+      })
+    }
     const timer = window.setInterval(() => setNow(clock.now()), 1000)
+    document.addEventListener('visibilitychange', refreshWhenVisible)
     return () => {
       live = false
       window.clearInterval(timer)
+      document.removeEventListener('visibilitychange', refreshWhenVisible)
     }
   }, [clock, source])
 

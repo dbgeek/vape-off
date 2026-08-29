@@ -178,10 +178,12 @@ function migrateToCurrentFormat(value: unknown): UnknownRecord {
   return envelope
 }
 
-function validateSummary(
-  summary: unknown,
-  record: BackupRecord,
-): void {
+// The summary is never read back: import recomputes everything from the events.
+// The one thing it can still tell us is that the file was cut short — fewer rows
+// than the exporter counted. A stale bound or Target over an intact record is not
+// truncation, and refusing a good Backup over it would discard the only copy of an
+// irreplaceable history to protect a field nothing reads.
+function checkForTruncation(summary: unknown, record: BackupRecord): void {
   if (!isRecord(summary)) invalidBackup()
   const counts = {
     puffSessions: record.puffSessions.length,
@@ -189,13 +191,11 @@ function validateSummary(
     clearDays: record.clearDays.length,
     ratchetSteps: record.ratchetSteps.length,
   }
-  const bounds = logicalDayBounds(record)
-  if (
-    !Object.entries(counts).every(([key, count]) => summary[key] === count)
-    || summary.firstLogicalDay !== bounds.firstLogicalDay
-    || summary.lastLogicalDay !== bounds.lastLogicalDay
-    || summary.currentTarget !== currentTarget(record.ratchetSteps)
-  ) invalidBackup()
+  const truncated = Object.entries(counts).some(([key, count]) => {
+    const declared = summary[key]
+    return isIntegerAtLeast(declared, 0) && count < declared
+  })
+  if (truncated) invalidBackup()
 }
 
 export function parseBackupFile(text: string): ParsedBackupFile {
@@ -223,7 +223,7 @@ export function parseBackupFile(text: string): ParsedBackupFile {
     ratchetSteps: validatedArray(envelope.ratchetSteps, isRatchetStep),
     exports: validatedArray(envelope.exports, isExportRecord),
   }
-  validateSummary(envelope.summary, record)
+  checkForTruncation(envelope.summary, record)
 
   if (
     !hasUniqueValues(record.puffSessions, (item) => item.id)
