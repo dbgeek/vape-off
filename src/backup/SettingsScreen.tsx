@@ -6,7 +6,7 @@ import {
   type LoadedBackupRecord,
   type PreparedRestore,
 } from './browser-backup-source.ts'
-import { BackupFileError } from './backup-file.ts'
+import { useRestore } from './use-restore.ts'
 
 export function SettingsScreen({
   source,
@@ -20,11 +20,16 @@ export function SettingsScreen({
   const [record, setRecord] = useState<LoadedBackupRecord>()
   const [loadError, setLoadError] = useState(false)
   const [backingUp, startBackup] = useTransition()
-  const [restoring, startRestore] = useTransition()
   const [message, setMessage] = useState<string>()
   const [backupError, setBackupError] = useState(false)
-  const [restoreError, setRestoreError] = useState<string>()
   const [pendingRestore, setPendingRestore] = useState<PreparedRestore>()
+  const {
+    completeRestore,
+    prepareRestore,
+    restoring,
+    restoreError,
+    restoreMessage,
+  } = useRestore(source, onRestoreCompleted)
 
   useEffect(() => {
     if (!installed) return
@@ -60,40 +65,20 @@ export function SettingsScreen({
   }
 
   async function restore(candidate: PreparedRestore) {
-    if (restoring) return
-    setMessage(undefined)
-    setRestoreError(undefined)
-    try {
-      await source.restore(candidate)
-      await onRestoreCompleted()
+    if (await completeRestore(candidate)) {
       setPendingRestore(undefined)
-      setMessage('Backup restored.')
       setRecord(await source.load())
-    } catch (reason) {
-      setRestoreError(
-        reason instanceof BackupFileError
-          ? reason.message
-          : 'The Backup could not be restored.',
-      )
     }
   }
 
   async function selectRestore(file: File) {
     setMessage(undefined)
-    setRestoreError(undefined)
-    try {
-      const candidate = await source.prepareRestore(file)
-      if (record && hasHistoryToReplace(record)) {
-        setPendingRestore(candidate)
-      } else {
-        startRestore(() => restore(candidate))
-      }
-    } catch (reason) {
-      setRestoreError(
-        reason instanceof BackupFileError
-          ? reason.message
-          : 'This is not a valid vape-off backup.',
-      )
+    const candidate = await prepareRestore(file)
+    if (candidate === undefined) return
+    if (record && hasHistoryToReplace(record)) {
+      setPendingRestore(candidate)
+    } else {
+      await restore(candidate)
     }
   }
 
@@ -132,7 +117,9 @@ export function SettingsScreen({
         ) : (
           <p>Reading your record…</p>
         )}
-        {message ? <p className="settings-status" aria-live="polite">{message}</p> : null}
+        {message || restoreMessage ? (
+          <p className="settings-status" aria-live="polite">{message ?? restoreMessage}</p>
+        ) : null}
         {backupError ? <p role="alert">The Backup could not be handed off.</p> : null}
         {restoreError ? <p role="alert">{restoreError}</p> : null}
       </section>
@@ -151,7 +138,7 @@ export function SettingsScreen({
             <button
               type="button"
               disabled={restoring}
-              onClick={() => startRestore(() => restore(pendingRestore))}
+              onClick={() => void restore(pendingRestore)}
             >
               Replace record
             </button>

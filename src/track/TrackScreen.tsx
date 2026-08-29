@@ -3,7 +3,7 @@ import {
   browserBackupSource,
   type BackupSource,
 } from '../backup/browser-backup-source.ts'
-import { BackupFileError } from '../backup/backup-file.ts'
+import { useRestore } from '../backup/use-restore.ts'
 import {
   completedDays,
   dayTotal,
@@ -369,12 +369,16 @@ export function TrackScreen({
   const [loaded, setLoaded] = useState(false)
   const [firstRunCardDismissed, setFirstRunCardDismissed] = useState(true)
   const [restoreDoorOpen, setRestoreDoorOpen] = useState(false)
-  const [restoring, setRestoring] = useState(false)
-  const [restoreMessage, setRestoreMessage] = useState<string>()
-  const [restoreError, setRestoreError] = useState<string>()
   const [editor, setEditor] = useState<EditorState>()
   const writeQueue = useRef<Promise<void>>(Promise.resolve())
   const timeZone = clock.timeZone()
+  const {
+    completeRestore,
+    prepareRestore,
+    restoring,
+    restoreError,
+    restoreMessage,
+  } = useRestore(backupSource, source.dismissFirstRunCard)
   const today = logicalDayKeyOf(now, timeZone)
 
   useEffect(() => {
@@ -456,25 +460,10 @@ export function TrackScreen({
   }
 
   async function restoreFrom(file: File) {
-    if (restoring) return
-    setRestoring(true)
-    setRestoreMessage(undefined)
-    setRestoreError(undefined)
-    try {
-      const candidate = await backupSource.prepareRestore(file)
-      await backupSource.restore(candidate)
-      await source.dismissFirstRunCard()
+    const candidate = await prepareRestore(file)
+    if (candidate !== undefined && await completeRestore(candidate)) {
       setRecord(await source.load())
       setFirstRunCardDismissed(true)
-      setRestoreMessage('Backup restored.')
-    } catch (reason) {
-      setRestoreError(
-        reason instanceof BackupFileError
-          ? reason.message
-          : 'The Backup could not be restored.',
-      )
-    } finally {
-      setRestoring(false)
     }
   }
 
