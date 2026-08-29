@@ -62,4 +62,24 @@ describe('event writes', () => {
       tz: 'Europe/Stockholm',
     })
   })
+
+  it('drops a Clear Day when a Puff Session is written into it', async () => {
+    const db = new VapeOffDatabase(`event-writes-test-${crypto.randomUUID()}`)
+    databases.push(db)
+    const environment = {
+      timeZone: () => 'Europe/Stockholm',
+      randomUUID: () => '4f341b0a-b09a-4ddc-b68c-e570b20c90db',
+    }
+    const at = new Date('2026-08-28T10:00:00.000Z')
+    await writeClearDay(db, at, environment)
+
+    const session = await writePuffSession(
+      db,
+      { at, lastTapAt: at, count: 1 },
+      environment,
+    )
+
+    await expect(db.puffSessions.get(session.id)).resolves.toEqual(session)
+    await expect(db.clearDays.get('2026-08-28')).resolves.toBeUndefined()
+  })
 })

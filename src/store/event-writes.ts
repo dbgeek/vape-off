@@ -30,7 +30,10 @@ export async function writePuffSession(
     lastTapAt: instantOf(input.lastTapAt, timeZone),
     count: input.count,
   }
-  await db.puffSessions.add(record)
+  await db.transaction('rw', db.puffSessions, db.clearDays, async () => {
+    await db.puffSessions.add(record)
+    await db.clearDays.delete(record.logicalDay)
+  })
   return record
 }
 
