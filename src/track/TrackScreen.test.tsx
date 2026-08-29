@@ -244,6 +244,7 @@ describe('Track', () => {
 
     await waitFor(() => expect(backupSource.restore).toHaveBeenCalledWith(prepared))
     expect(await screen.findByText('Backup restored.')).toBeInTheDocument()
+    expect(trackSource.dismissFirstRunCard).toHaveBeenCalledOnce()
     expect(screen.queryByText(/first week just measures/i)).not.toBeInTheDocument()
   })
 

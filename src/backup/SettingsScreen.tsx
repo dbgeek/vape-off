@@ -1,5 +1,6 @@
 import { useEffect, useState, useTransition } from 'react'
 import {
+  hasHistoryToReplace,
   knownLogicalDayCount,
   type BackupSource,
   type LoadedBackupRecord,
@@ -10,9 +11,11 @@ import { BackupFileError } from './backup-file.ts'
 export function SettingsScreen({
   source,
   installed,
+  onRestoreCompleted = async () => {},
 }: {
   source: BackupSource
   installed: boolean
+  onRestoreCompleted?: () => Promise<void>
 }) {
   const [record, setRecord] = useState<LoadedBackupRecord>()
   const [loadError, setLoadError] = useState(false)
@@ -62,6 +65,7 @@ export function SettingsScreen({
     setRestoreError(undefined)
     try {
       await source.restore(candidate)
+      await onRestoreCompleted()
       setPendingRestore(undefined)
       setMessage('Backup restored.')
       setRecord(await source.load())
@@ -79,7 +83,7 @@ export function SettingsScreen({
     setRestoreError(undefined)
     try {
       const candidate = await source.prepareRestore(file)
-      if (record && knownLogicalDayCount(record) > 0) {
+      if (record && hasHistoryToReplace(record)) {
         setPendingRestore(candidate)
       } else {
         startRestore(() => restore(candidate))

@@ -174,4 +174,45 @@ describe('Backup file', () => {
       new BackupFileError('This is not a valid vape-off backup.'),
     )
   })
+
+  it('cross-checks the non-authoritative summary against the validated record', () => {
+    const backup = createBackupFile(record, {
+      appBuild: { sha: 'abc1234', builtAt: '2026-08-29T08:00:00.000Z' },
+      exportedAt: '2026-08-29T12:34:56.789+02:00',
+      installId: 'install-id',
+      schemaVersion: 1,
+    })
+    const envelope = JSON.parse(backup.text)
+    envelope.summary.firstLogicalDay = '2020-01-01'
+    envelope.summary.currentTarget = 99
+
+    expect(() => parseBackupFile(JSON.stringify(envelope))).toThrow(
+      new BackupFileError('This is not a valid vape-off backup.'),
+    )
+  })
+
+  it.each([
+    ['an invalid Instant', (envelope: Record<string, any>) => {
+      envelope.puffSessions[0].at = 'yesterday'
+    }],
+    ['an invalid Logical Day key', (envelope: Record<string, any>) => {
+      envelope.puffSessions[0].logicalDay = '2026-02-30'
+    }],
+    ['an invalid time zone', (envelope: Record<string, any>) => {
+      envelope.puffSessions[0].tz = 'Somewhere/Imaginary'
+    }],
+  ])('rejects %s before it reaches storage', (_description, corrupt) => {
+    const backup = createBackupFile(record, {
+      appBuild: { sha: 'abc1234', builtAt: '2026-08-29T08:00:00.000Z' },
+      exportedAt: '2026-08-29T12:34:56.789+02:00',
+      installId: 'install-id',
+      schemaVersion: 1,
+    })
+    const envelope = JSON.parse(backup.text)
+    corrupt(envelope)
+
+    expect(() => parseBackupFile(JSON.stringify(envelope))).toThrow(
+      new BackupFileError('This is not a valid vape-off backup.'),
+    )
+  })
 })

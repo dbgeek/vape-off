@@ -173,6 +173,49 @@ describe('Settings Backup', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
+  it('confirms before replacing history that has no Known Logical Days', async () => {
+    const backupSource = source()
+    vi.mocked(backupSource.load).mockResolvedValueOnce({
+      ...loadedRecord,
+      ratchetSteps: [{
+        id: 'step',
+        effectiveFrom: '2026-08-20',
+        target: 10,
+        kind: 'earned',
+        at: '2026-08-20T04:00:00.000Z',
+      }],
+    })
+    render(<SettingsScreen source={backupSource} installed />)
+
+    fireEvent.change(await screen.findByLabelText('Restore from a backup'), {
+      target: { files: [new File(['{}'], 'backup.json')] },
+    })
+
+    expect(await screen.findByText(
+      'Replace 0 Logical Days with the 1 in this backup?',
+    )).toBeInTheDocument()
+    expect(backupSource.restore).not.toHaveBeenCalled()
+  })
+
+  it('persists first-run dismissal only after restore completes', async () => {
+    const backupSource = source()
+    const onRestoreCompleted = vi.fn().mockResolvedValue(undefined)
+    render(
+      <SettingsScreen
+        source={backupSource}
+        installed
+        onRestoreCompleted={onRestoreCompleted}
+      />,
+    )
+
+    fireEvent.change(await screen.findByLabelText('Restore from a backup'), {
+      target: { files: [new File(['{}'], 'backup.json')] },
+    })
+
+    await waitFor(() => expect(onRestoreCompleted).toHaveBeenCalledOnce())
+    expect(backupSource.restore).toHaveBeenCalledBefore(onRestoreCompleted)
+  })
+
   it('shows why a Backup is refused without offering replacement', async () => {
     const backupSource = source()
     vi.mocked(backupSource.prepareRestore).mockRejectedValue(

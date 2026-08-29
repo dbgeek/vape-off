@@ -52,6 +52,14 @@ export function knownLogicalDayCount(record: BackupRecord): number {
   ]).size
 }
 
+export function hasHistoryToReplace(record: BackupRecord): boolean {
+  return record.puffSessions.length > 0
+    || record.resistedUrges.length > 0
+    || record.clearDays.length > 0
+    || record.ratchetSteps.length > 0
+    || record.exports.length > 0
+}
+
 function readFile(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()

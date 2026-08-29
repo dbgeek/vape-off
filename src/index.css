@@ -605,7 +605,8 @@ select:focus-visible {
   font-weight: 620;
 }
 
-.restore-picker input {
+.restore-picker input,
+.first-run-restore-picker input {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -932,15 +933,6 @@ select:focus-visible {
   border-radius: 999px;
   padding: 0.55rem 0.8rem;
   color: #f2c46d;
-}
-
-.first-run-restore-picker input {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
 }
 
 .restore-toast {

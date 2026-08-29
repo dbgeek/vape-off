@@ -66,39 +66,94 @@ function isString(value: unknown): value is string {
   return typeof value === 'string'
 }
 
+function isNonemptyString(value: unknown): value is string {
+  return isString(value) && value.length > 0
+}
+
+const INSTANT_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}(?:Z|[+-]\d{2}:\d{2})$/
+const LOGICAL_DAY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/
+const validTimeZones = new Map<string, boolean>()
+
+function isInstant(value: unknown): value is Instant {
+  return isString(value)
+    && INSTANT_PATTERN.test(value)
+    && isLogicalDayKey(value.slice(0, 10))
+    && Number.isFinite(Date.parse(value))
+}
+
+function isLogicalDayKey(value: unknown): value is LogicalDayKey {
+  if (!isString(value)) return false
+  const match = LOGICAL_DAY_PATTERN.exec(value)
+  if (match === null) return false
+  const year = Number(match[1])
+  const month = Number(match[2])
+  const day = Number(match[3])
+  const date = new Date(Date.UTC(year, month - 1, day))
+  return date.getUTCFullYear() === year
+    && date.getUTCMonth() === month - 1
+    && date.getUTCDate() === day
+}
+
+function isTimeZone(value: unknown): value is string {
+  if (!isNonemptyString(value)) return false
+  const cached = validTimeZones.get(value)
+  if (cached !== undefined) return cached
+  let valid = true
+  try {
+    new Intl.DateTimeFormat('en', { timeZone: value }).format(0)
+  } catch {
+    valid = false
+  }
+  validTimeZones.set(value, valid)
+  return valid
+}
+
 function isIntegerAtLeast(value: unknown, minimum: number): value is number {
   return typeof value === 'number' && Number.isInteger(value) && value >= minimum
 }
 
 function hasStrings(value: UnknownRecord, keys: readonly string[]): boolean {
-  return keys.every((key) => isString(value[key]))
+  return keys.every((key) => isNonemptyString(value[key]))
+}
+
+function hasEventStamp(value: UnknownRecord): boolean {
+  return isInstant(value.at)
+    && isLogicalDayKey(value.logicalDay)
+    && isTimeZone(value.tz)
 }
 
 function isPuffSession(value: unknown): value is PuffSession {
   return isRecord(value)
-    && hasStrings(value, ['id', 'at', 'lastTapAt', 'logicalDay', 'tz'])
+    && hasStrings(value, ['id'])
+    && hasEventStamp(value)
+    && isInstant(value.lastTapAt)
+    && Date.parse(value.lastTapAt) >= Date.parse(value.at as string)
     && isIntegerAtLeast(value.count, 1)
 }
 
 function isResistedUrge(value: unknown): value is ResistedUrge {
-  return isRecord(value) && hasStrings(value, ['id', 'at', 'logicalDay', 'tz'])
+  return isRecord(value) && hasStrings(value, ['id']) && hasEventStamp(value)
 }
 
 function isClearDay(value: unknown): value is ClearDay {
-  return isRecord(value) && hasStrings(value, ['at', 'logicalDay', 'tz'])
+  return isRecord(value) && hasEventStamp(value)
 }
 
 function isRatchetStep(value: unknown): value is RatchetStep {
   return isRecord(value)
-    && hasStrings(value, ['id', 'effectiveFrom', 'at'])
+    && hasStrings(value, ['id'])
+    && isLogicalDayKey(value.effectiveFrom)
+    && isInstant(value.at)
     && isIntegerAtLeast(value.target, 0)
     && (value.kind === 'earned' || value.kind === 'declared')
 }
 
 function isExportRecord(value: unknown): value is ExportRecord {
   return isRecord(value)
-    && hasStrings(value, ['id', 'at', 'logicalDay'])
-    && (value.restoredFrom === undefined || isString(value.restoredFrom))
+    && hasStrings(value, ['id'])
+    && isInstant(value.at)
+    && isLogicalDayKey(value.logicalDay)
+    && (value.restoredFrom === undefined || isNonemptyString(value.restoredFrom))
 }
 
 function validatedArray<Item>(value: unknown, guard: (item: unknown) => item is Item): Item[] {
@@ -134,11 +189,12 @@ function validateSummary(
     clearDays: record.clearDays.length,
     ratchetSteps: record.ratchetSteps.length,
   }
+  const bounds = logicalDayBounds(record)
   if (
     !Object.entries(counts).every(([key, count]) => summary[key] === count)
-    || !(summary.firstLogicalDay === null || isString(summary.firstLogicalDay))
-    || !(summary.lastLogicalDay === null || isString(summary.lastLogicalDay))
-    || !(summary.currentTarget === null || isIntegerAtLeast(summary.currentTarget, 0))
+    || summary.firstLogicalDay !== bounds.firstLogicalDay
+    || summary.lastLogicalDay !== bounds.lastLogicalDay
+    || summary.currentTarget !== currentTarget(record.ratchetSteps)
   ) invalidBackup()
 }
 
@@ -155,8 +211,9 @@ export function parseBackupFile(text: string): ParsedBackupFile {
     !isIntegerAtLeast(envelope.schemaVersion, 0)
     || !isRecord(envelope.appBuild)
     || !hasStrings(envelope.appBuild, ['sha', 'builtAt'])
-    || !isString(envelope.exportedAt)
-    || !isString(envelope.installId)
+    || !isInstant(envelope.appBuild.builtAt)
+    || !isInstant(envelope.exportedAt)
+    || !isNonemptyString(envelope.installId)
   ) invalidBackup()
 
   const record: BackupRecord = {

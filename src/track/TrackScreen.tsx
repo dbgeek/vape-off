@@ -463,6 +463,7 @@ export function TrackScreen({
     try {
       const candidate = await backupSource.prepareRestore(file)
       await backupSource.restore(candidate)
+      await source.dismissFirstRunCard()
       setRecord(await source.load())
       setFirstRunCardDismissed(true)
       setRestoreMessage('Backup restored.')

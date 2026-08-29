@@ -60,7 +60,11 @@ export function App({
       {route === 'track' ? <TrackScreen source={trackSource} backupSource={backupSource} /> : null}
       {route === 'stats' ? <StatsScreen source={statsSource} /> : null}
       {route === 'settings' ? (
-        <SettingsScreen source={backupSource} installed={installed} />
+        <SettingsScreen
+          source={backupSource}
+          installed={installed}
+          onRestoreCompleted={trackSource.dismissFirstRunCard}
+        />
       ) : null}
 
       {/*
