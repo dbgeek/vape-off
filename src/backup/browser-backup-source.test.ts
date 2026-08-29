@@ -2,6 +2,7 @@ import 'fake-indexeddb/auto'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { getMeta, setMeta } from '../store/meta.ts'
 import { VapeOffDatabase } from '../store/database.ts'
+import { createStoreSession, type SessionEnvironment } from '../store/session.ts'
 import type { BackupRecord } from './backup-file.ts'
 import { createBackupFile } from './backup-file.ts'
 import { createBrowserBackupSource } from './browser-backup-source.ts'
@@ -29,6 +30,13 @@ function backupFile(record: BackupRecord, installId = 'source-install'): File {
     schemaVersion: 99,
   }).file
 }
+
+/** Backup never badges, so the one fact its session does not need is supplied here. */
+function sessionFor(db: VapeOffDatabase, environment: Omit<SessionEnvironment, 'badge'>) {
+  return createStoreSession(db, { ...environment, badge: {} })
+}
+
+const appBuild = { sha: 'abc1234', builtAt: '2026-08-29T08:00:00.000Z' }
 
 const emptyRecord: BackupRecord = {
   puffSessions: [],
@@ -65,13 +73,12 @@ describe('browser Backup source', () => {
       return 'shared' as const
     })
     const source = createBrowserBackupSource(
-      db,
-      {
+      sessionFor(db, {
         now: () => new Date('2026-08-29T12:34:56.789Z'),
         timeZone: () => 'UTC',
         randomUUID: () => 'current-backup',
-        appBuild: { sha: 'abc1234', builtAt: '2026-08-29T08:00:00.000Z' },
-      },
+      }),
+      appBuild,
       handOff,
     )
 
@@ -105,13 +112,12 @@ describe('browser Backup source', () => {
     await db.open()
     await db.meta.add({ key: 'installId', value: 'install-id' })
     const source = createBrowserBackupSource(
-      db,
-      {
+      sessionFor(db, {
         now: () => new Date('2026-08-29T12:34:56.789Z'),
         timeZone: () => 'UTC',
         randomUUID: () => 'failed-backup',
-        appBuild: { sha: 'abc1234', builtAt: '2026-08-29T08:00:00.000Z' },
-      },
+      }),
+      appBuild,
       vi.fn().mockRejectedValue(new DOMException('Cancelled', 'AbortError')),
     )
 
@@ -123,7 +129,7 @@ describe('browser Backup source', () => {
   it('prepares and repairs the whole file in memory before opening the database', async () => {
     const db = new VapeOffDatabase(`browser-restore-source-${crypto.randomUUID()}`)
     databases.push(db)
-    const source = createBrowserBackupSource(db)
+    const source = createBrowserBackupSource(createStoreSession(db))
     const record: BackupRecord = {
       ...emptyRecord,
       puffSessions: [{
@@ -180,12 +186,11 @@ describe('browser Backup source', () => {
         at: '2026-08-01T04:00:00.000Z',
       }],
     }
-    const source = createBrowserBackupSource(db, {
+    const source = createBrowserBackupSource(sessionFor(db, {
       now: () => new Date('2026-08-29T12:00:00.000Z'),
       timeZone: () => 'UTC',
       randomUUID: () => 'restore-record',
-      appBuild: { sha: 'abc1234', builtAt: '2026-08-29T08:00:00.000Z' },
-    })
+    }))
 
     await source.restore(await source.prepareRestore(backupFile(restored)))
 
@@ -215,12 +220,11 @@ describe('browser Backup source', () => {
       at: '2026-08-28T12:00:00.000Z',
       logicalDay: '2026-08-28',
     })
-    const source = createBrowserBackupSource(db, {
+    const source = createBrowserBackupSource(sessionFor(db, {
       now: () => new Date('2026-08-29T12:00:00.000Z'),
       timeZone: () => 'UTC',
       randomUUID: () => 'colliding-id',
-      appBuild: { sha: 'abc1234', builtAt: '2026-08-29T08:00:00.000Z' },
-    })
+    }))
     const candidate = await source.prepareRestore(backupFile({
       ...emptyRecord,
       exports: [{
@@ -253,12 +257,11 @@ describe('browser Backup source', () => {
       logicalDay: '2026-08-28',
       tz: 'UTC',
     })
-    const source = createBrowserBackupSource(db, {
+    const source = createBrowserBackupSource(sessionFor(db, {
       now: () => new Date('2026-08-29T12:00:00.000Z'),
       timeZone: () => 'UTC',
       randomUUID: () => 'new-install',
-      appBuild: { sha: 'abc1234', builtAt: '2026-08-29T08:00:00.000Z' },
-    })
+    }))
     const candidate = await source.prepareRestore(backupFile({
       ...emptyRecord,
       clearDays: [{

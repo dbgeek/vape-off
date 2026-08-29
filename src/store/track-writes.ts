@@ -1,22 +1,13 @@
-import { deviceTimeZone, instantOf, stampEvent } from '../domain/logical-day.ts'
+import { instantOf, stampEvent } from '../domain/logical-day.ts'
 import { isMergeWindowOpen } from '../domain/merge-window.ts'
 import type { VapeOffDatabase } from './database.ts'
 import type { PuffSession } from './records.ts'
-
-export interface TrackWriteEnvironment {
-  timeZone: () => string
-  randomUUID: () => string
-}
-
-const browserEnvironment: TrackWriteEnvironment = {
-  timeZone: () => deviceTimeZone(),
-  randomUUID: () => crypto.randomUUID(),
-}
+import type { WriteEnvironment } from './session.ts'
 
 export async function logPuff(
   db: VapeOffDatabase,
   at: Date,
-  environment: TrackWriteEnvironment = browserEnvironment,
+  environment: WriteEnvironment,
 ): Promise<PuffSession> {
   const timeZone = environment.timeZone()
 
