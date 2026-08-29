@@ -33,7 +33,6 @@ export function SettingsScreen({
   } = useRestore(source, onRestoreCompleted)
 
   useEffect(() => {
-    if (!installed) return
     let alive = true
     source.load().then(
       (loaded) => {
@@ -46,7 +45,7 @@ export function SettingsScreen({
     return () => {
       alive = false
     }
-  }, [installed, source])
+  }, [source])
 
   async function backUp() {
     if (!record || backingUp) return
@@ -92,28 +91,30 @@ export function SettingsScreen({
 
       <section className="settings-section" aria-labelledby="backup-heading">
         <h2 id="backup-heading">Backup</h2>
-        {!installed ? (
-          <p>Install vape-off to back up or restore your record.</p>
-        ) : loadError ? (
+        {loadError ? (
           <p role="alert">Your record could not be read for Backup.</p>
         ) : record ? (
           <>
             <button type="button" disabled={backingUp || restoring} onClick={() => startBackup(backUp)}>
               Back up now
             </button>
-            <label className="restore-picker">
-              Restore from a backup
-              <input
-                type="file"
-                accept="application/json,.json"
-                disabled={backingUp || restoring}
-                onChange={(event) => {
-                  const file = event.currentTarget.files?.[0]
-                  event.currentTarget.value = ''
-                  if (file) void selectRestore(file)
-                }}
-              />
-            </label>
+            {installed ? (
+              <label className="restore-picker">
+                Restore from a backup
+                <input
+                  type="file"
+                  accept="application/json,.json"
+                  disabled={backingUp || restoring}
+                  onChange={(event) => {
+                    const file = event.currentTarget.files?.[0]
+                    event.currentTarget.value = ''
+                    if (file) void selectRestore(file)
+                  }}
+                />
+              </label>
+            ) : (
+              <p>Install vape-off before restoring. Return to Track for the install bar.</p>
+            )}
           </>
         ) : (
           <p>Reading your record…</p>

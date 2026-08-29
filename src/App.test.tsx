@@ -31,8 +31,15 @@ function emptyTrackSource(): TrackSource {
 
 function recoveryBackupSource(candidate: PreparedRestore): BackupSource {
   return {
-    load: vi.fn(),
-    backUp: vi.fn(),
+    load: vi.fn().mockResolvedValue({
+      installId: 'install-id',
+      puffSessions: [],
+      resistedUrges: [],
+      clearDays: [],
+      ratchetSteps: [],
+      exports: [],
+    }),
+    backUp: vi.fn().mockResolvedValue({ handoff: 'downloaded', fileName: 'backup.json' }),
     prepareRestore: vi.fn().mockResolvedValue(candidate),
     restore: vi.fn(),
     recover: vi.fn().mockResolvedValue(undefined),
@@ -159,7 +166,17 @@ describe('the shell', () => {
 
   it('keeps the build identity in Settings, because updates are silent', () => {
     window.history.replaceState(null, '', '/settings')
-    render(<App shellState={{ status: 'ready', hasHistory: true, installWallBypassed: false }} />)
+    const candidate: PreparedRestore = {
+      installId: 'backup-install',
+      logicalDayCount: 0,
+      record: { puffSessions: [], resistedUrges: [], clearDays: [], ratchetSteps: [], exports: [] },
+    }
+    render(
+      <App
+        shellState={{ status: 'ready', hasHistory: true, installWallBypassed: false }}
+        backupSource={recoveryBackupSource(candidate)}
+      />,
+    )
     expect(screen.getByText(new RegExp(formatBuildIdentity(buildIdentity)))).toBeInTheDocument()
   })
 
@@ -183,10 +200,20 @@ describe('the shell', () => {
     expect(await screen.findByRole('heading')).toHaveTextContent('Baseline')
   })
 
-  it('reports the install state from the display-mode signal', () => {
+  it('reports the install state from the display-mode signal', async () => {
     window.history.replaceState(null, '', '/settings')
-    render(<App shellState={{ status: 'ready', hasHistory: true, installWallBypassed: false }} />)
+    const candidate: PreparedRestore = {
+      installId: 'backup-install',
+      logicalDayCount: 0,
+      record: { puffSessions: [], resistedUrges: [], clearDays: [], ratchetSteps: [], exports: [] },
+    }
+    render(
+      <App
+        shellState={{ status: 'ready', hasHistory: true, installWallBypassed: false }}
+        backupSource={recoveryBackupSource(candidate)}
+      />,
+    )
     // jsdom's matchMedia reports no match and there is no navigator.standalone.
-    expect(screen.getByText('Install vape-off to back up or restore your record.')).toBeInTheDocument()
+    expect(await screen.findByText('Install vape-off before restoring. Return to Track for the install bar.')).toBeInTheDocument()
   })
 })

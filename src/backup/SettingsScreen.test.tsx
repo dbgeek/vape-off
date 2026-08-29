@@ -112,14 +112,14 @@ describe('Settings Backup', () => {
     expect(backupSource.load).toHaveBeenCalledTimes(2)
   })
 
-  it('points at installation instead of offering Backup actions in a tab', async () => {
+  it('keeps export available in a tab while refusing restore and pointing at the install bar', async () => {
     const backupSource = source()
     render(<SettingsScreen source={backupSource} installed={false} />)
 
-    expect(screen.queryByRole('button', { name: 'Back up now' })).not.toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Back up now' })).toBeInTheDocument()
     expect(screen.queryByLabelText('Restore from a backup')).not.toBeInTheDocument()
-    expect(screen.getByText('Install vape-off to back up or restore your record.')).toBeInTheDocument()
-    expect(backupSource.load).not.toHaveBeenCalled()
+    expect(screen.getByText('Install vape-off before restoring. Return to Track for the install bar.')).toBeInTheDocument()
+    expect(backupSource.load).toHaveBeenCalledOnce()
   })
 
   it('does not report a cancelled share as a completed Backup', async () => {

@@ -38,7 +38,11 @@ function InstallWall({ onContinue }: { onContinue: () => void }) {
   return (
     <main className="install-wall">
       <div className="install-wall-content">
-        <span className="share-glyph" aria-hidden="true">⇧</span>
+        <span className="share-glyph" aria-hidden="true">
+          <svg viewBox="0 0 32 32">
+            <path d="M16 20V3m0 0-6 6m6-6 6 6M9 13H6v16h20V13h-3" />
+          </svg>
+        </span>
         <p className="exception-kicker">Before you begin</p>
         <h1>Install vape-off</h1>
         <p>In Safari, tap Share, then Add to Home Screen. Open vape-off from the new icon so your record is not kept in a temporary browser tab.</p>
@@ -164,6 +168,12 @@ export function App({
   const [continuedAnyway, setContinuedAnyway] = useState(false)
   const shellState = shellStateOverride ?? loadedShellState
 
+  function reloadShellState() {
+    if (shellStateOverride) return
+    setLoadedShellState(undefined)
+    void startupSource.load().then(setLoadedShellState)
+  }
+
   useEffect(() => {
     if (shellStateOverride) return
     let live = true
@@ -183,16 +193,8 @@ export function App({
     return (
       <FailedOpenScreen
         backupSource={backupSource}
-        onRecovered={() => {
-          if (shellStateOverride) return
-          setLoadedShellState(undefined)
-          void startupSource.load().then(setLoadedShellState)
-        }}
-        onRetry={() => {
-          if (shellStateOverride) return
-          setLoadedShellState(undefined)
-          void startupSource.load().then(setLoadedShellState)
-        }}
+        onRecovered={reloadShellState}
+        onRetry={reloadShellState}
       />
     )
   }
