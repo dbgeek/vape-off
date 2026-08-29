@@ -19,13 +19,14 @@ import { browserTrackSource } from './track/browser-track-source.ts'
 import { TrackScreen, type TrackSource } from './track/TrackScreen.tsx'
 
 /**
- * The empty shell. No data, no domain — S1 is the container the app lives in.
+ * The shell: it opens the store, then decides which of the four exceptional
+ * states stands between the reader and their record — still opening, failed
+ * open, a database newer than this build, or the install wall — and otherwise
+ * routes to Track, Stats or Settings.
  *
- * Everything below is scaffolding that later slices replace: Track (S6–S7),
- * Stats (S8), and Settings with the build identity and the four exceptional
- * states (S11). What is load-bearing here is the layout — `viewport-fit=cover`
- * and the bottom safe-area inset — and the fact that the shell installs, opens
- * from the icon, and runs with no network.
+ * What is load-bearing in the layout is `viewport-fit=cover` and the bottom
+ * safe-area inset, and the fact that the shell installs, opens from the icon,
+ * and runs with no network.
  */
 
 const TITLES: Record<Route, string> = {
@@ -207,16 +208,10 @@ export function App({
     shellState.status === 'ready'
     && !installed
     && !shellState.hasHistory
-    && !shellState.installWallBypassed
     && !continuedAnyway
   ) {
     return (
-      <InstallWall
-        onContinue={() => {
-          setContinuedAnyway(true)
-          if (!shellStateOverride) void startupSource.continueAnyway()
-        }}
-      />
+      <InstallWall onContinue={() => setContinuedAnyway(true)} />
     )
   }
 
@@ -249,7 +244,7 @@ export function App({
           forceInstallBar={
             !installed
             && shellState.status === 'ready'
-            && (!shellState.hasHistory || shellState.installWallBypassed || continuedAnyway)
+            && (!shellState.hasHistory || continuedAnyway)
           }
         />
       ) : null}
