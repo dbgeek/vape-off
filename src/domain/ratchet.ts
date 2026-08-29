@@ -3,6 +3,17 @@ import { completedDays, isMet, type DayLedgerRecord } from './day-ledger.ts'
 
 export { targetOn } from './day-ledger.ts'
 
+/** The most recent Ratchet Step — the one whose Target is in force. */
+export function latestRatchetStep(
+  steps: readonly RatchetStep[],
+): RatchetStep | undefined {
+  return steps.reduce<RatchetStep | undefined>(
+    (latest, step) =>
+      latest === undefined || step.effectiveFrom > latest.effectiveFrom ? step : latest,
+    undefined,
+  )
+}
+
 export function nextEarnedTarget(target: number): number {
   return target - Math.max(1, Math.floor(0.1 * target + 0.5))
 }

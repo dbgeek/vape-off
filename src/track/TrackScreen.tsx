@@ -4,28 +4,20 @@ import {
   type BackupSource,
 } from '../backup/browser-backup-source.ts'
 import { useRestore } from '../backup/use-restore.ts'
-import {
-  completedDays,
-  dayTotal,
-  isKnown,
-  targetOn,
-  type DayLedgerRecord,
-} from '../domain/day-ledger.ts'
+import type { DayLedgerRecord } from '../domain/day-ledger.ts'
 import {
   dateTimeInputValue,
   deviceTimeZone,
   formatLogicalDayWithWeekday,
   formatWallTime,
   instantFromDateTimeInput,
-  logicalDayKeyOf,
   logicalMinuteOf,
   stampEvent,
 } from '../domain/logical-day.ts'
-import { isMergeWindowOpen } from '../domain/merge-window.ts'
-import { momentum, pace } from '../domain/readouts.ts'
-import { windowSatisfied } from '../domain/ratchet.ts'
+import { momentum } from '../domain/readouts.ts'
 import { isStandalone } from '../shell/install-state.ts'
 import type { LogicalDayKey, PuffSession, ResistedUrge } from '../store/records.ts'
+import { buildTrackView } from './track-view.ts'
 
 const emptyRecord: DayLedgerRecord = {
   puffSessions: [],
@@ -77,30 +69,9 @@ function markSize(count: number): number {
   return Math.min(44, 12 + Math.sqrt(count) * 7)
 }
 
-function targetReachedSession(
-  sessions: readonly PuffSession[],
-  target: number | undefined,
-): PuffSession | undefined {
-  if (target === undefined || target === 0 || sessions.length === 0) return undefined
-  let runningTotal = 0
-  return sessions.find((session) => {
-    runningTotal += session.count
-    return runningTotal >= target
-  })
-}
-
 function puffLabel(session: PuffSession, timeZone: string): string {
   const unit = session.count === 1 ? 'puff' : 'puffs'
   return `Puff Session, ${session.count} ${unit} at ${formatWallTime(session.at, timeZone)}`
-}
-
-function hasHistory(record: DayLedgerRecord): boolean {
-  return (
-    record.puffSessions.length > 0 ||
-    record.resistedUrges.length > 0 ||
-    record.clearDays.length > 0 ||
-    record.ratchetSteps.length > 0
-  )
 }
 
 function dateAtNoon(logicalDay: LogicalDayKey): Date {
@@ -307,7 +278,6 @@ export function TrackScreen({
     restoreError,
     restoreMessage,
   } = useRestore(backupSource, source.dismissFirstRunCard)
-  const today = logicalDayKeyOf(now, timeZone)
 
   useEffect(() => {
     let live = true
@@ -348,47 +318,10 @@ export function TrackScreen({
     }
   }, [clock, source])
 
-  const sessions = useMemo(
-    () =>
-      record.puffSessions
-        .filter((session) => session.logicalDay === today)
-        .sort((left, right) => Date.parse(left.at) - Date.parse(right.at)),
-    [record.puffSessions, today],
+  const view = useMemo(
+    () => buildTrackView(record, now, timeZone),
+    [record, now, timeZone],
   )
-  const urges = record.resistedUrges.filter((urge) => urge.logicalDay === today)
-  const total = dayTotal(record, today)
-  const target = targetOn(record, today)
-  const reached = targetReachedSession(sessions, target)
-  const reachedIndex = reached ? sessions.indexOf(reached) : -1
-  const openSession = [...sessions]
-    .reverse()
-    .find((session) => isMergeWindowOpen(session.lastTapAt, now))
-  const paceReading = pace(record, now, timeZone)
-  const ghostSlots =
-    paceReading?.slots.filter((slot) => Date.parse(slot) > now.getTime()) ?? []
-  const recordHasHistory = hasHistory(record)
-  const earliestKnownDay = [
-    ...record.puffSessions.map((session) => session.logicalDay),
-    ...record.resistedUrges.map((urge) => urge.logicalDay),
-    ...record.clearDays.map((day) => day.logicalDay),
-  ].sort()[0]
-  const earliestEvidenceDay =
-    earliestKnownDay ?? [...record.ratchetSteps].sort((left, right) => left.effectiveFrom.localeCompare(right.effectiveFrom))[0]?.effectiveFrom
-  const catchUpDays = recordHasHistory
-    ? completedDays(7, today).filter(
-        (logicalDay) =>
-          earliestEvidenceDay !== undefined &&
-          logicalDay >= earliestEvidenceDay &&
-          !isKnown(record, logicalDay),
-      )
-    : []
-  const todayIsClear = record.clearDays.some((day) => day.logicalDay === today)
-  const latestStep = record.ratchetSteps.reduce<(typeof record.ratchetSteps)[number] | undefined>(
-    (latest, step) => latest === undefined || step.effectiveFrom > latest.effectiveFrom ? step : latest,
-    undefined,
-  )
-  const handoverAvailable =
-    target === 1 && latestStep !== undefined && windowSatisfied(record, latestStep, today)
 
   function mutate(operation: () => Promise<DayLedgerRecord>, at = clock.now()) {
     setPendingWrites((count) => count + 1)
@@ -431,27 +364,27 @@ export function TrackScreen({
           <h1>Track</h1>
         </div>
         <output className="track-count" aria-label="Puffs today">
-          {target === undefined ? total : `${total} / ${target}`}
+          {view.target === undefined ? view.total : `${view.total} / ${view.target}`}
         </output>
       </header>
 
       {loadFailed ? <p className="track-load-error">Track could not read your record.</p> : null}
 
-      {!installed && (forceInstallBar || recordHasHistory || restoreDoorOpen) ? (
+      {!installed && (forceInstallBar || view.hasHistory || restoreDoorOpen) ? (
         <aside className="install-bar" aria-label="Install vape-off">
           <strong>Install vape-off</strong>
           <span>Share → Add to Home Screen. Keep this tab open until the icon appears.</span>
         </aside>
       ) : null}
 
-      {catchUpDays.length > 0 ? (
+      {view.catchUpDays.length > 0 ? (
         <section className="catch-up-strip" aria-label="Catch up">
           <div className="catch-up-copy">
             <strong>Anything you remember?</strong>
             <span>It is fine to leave a day unknown.</span>
           </div>
           <div className="catch-up-days">
-            {catchUpDays.map((logicalDay) => (
+            {view.catchUpDays.map((logicalDay) => (
               <article key={logicalDay} className="catch-up-day">
                 <time dateTime={logicalDay}>{formatLogicalDayWithWeekday(logicalDay)}</time>
                 <button type="button" onClick={() => setEditor({ kind: 'new', at: dateAtNoon(logicalDay) })}>
@@ -476,7 +409,7 @@ export function TrackScreen({
           <time>{formatWallTime(now, timeZone)}</time>
         </div>
 
-        {ghostSlots.map((slot) => (
+        {view.paceSlots.map((slot) => (
           <span
             key={slot}
             className="pace-slot"
@@ -485,22 +418,22 @@ export function TrackScreen({
           />
         ))}
 
-        {reached ? (
+        {view.targetReached ? (
           <div
             className="target-reached"
-            style={{ top: `${timelinePosition(reached.at, now, timeZone)}%` }}
+            style={{ top: `${timelinePosition(view.targetReached.at, now, timeZone)}%` }}
           >
-            <span>Target reached {formatWallTime(reached.at, timeZone)}</span>
+            <span>Target reached {formatWallTime(view.targetReached.at, timeZone)}</span>
           </div>
         ) : null}
 
-        {sessions.map((session, index) => {
+        {view.puffSessions.map((session) => {
           const size = markSize(session.count)
           return (
             <button
               type="button"
               key={session.id}
-              className={`puff-mark${target === 0 || (reachedIndex >= 0 && index > reachedIndex) ? ' over-target' : ''}${openSession?.id === session.id ? ' open-mark' : ''}`}
+              className={`puff-mark${view.overTargetSessionIds.has(session.id) ? ' over-target' : ''}${view.openSession?.id === session.id ? ' open-mark' : ''}`}
               style={{
                 top: `${timelinePosition(session.at, now, timeZone)}%`,
                 width: `${size}px`,
@@ -514,7 +447,7 @@ export function TrackScreen({
           )
         })}
 
-        {urges.map((urge) => (
+        {view.resistedUrges.map((urge) => (
           <button
             type="button"
             key={urge.id}
@@ -527,7 +460,7 @@ export function TrackScreen({
       </section>
 
       <div className="track-offers">
-        {!todayIsClear && sessions.length === 0 ? (
+        {!view.todayIsClear && view.puffSessions.length === 0 ? (
           <button type="button" onClick={() => mutate(() => source.declareClearDay(clock.now()))}>
             Declare today a Clear Day
           </button>
@@ -537,17 +470,17 @@ export function TrackScreen({
         </button>
       </div>
 
-      {handoverAvailable ? (
+      {view.handoverAvailable ? (
         <aside className="handover-offer">
           <div><strong>You have held Target 1.</strong><span>The final step is yours.</span></div>
           <button type="button" onClick={() => mutate(source.declareHandover)}>Set Target to 0</button>
         </aside>
       ) : null}
 
-      {openSession ? (
+      {view.openSession ? (
         <output className="open-session" aria-live="polite">
           <span className="open-session-pulse" aria-hidden="true" />
-          Open session · {openSession.count} {openSession.count === 1 ? 'puff' : 'puffs'}
+          Open session · {view.openSession.count} {view.openSession.count === 1 ? 'puff' : 'puffs'}
         </output>
       ) : null}
 
@@ -564,11 +497,11 @@ export function TrackScreen({
           className="puff-button"
           onClick={() => write(source.logPuff)}
         >
-          {openSession ? `+1 → ${openSession.count + 1}` : 'PUFF'}
+          {view.openSession ? `+1 → ${view.openSession.count + 1}` : 'PUFF'}
         </button>
       </div>
 
-      {loaded && !recordHasHistory && !firstRunCardDismissed ? (
+      {loaded && !view.hasHistory && !firstRunCardDismissed ? (
         <aside className="first-run-card">
           <button type="button" className="dismiss-card" aria-label="Dismiss welcome" onClick={dismissFirstRunCard}>×</button>
           <p>The first week just measures. Log every time you pick it up. After seven days of logging, vape-off sets your first daily target and starts bringing it down.</p>
@@ -610,7 +543,7 @@ export function TrackScreen({
           editor={editor}
           source={source}
           record={record}
-          today={today}
+          today={view.today}
           timeZone={timeZone}
           now={now}
           mutate={mutate}
