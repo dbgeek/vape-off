@@ -175,7 +175,7 @@ describe('Backup file', () => {
     )
   })
 
-  it('cross-checks the non-authoritative summary against the validated record', () => {
+  it('restores a Backup whose non-authoritative summary has gone stale', () => {
     const backup = createBackupFile(record, {
       appBuild: { sha: 'abc1234', builtAt: '2026-08-29T08:00:00.000Z' },
       exportedAt: '2026-08-29T12:34:56.789+02:00',
@@ -184,7 +184,24 @@ describe('Backup file', () => {
     })
     const envelope = JSON.parse(backup.text)
     envelope.summary.firstLogicalDay = '2020-01-01'
+    envelope.summary.lastLogicalDay = '2020-01-02'
     envelope.summary.currentTarget = 99
+
+    expect(parseBackupFile(JSON.stringify(envelope))).toEqual({
+      installId: 'install-id',
+      record,
+    })
+  })
+
+  it('refuses a file holding fewer records than its summary counted', () => {
+    const backup = createBackupFile(record, {
+      appBuild: { sha: 'abc1234', builtAt: '2026-08-29T08:00:00.000Z' },
+      exportedAt: '2026-08-29T12:34:56.789+02:00',
+      installId: 'install-id',
+      schemaVersion: 1,
+    })
+    const envelope = JSON.parse(backup.text)
+    envelope.summary.puffSessions = envelope.puffSessions.length + 1
 
     expect(() => parseBackupFile(JSON.stringify(envelope))).toThrow(
       new BackupFileError('This is not a valid vape-off backup.'),
