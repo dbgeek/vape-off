@@ -57,7 +57,7 @@ export function App({
         ))}
       </nav>
 
-      {route === 'track' ? <TrackScreen source={trackSource} /> : null}
+      {route === 'track' ? <TrackScreen source={trackSource} backupSource={backupSource} /> : null}
       {route === 'stats' ? <StatsScreen source={statsSource} /> : null}
       {route === 'settings' ? (
         <SettingsScreen source={backupSource} installed={installed} />

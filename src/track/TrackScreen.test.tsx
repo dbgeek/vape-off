@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
+import type { BackupSource, PreparedRestore } from '../backup/browser-backup-source.ts'
 import type { DayLedgerRecord } from '../domain/day-ledger.ts'
 import type { PuffSession, RatchetStep, ResistedUrge } from '../store/records.ts'
 import { TrackScreen, type TrackSource } from './TrackScreen.tsx'
@@ -199,6 +200,50 @@ describe('Track', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Dismiss welcome' }))
     await waitFor(() => expect(trackSource.dismissFirstRunCard).toHaveBeenCalledOnce())
+    expect(screen.queryByText(/first week just measures/i)).not.toBeInTheDocument()
+  })
+
+  it('restores from the first-run door when installed', async () => {
+    const restoredRecord: DayLedgerRecord = {
+      ...emptyRecord,
+      clearDays: [{
+        logicalDay: '2026-08-20',
+        at: '2026-08-20T20:00:00.000Z',
+        tz: 'UTC',
+      }],
+    }
+    const trackSource = source(emptyRecord)
+    vi.mocked(trackSource.load)
+      .mockResolvedValueOnce(emptyRecord)
+      .mockResolvedValueOnce(restoredRecord)
+    vi.mocked(trackSource.loadFirstRunCardDismissed).mockResolvedValue(false)
+    const prepared: PreparedRestore = {
+      installId: 'source-install',
+      logicalDayCount: 1,
+      record: { ...restoredRecord, exports: [] },
+    }
+    const backupSource: BackupSource = {
+      load: vi.fn(),
+      backUp: vi.fn(),
+      prepareRestore: vi.fn().mockResolvedValue(prepared),
+      restore: vi.fn().mockResolvedValue(undefined),
+    }
+    render(
+      <TrackScreen
+        source={trackSource}
+        backupSource={backupSource}
+        installed
+        clock={{ now: () => new Date('2026-08-29T12:00:00.000Z'), timeZone: () => 'UTC' }}
+      />,
+    )
+
+    fireEvent.click(await screen.findByRole('button', { name: /Restore from a backup/i }))
+    fireEvent.change(screen.getByLabelText('Choose a backup file'), {
+      target: { files: [new File(['{}'], 'backup.json')] },
+    })
+
+    await waitFor(() => expect(backupSource.restore).toHaveBeenCalledWith(prepared))
+    expect(await screen.findByText('Backup restored.')).toBeInTheDocument()
     expect(screen.queryByText(/first week just measures/i)).not.toBeInTheDocument()
   })
 

@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
+  browserBackupSource,
+  type BackupSource,
+} from '../backup/browser-backup-source.ts'
+import { BackupFileError } from '../backup/backup-file.ts'
+import {
   completedDays,
   dayTotal,
   isKnown,
@@ -348,10 +353,12 @@ function RecordEditor({
 
 export function TrackScreen({
   source,
+  backupSource = browserBackupSource,
   clock = browserClock,
   installed = isStandalone(),
 }: {
   source: TrackSource
+  backupSource?: BackupSource
   clock?: TrackClock
   installed?: boolean
 }) {
@@ -362,6 +369,9 @@ export function TrackScreen({
   const [loaded, setLoaded] = useState(false)
   const [firstRunCardDismissed, setFirstRunCardDismissed] = useState(true)
   const [restoreDoorOpen, setRestoreDoorOpen] = useState(false)
+  const [restoring, setRestoring] = useState(false)
+  const [restoreMessage, setRestoreMessage] = useState<string>()
+  const [restoreError, setRestoreError] = useState<string>()
   const [editor, setEditor] = useState<EditorState>()
   const writeQueue = useRef<Promise<void>>(Promise.resolve())
   const timeZone = clock.timeZone()
@@ -443,6 +453,28 @@ export function TrackScreen({
         setPendingWrites((count) => count - 1)
       }
     })
+  }
+
+  async function restoreFrom(file: File) {
+    if (restoring) return
+    setRestoring(true)
+    setRestoreMessage(undefined)
+    setRestoreError(undefined)
+    try {
+      const candidate = await backupSource.prepareRestore(file)
+      await backupSource.restore(candidate)
+      setRecord(await source.load())
+      setFirstRunCardDismissed(true)
+      setRestoreMessage('Backup restored.')
+    } catch (reason) {
+      setRestoreError(
+        reason instanceof BackupFileError
+          ? reason.message
+          : 'The Backup could not be restored.',
+      )
+    } finally {
+      setRestoring(false)
+    }
   }
 
   function write(operation: (at: Date) => Promise<DayLedgerRecord>) {
@@ -612,11 +644,30 @@ export function TrackScreen({
             <div className="restore-account">
               <p>Your history may be in a backup file. It may also be behind a <strong>second icon</strong> — check your Home Screen and App Library, open it, export from there, and come back.</p>
               <p>The other icon has to still exist. If you deleted it, its history went with it, and only a backup file will bring it back.</p>
-              {!installed ? <p className="restore-refused">Install vape-off before restoring. Use the install bar above.</p> : null}
+              {!installed ? (
+                <p className="restore-refused">Install vape-off before restoring. Use the install bar above.</p>
+              ) : (
+                <label className="first-run-restore-picker">
+                  Choose a backup file
+                  <input
+                    type="file"
+                    accept="application/json,.json"
+                    disabled={restoring}
+                    onChange={(event) => {
+                      const file = event.currentTarget.files?.[0]
+                      event.currentTarget.value = ''
+                      if (file) void restoreFrom(file)
+                    }}
+                  />
+                </label>
+              )}
+              {restoreError ? <p role="alert">{restoreError}</p> : null}
             </div>
           ) : null}
         </aside>
       ) : null}
+
+      {restoreMessage ? <p className="restore-toast" aria-live="polite">{restoreMessage}</p> : null}
 
       {editor ? (
         <RecordEditor

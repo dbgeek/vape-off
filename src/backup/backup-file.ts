@@ -33,6 +33,164 @@ export interface CreatedBackupFile {
   type: 'application/json'
 }
 
+export interface ParsedBackupFile {
+  installId: string
+  record: BackupRecord
+}
+
+export class BackupFileError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'BackupFileError'
+  }
+}
+
+const INVALID_BACKUP_MESSAGE = 'This is not a valid vape-off backup.'
+const NEWER_BACKUP_MESSAGE = 'This backup was made by a newer version of vape-off.'
+
+type UnknownRecord = Record<string, unknown>
+type FormatMigration = (envelope: UnknownRecord) => UnknownRecord
+
+// Add one transform for every previous format when FORMAT_VERSION advances.
+const FORMAT_MIGRATIONS: Partial<Record<number, FormatMigration>> = {}
+
+function invalidBackup(): never {
+  throw new BackupFileError(INVALID_BACKUP_MESSAGE)
+}
+
+function isRecord(value: unknown): value is UnknownRecord {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function isString(value: unknown): value is string {
+  return typeof value === 'string'
+}
+
+function isIntegerAtLeast(value: unknown, minimum: number): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= minimum
+}
+
+function hasStrings(value: UnknownRecord, keys: readonly string[]): boolean {
+  return keys.every((key) => isString(value[key]))
+}
+
+function isPuffSession(value: unknown): value is PuffSession {
+  return isRecord(value)
+    && hasStrings(value, ['id', 'at', 'lastTapAt', 'logicalDay', 'tz'])
+    && isIntegerAtLeast(value.count, 1)
+}
+
+function isResistedUrge(value: unknown): value is ResistedUrge {
+  return isRecord(value) && hasStrings(value, ['id', 'at', 'logicalDay', 'tz'])
+}
+
+function isClearDay(value: unknown): value is ClearDay {
+  return isRecord(value) && hasStrings(value, ['at', 'logicalDay', 'tz'])
+}
+
+function isRatchetStep(value: unknown): value is RatchetStep {
+  return isRecord(value)
+    && hasStrings(value, ['id', 'effectiveFrom', 'at'])
+    && isIntegerAtLeast(value.target, 0)
+    && (value.kind === 'earned' || value.kind === 'declared')
+}
+
+function isExportRecord(value: unknown): value is ExportRecord {
+  return isRecord(value)
+    && hasStrings(value, ['id', 'at', 'logicalDay'])
+    && (value.restoredFrom === undefined || isString(value.restoredFrom))
+}
+
+function validatedArray<Item>(value: unknown, guard: (item: unknown) => item is Item): Item[] {
+  if (!Array.isArray(value) || !value.every(guard)) invalidBackup()
+  return value
+}
+
+function hasUniqueValues<Item>(items: readonly Item[], valueOf: (item: Item) => string): boolean {
+  return new Set(items.map(valueOf)).size === items.length
+}
+
+function migrateToCurrentFormat(value: unknown): UnknownRecord {
+  if (!isRecord(value) || !isIntegerAtLeast(value.formatVersion, 0)) invalidBackup()
+  if (value.formatVersion > FORMAT_VERSION) throw new BackupFileError(NEWER_BACKUP_MESSAGE)
+
+  let envelope = value
+  while (envelope.formatVersion !== FORMAT_VERSION) {
+    const migration = FORMAT_MIGRATIONS[envelope.formatVersion as number]
+    if (migration === undefined) invalidBackup()
+    envelope = migration(envelope)
+  }
+  return envelope
+}
+
+function validateSummary(
+  summary: unknown,
+  record: BackupRecord,
+): void {
+  if (!isRecord(summary)) invalidBackup()
+  const counts = {
+    puffSessions: record.puffSessions.length,
+    resistedUrges: record.resistedUrges.length,
+    clearDays: record.clearDays.length,
+    ratchetSteps: record.ratchetSteps.length,
+  }
+  if (
+    !Object.entries(counts).every(([key, count]) => summary[key] === count)
+    || !(summary.firstLogicalDay === null || isString(summary.firstLogicalDay))
+    || !(summary.lastLogicalDay === null || isString(summary.lastLogicalDay))
+    || !(summary.currentTarget === null || isIntegerAtLeast(summary.currentTarget, 0))
+  ) invalidBackup()
+}
+
+export function parseBackupFile(text: string): ParsedBackupFile {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(text)
+  } catch {
+    invalidBackup()
+  }
+
+  const envelope = migrateToCurrentFormat(parsed)
+  if (
+    !isIntegerAtLeast(envelope.schemaVersion, 0)
+    || !isRecord(envelope.appBuild)
+    || !hasStrings(envelope.appBuild, ['sha', 'builtAt'])
+    || !isString(envelope.exportedAt)
+    || !isString(envelope.installId)
+  ) invalidBackup()
+
+  const record: BackupRecord = {
+    puffSessions: validatedArray(envelope.puffSessions, isPuffSession),
+    resistedUrges: validatedArray(envelope.resistedUrges, isResistedUrge),
+    clearDays: validatedArray(envelope.clearDays, isClearDay),
+    ratchetSteps: validatedArray(envelope.ratchetSteps, isRatchetStep),
+    exports: validatedArray(envelope.exports, isExportRecord),
+  }
+  validateSummary(envelope.summary, record)
+
+  if (
+    !hasUniqueValues(record.puffSessions, (item) => item.id)
+    || !hasUniqueValues(record.resistedUrges, (item) => item.id)
+    || !hasUniqueValues(record.clearDays, (item) => item.logicalDay)
+    || !hasUniqueValues(record.ratchetSteps, (item) => item.id)
+    || !hasUniqueValues(record.ratchetSteps, (item) => item.effectiveFrom)
+    || !hasUniqueValues(record.exports, (item) => item.id)
+  ) invalidBackup()
+
+  const logicalDaysWithPuffSessions = new Set(
+    record.puffSessions.map((session) => session.logicalDay),
+  )
+  return {
+    installId: envelope.installId,
+    record: {
+      ...record,
+      clearDays: record.clearDays.filter(
+        (clearDay) => !logicalDaysWithPuffSessions.has(clearDay.logicalDay),
+      ),
+    },
+  }
+}
+
 function logicalDayBounds(record: BackupRecord): {
   firstLogicalDay: LogicalDayKey | null
   lastLogicalDay: LogicalDayKey | null

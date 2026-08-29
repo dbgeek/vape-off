@@ -2,6 +2,8 @@ import 'fake-indexeddb/auto'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { getMeta, setMeta } from '../store/meta.ts'
 import { VapeOffDatabase } from '../store/database.ts'
+import type { BackupRecord } from './backup-file.ts'
+import { createBackupFile } from './backup-file.ts'
 import { createBrowserBackupSource } from './browser-backup-source.ts'
 
 const databases: VapeOffDatabase[] = []
@@ -17,6 +19,23 @@ function readFile(file: File): Promise<string> {
     reader.addEventListener('error', () => reject(reader.error))
     reader.readAsText(file)
   })
+}
+
+function backupFile(record: BackupRecord, installId = 'source-install'): File {
+  return createBackupFile(record, {
+    appBuild: { sha: 'abc1234', builtAt: '2026-08-01T08:00:00.000Z' },
+    exportedAt: '2026-08-01T12:00:00.000+00:00',
+    installId,
+    schemaVersion: 99,
+  }).file
+}
+
+const emptyRecord: BackupRecord = {
+  puffSessions: [],
+  resistedUrges: [],
+  clearDays: [],
+  ratchetSteps: [],
+  exports: [],
 }
 
 describe('browser Backup source', () => {
@@ -99,5 +118,125 @@ describe('browser Backup source', () => {
     const loadedRecord = await source.load()
     await expect(source.backUp(loadedRecord)).rejects.toMatchObject({ name: 'AbortError' })
     await expect(db.exports.count()).resolves.toBe(0)
+  })
+
+  it('prepares and repairs the whole file in memory before opening the database', async () => {
+    const db = new VapeOffDatabase(`browser-restore-source-${crypto.randomUUID()}`)
+    databases.push(db)
+    const source = createBrowserBackupSource(db)
+    const record: BackupRecord = {
+      ...emptyRecord,
+      puffSessions: [{
+        id: 'session',
+        at: '2026-08-01T12:00:00.000Z',
+        lastTapAt: '2026-08-01T12:00:00.000Z',
+        count: 2,
+        logicalDay: '2026-08-01',
+        tz: 'UTC',
+      }],
+      clearDays: [{
+        logicalDay: '2026-08-01',
+        at: '2026-08-01T20:00:00.000Z',
+        tz: 'UTC',
+      }],
+    }
+
+    const prepared = await source.prepareRestore(backupFile(record))
+
+    expect(db.isOpen()).toBe(false)
+    expect(prepared.logicalDayCount).toBe(1)
+    expect(prepared.record.clearDays).toEqual([])
+  })
+
+  it('replaces all five history stores atomically, preserves meta, records the source, and evaluates', async () => {
+    const db = new VapeOffDatabase(`browser-restore-source-${crypto.randomUUID()}`)
+    databases.push(db)
+    await db.open()
+    await db.meta.bulkAdd([
+      { key: 'installId', value: 'destination-install' },
+      { key: 'firstRunCardDismissed', value: false },
+    ])
+    await db.puffSessions.add({
+      id: 'old-session',
+      at: '2026-08-28T12:00:00.000Z',
+      lastTapAt: '2026-08-28T12:00:00.000Z',
+      count: 9,
+      logicalDay: '2026-08-28',
+      tz: 'UTC',
+    })
+    const restored: BackupRecord = {
+      ...emptyRecord,
+      resistedUrges: [{
+        id: 'restored-urge',
+        at: '2026-08-01T12:00:00.000Z',
+        logicalDay: '2026-08-01',
+        tz: 'UTC',
+      }],
+      ratchetSteps: [{
+        id: 'restored-step',
+        effectiveFrom: '2026-08-01',
+        target: 10,
+        kind: 'earned',
+        at: '2026-08-01T04:00:00.000Z',
+      }],
+    }
+    const source = createBrowserBackupSource(db, {
+      now: () => new Date('2026-08-29T12:00:00.000Z'),
+      timeZone: () => 'UTC',
+      randomUUID: () => 'restore-record',
+      appBuild: { sha: 'abc1234', builtAt: '2026-08-29T08:00:00.000Z' },
+    })
+
+    await source.restore(await source.prepareRestore(backupFile(restored)))
+
+    await expect(db.puffSessions.toArray()).resolves.toEqual([])
+    await expect(db.resistedUrges.toArray()).resolves.toEqual(restored.resistedUrges)
+    await expect(db.clearDays.toArray()).resolves.toEqual([])
+    await expect(db.ratchetSteps.toArray()).resolves.toEqual(restored.ratchetSteps)
+    await expect(db.exports.toArray()).resolves.toEqual([{
+      id: 'restore-record',
+      at: '2026-08-29T12:00:00.000+00:00',
+      logicalDay: '2026-08-29',
+      restoredFrom: 'source-install',
+    }])
+    await expect(db.meta.orderBy('key').toArray()).resolves.toEqual([
+      { key: 'firstRunCardDismissed', value: false },
+      { key: 'installId', value: 'destination-install' },
+    ])
+  })
+
+  it('rolls back the cleared stores when any restore insert fails', async () => {
+    const db = new VapeOffDatabase(`browser-restore-source-${crypto.randomUUID()}`)
+    databases.push(db)
+    await db.open()
+    await db.meta.add({ key: 'installId', value: 'destination-install' })
+    await db.exports.add({
+      id: 'old-export',
+      at: '2026-08-28T12:00:00.000Z',
+      logicalDay: '2026-08-28',
+    })
+    const source = createBrowserBackupSource(db, {
+      now: () => new Date('2026-08-29T12:00:00.000Z'),
+      timeZone: () => 'UTC',
+      randomUUID: () => 'colliding-id',
+      appBuild: { sha: 'abc1234', builtAt: '2026-08-29T08:00:00.000Z' },
+    })
+    const candidate = await source.prepareRestore(backupFile({
+      ...emptyRecord,
+      exports: [{
+        id: 'colliding-id',
+        at: '2026-08-01T12:00:00.000Z',
+        logicalDay: '2026-08-01',
+      }],
+    }))
+
+    await expect(source.restore(candidate)).rejects.toThrow()
+
+    await expect(db.exports.toArray()).resolves.toEqual([{
+      id: 'old-export',
+      at: '2026-08-28T12:00:00.000Z',
+      logicalDay: '2026-08-28',
+    }])
+    await expect(getMeta(db, 'installId')).resolves.toBe('destination-install')
   })
 })

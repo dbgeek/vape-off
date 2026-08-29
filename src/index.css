@@ -592,7 +592,10 @@ select:focus-visible {
   text-transform: uppercase;
 }
 
-.settings-section button {
+.settings-section button,
+.restore-picker {
+  display: grid;
+  place-items: center;
   min-height: 3.25rem;
   border: 1px solid color-mix(in srgb, var(--color-paper) 28%, transparent);
   border-radius: 999px;
@@ -600,6 +603,15 @@ select:focus-visible {
   padding: 0.75rem 1rem;
   color: var(--color-ink);
   font-weight: 620;
+}
+
+.restore-picker input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .settings-section button:disabled {
@@ -633,7 +645,8 @@ select:focus-visible {
   text-underline-offset: 0.25rem;
 }
 
-.step-back-dialog {
+.step-back-dialog,
+.restore-dialog {
   position: fixed;
   z-index: 30;
   right: 1rem;
@@ -647,31 +660,36 @@ select:focus-visible {
   padding: 1.2rem;
 }
 
-.step-back-dialog h2 {
+.step-back-dialog h2,
+.restore-dialog h2 {
   font-size: 1.25rem;
 }
 
-.step-back-dialog p {
+.step-back-dialog p,
+.restore-dialog p {
   margin-top: 0.35rem;
   color: var(--color-muted);
   font-size: 0.75rem;
 }
 
-.step-back-dialog div {
+.step-back-dialog div,
+.restore-dialog div {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0.65rem;
   margin-top: 1rem;
 }
 
-.step-back-dialog button {
+.step-back-dialog button,
+.restore-dialog button {
   min-height: 2.75rem;
   border: 1px solid color-mix(in srgb, var(--color-paper) 22%, transparent);
   background: transparent;
   color: var(--color-paper);
 }
 
-.step-back-dialog button:last-child {
+.step-back-dialog button:last-child,
+.restore-dialog button:last-child {
   border-color: #f2c46d;
   color: #f2c46d;
 }
@@ -905,6 +923,36 @@ select:focus-visible {
 
 .restore-refused {
   color: #e7d29e;
+}
+
+.first-run-restore-picker {
+  display: inline-grid;
+  justify-self: start;
+  border: 1px solid color-mix(in srgb, #f2c46d 45%, transparent);
+  border-radius: 999px;
+  padding: 0.55rem 0.8rem;
+  color: #f2c46d;
+}
+
+.first-run-restore-picker input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.restore-toast {
+  position: absolute;
+  top: 5.5rem;
+  right: 1.25rem;
+  z-index: 20;
+  border-radius: 999px;
+  background: #18352d;
+  padding: 0.65rem 0.9rem;
+  color: #9fe7d4;
+  font-size: 0.75rem;
 }
 
 .record-editor {

@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import type { BackupRecord } from './backup-file.ts'
-import { createBackupFile, FORMAT_VERSION } from './backup-file.ts'
+import {
+  BackupFileError,
+  createBackupFile,
+  FORMAT_VERSION,
+  parseBackupFile,
+} from './backup-file.ts'
 
 const record: BackupRecord = {
   puffSessions: [
@@ -102,5 +107,71 @@ describe('Backup file', () => {
       lastLogicalDay: null,
       currentTarget: null,
     })
+  })
+
+  it('validates a complete current-format Backup without treating schemaVersion as a gate', () => {
+    const backup = createBackupFile(record, {
+      appBuild: { sha: 'abc1234', builtAt: '2026-08-29T08:00:00.000Z' },
+      exportedAt: '2026-08-29T12:34:56.789+02:00',
+      installId: 'install-id',
+      schemaVersion: 999,
+    })
+
+    expect(parseBackupFile(backup.text)).toEqual({
+      installId: 'install-id',
+      record,
+    })
+  })
+
+  it('refuses a newer format whole', () => {
+    const backup = createBackupFile(record, {
+      appBuild: { sha: 'abc1234', builtAt: '2026-08-29T08:00:00.000Z' },
+      exportedAt: '2026-08-29T12:34:56.789+02:00',
+      installId: 'install-id',
+      schemaVersion: 1,
+    })
+    const envelope = JSON.parse(backup.text)
+    envelope.formatVersion = FORMAT_VERSION + 1
+
+    expect(() => parseBackupFile(JSON.stringify(envelope))).toThrow(
+      new BackupFileError('This backup was made by a newer version of vape-off.'),
+    )
+  })
+
+  it('repairs a Clear Day that contains a Puff Session', () => {
+    const conflictingRecord: BackupRecord = {
+      ...record,
+      clearDays: [
+        ...record.clearDays,
+        {
+          logicalDay: '2026-08-20',
+          at: '2026-08-20T20:00:00.000+02:00',
+          tz: 'Europe/Stockholm',
+        },
+      ],
+    }
+    const backup = createBackupFile(conflictingRecord, {
+      appBuild: { sha: 'abc1234', builtAt: '2026-08-29T08:00:00.000Z' },
+      exportedAt: '2026-08-29T12:34:56.789+02:00',
+      installId: 'install-id',
+      schemaVersion: 1,
+    })
+
+    expect(parseBackupFile(backup.text).record.clearDays).toEqual(record.clearDays)
+  })
+
+  it('rejects a structurally incomplete file instead of partially reading it', () => {
+    const backup = createBackupFile(record, {
+      appBuild: { sha: 'abc1234', builtAt: '2026-08-29T08:00:00.000Z' },
+      exportedAt: '2026-08-29T12:34:56.789+02:00',
+      installId: 'install-id',
+      schemaVersion: 1,
+    })
+    const envelope = JSON.parse(backup.text)
+    delete envelope.resistedUrges
+
+    expect(() => parseBackupFile(JSON.stringify(envelope))).toThrow(
+      new BackupFileError('This is not a valid vape-off backup.'),
+    )
   })
 })

@@ -3,8 +3,9 @@ import { SCHEMA_VERSION, VapeOffDatabase } from '../store/database.ts'
 import { instantOf, logicalDayKeyOf } from '../store/logical-day.ts'
 import { getOrCreateInstallId, setMeta } from '../store/meta.ts'
 import { openDatabase } from '../store/open-database.ts'
+import { evaluate } from '../store/ratchet-writes.ts'
 import type { BackupRecord } from './backup-file.ts'
-import { createBackupFile } from './backup-file.ts'
+import { createBackupFile, parseBackupFile } from './backup-file.ts'
 import { handOffBackup, type BackupHandoff } from './browser-handoff.ts'
 
 export interface LoadedBackupRecord extends BackupRecord {
@@ -16,9 +17,17 @@ export interface BackupResult {
   fileName: string
 }
 
+export interface PreparedRestore {
+  installId: string
+  logicalDayCount: number
+  record: BackupRecord
+}
+
 export interface BackupSource {
   load: () => Promise<LoadedBackupRecord>
   backUp: (record: LoadedBackupRecord) => Promise<BackupResult>
+  prepareRestore: (file: File) => Promise<PreparedRestore>
+  restore: (candidate: PreparedRestore) => Promise<void>
 }
 
 export interface BrowserBackupEnvironment {
@@ -33,6 +42,23 @@ const browserEnvironment: BrowserBackupEnvironment = {
   timeZone: () => Intl.DateTimeFormat().resolvedOptions().timeZone,
   randomUUID: () => crypto.randomUUID(),
   appBuild: buildIdentity,
+}
+
+export function knownLogicalDayCount(record: BackupRecord): number {
+  return new Set([
+    ...record.puffSessions.map((item) => item.logicalDay),
+    ...record.resistedUrges.map((item) => item.logicalDay),
+    ...record.clearDays.map((item) => item.logicalDay),
+  ]).size
+}
+
+function readFile(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.addEventListener('load', () => resolve(String(reader.result)))
+    reader.addEventListener('error', () => reject(reader.error))
+    reader.readAsText(file)
+  })
 }
 
 export function createBrowserBackupSource(
@@ -90,6 +116,51 @@ export function createBrowserBackupSource(
       })
 
       return { handoff, fileName: backup.name }
+    },
+
+    async prepareRestore(file) {
+      const parsed = parseBackupFile(await readFile(file))
+      return {
+        ...parsed,
+        logicalDayCount: knownLogicalDayCount(parsed.record),
+      }
+    },
+
+    async restore(candidate) {
+      await ensureOpen()
+      const now = environment.now()
+      const timeZone = environment.timeZone()
+      await db.transaction(
+        'rw',
+        db.puffSessions,
+        db.resistedUrges,
+        db.clearDays,
+        db.ratchetSteps,
+        db.exports,
+        async () => {
+          await Promise.all([
+            db.puffSessions.clear(),
+            db.resistedUrges.clear(),
+            db.clearDays.clear(),
+            db.ratchetSteps.clear(),
+            db.exports.clear(),
+          ])
+          await Promise.all([
+            db.puffSessions.bulkAdd([...candidate.record.puffSessions]),
+            db.resistedUrges.bulkAdd([...candidate.record.resistedUrges]),
+            db.clearDays.bulkAdd([...candidate.record.clearDays]),
+            db.ratchetSteps.bulkAdd([...candidate.record.ratchetSteps]),
+            db.exports.bulkAdd([...candidate.record.exports]),
+          ])
+          await db.exports.add({
+            id: environment.randomUUID(),
+            at: instantOf(now, timeZone),
+            logicalDay: logicalDayKeyOf(now, timeZone),
+            restoredFrom: candidate.installId,
+          })
+        },
+      )
+      await evaluate(db, environment)
     },
   }
 }

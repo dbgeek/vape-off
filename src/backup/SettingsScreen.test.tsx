@@ -6,7 +6,9 @@ import {
   createBrowserBackupSource,
   type BackupSource,
   type LoadedBackupRecord,
+  type PreparedRestore,
 } from './browser-backup-source.ts'
+import { BackupFileError } from './backup-file.ts'
 import { SettingsScreen } from './SettingsScreen.tsx'
 
 const loadedRecord: LoadedBackupRecord = {
@@ -18,6 +20,22 @@ const loadedRecord: LoadedBackupRecord = {
   exports: [],
 }
 
+const preparedRestore: PreparedRestore = {
+  installId: 'source-install',
+  logicalDayCount: 1,
+  record: {
+    puffSessions: [],
+    resistedUrges: [],
+    clearDays: [{
+      logicalDay: '2026-08-20',
+      at: '2026-08-20T20:00:00.000Z',
+      tz: 'UTC',
+    }],
+    ratchetSteps: [],
+    exports: [],
+  },
+}
+
 function source(): BackupSource {
   return {
     load: vi.fn().mockResolvedValue(loadedRecord),
@@ -25,6 +43,8 @@ function source(): BackupSource {
       handoff: 'shared',
       fileName: 'vape-off-2026-08-29.json',
     }),
+    prepareRestore: vi.fn().mockResolvedValue(preparedRestore),
+    restore: vi.fn().mockResolvedValue(undefined),
   }
 }
 
@@ -85,6 +105,7 @@ describe('Settings Backup', () => {
     render(<SettingsScreen source={backupSource} installed={false} />)
 
     expect(screen.queryByRole('button', { name: 'Back up now' })).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Restore from a backup')).not.toBeInTheDocument()
     expect(screen.getByText('Install vape-off to back up or restore your record.')).toBeInTheDocument()
     expect(backupSource.load).not.toHaveBeenCalled()
   })
@@ -100,5 +121,72 @@ describe('Settings Backup', () => {
     expect(screen.queryByText(/was handed|download started/i)).not.toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Back up now' })).toBeEnabled()
+  })
+
+  it('names both Logical Day counts before replacing a non-empty record', async () => {
+    const backupSource = source()
+    vi.mocked(backupSource.load).mockResolvedValueOnce({
+      ...loadedRecord,
+      puffSessions: [{
+        id: 'session',
+        at: '2026-08-21T12:00:00.000Z',
+        lastTapAt: '2026-08-21T12:00:00.000Z',
+        count: 2,
+        logicalDay: '2026-08-21',
+        tz: 'UTC',
+      }],
+      clearDays: [{
+        logicalDay: '2026-08-22',
+        at: '2026-08-22T20:00:00.000Z',
+        tz: 'UTC',
+      }],
+    })
+    render(<SettingsScreen source={backupSource} installed />)
+    const file = new File(['{}'], 'backup.json', { type: 'application/json' })
+
+    fireEvent.change(await screen.findByLabelText('Restore from a backup'), {
+      target: { files: [file] },
+    })
+
+    expect(await screen.findByText(
+      'Replace 2 Logical Days with the 1 in this backup?',
+    )).toBeInTheDocument()
+    expect(backupSource.restore).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Replace record' }))
+
+    await waitFor(() => expect(backupSource.restore).toHaveBeenCalledWith(preparedRestore))
+    expect(await screen.findByText('Backup restored.')).toBeInTheDocument()
+    expect(backupSource.load).toHaveBeenCalledTimes(2)
+  })
+
+  it('restores an empty record without training a replacement confirmation', async () => {
+    const backupSource = source()
+    render(<SettingsScreen source={backupSource} installed />)
+    const file = new File(['{}'], 'backup.json', { type: 'application/json' })
+
+    fireEvent.change(await screen.findByLabelText('Restore from a backup'), {
+      target: { files: [file] },
+    })
+
+    await waitFor(() => expect(backupSource.restore).toHaveBeenCalledWith(preparedRestore))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('shows why a Backup is refused without offering replacement', async () => {
+    const backupSource = source()
+    vi.mocked(backupSource.prepareRestore).mockRejectedValue(
+      new BackupFileError('This backup was made by a newer version of vape-off.'),
+    )
+    render(<SettingsScreen source={backupSource} installed />)
+
+    fireEvent.change(await screen.findByLabelText('Restore from a backup'), {
+      target: { files: [new File(['{}'], 'backup.json')] },
+    })
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'This backup was made by a newer version of vape-off.',
+    )
+    expect(backupSource.restore).not.toHaveBeenCalled()
   })
 })
