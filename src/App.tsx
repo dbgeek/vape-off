@@ -1,6 +1,8 @@
 import { formatBuildIdentity } from './shell/build-identity.ts'
 import { isStandalone } from './shell/install-state.ts'
 import { pathFor, ROUTES, useRoute, type Route } from './shell/routing.ts'
+import { browserBackupSource, type BackupSource } from './backup/browser-backup-source.ts'
+import { SettingsScreen } from './backup/SettingsScreen.tsx'
 import { browserStatsSource } from './stats/browser-stats-source.ts'
 import { StatsScreen, type StatsSource } from './stats/StatsScreen.tsx'
 import { browserTrackSource } from './track/browser-track-source.ts'
@@ -25,11 +27,14 @@ const TITLES: Record<Route, string> = {
 export function App({
   trackSource = browserTrackSource,
   statsSource = browserStatsSource,
+  backupSource = browserBackupSource,
 }: {
   trackSource?: TrackSource
   statsSource?: StatsSource
+  backupSource?: BackupSource
 }) {
   const [route, navigate] = useRoute()
+  const installed = isStandalone()
 
   return (
     <div className="flex h-full flex-col overflow-hidden pt-safe-t">
@@ -55,9 +60,7 @@ export function App({
       {route === 'track' ? <TrackScreen source={trackSource} /> : null}
       {route === 'stats' ? <StatsScreen source={statsSource} /> : null}
       {route === 'settings' ? (
-        <main className="flex flex-1 items-center justify-center px-5">
-          <h1 className="text-2xl">{TITLES[route]}</h1>
-        </main>
+        <SettingsScreen source={backupSource} installed={installed} />
       ) : null}
 
       {/*
@@ -69,7 +72,7 @@ export function App({
         className={`${route === 'track' ? 'hidden' : ''} px-5 pt-3 pb-safe-b text-center text-xs text-muted`}
       >
         <p className="pb-3">
-          {formatBuildIdentity()} · {isStandalone() ? 'installed' : 'in a tab'}
+          {formatBuildIdentity()} · {installed ? 'installed' : 'in a tab'}
         </p>
       </footer>
     </div>

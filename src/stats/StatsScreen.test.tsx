@@ -58,6 +58,26 @@ describe('Stats', () => {
     expect(screen.queryByText('Quit Horizon')).not.toBeInTheDocument()
   })
 
+  it('shows Backup exposure from the first Baseline day only when installed', async () => {
+    const statsSource = source({
+      record: {
+        ...emptyRecord,
+        clearDays: [{ logicalDay: '2026-08-28', at: '2026-08-28T12:00:00.000Z', tz: 'UTC' }],
+      },
+      exports: [],
+      backupCardDismissedAt: 0,
+    })
+    const { unmount } = render(<StatsScreen source={statsSource} clock={clock} installed />)
+
+    expect(await screen.findByText('Last backup: 1 Logical Day ago.')).toBeInTheDocument()
+    unmount()
+
+    render(<StatsScreen source={statsSource} clock={clock} installed={false} />)
+    await screen.findByRole('heading', { name: 'Baseline' })
+    expect(screen.queryByText(/Last backup:/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Backup status' })).not.toBeInTheDocument()
+  })
+
   it('keeps exact steps and the uncertain horizon in separate tiles with independent silence', async () => {
     render(
       <StatsScreen

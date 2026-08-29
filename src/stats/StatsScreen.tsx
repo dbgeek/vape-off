@@ -129,6 +129,33 @@ function formatHorizon(horizon: QuitHorizon): string {
   return `about ${horizon.value} ${horizon.precision}`
 }
 
+function BackupStatus({
+  installed,
+  uncoveredKnownDays,
+  showCard,
+  dismissCard,
+}: {
+  installed: boolean
+  uncoveredKnownDays: number
+  showCard: boolean
+  dismissCard: () => void
+}) {
+  return (
+    <>
+      {installed && uncoveredKnownDays > 0 ? (
+        <p className="backup-line">{`Last backup: ${uncoveredKnownDays} Logical ${uncoveredKnownDays === 1 ? 'Day' : 'Days'} ago.`}</p>
+      ) : null}
+      {showCard ? (
+        <section className="backup-card" role="region" aria-label="Backup status">
+          <button type="button" aria-label="Dismiss backup card" onClick={dismissCard}>×</button>
+          <strong>{uncoveredKnownDays} Known Logical Days</strong>
+          <p>That is the record since the last backup.</p>
+        </section>
+      ) : null}
+    </>
+  )
+}
+
 export function StatsScreen({
   source,
   clock = browserClock,
@@ -182,6 +209,17 @@ export function StatsScreen({
     return <main className="stats-screen">{error ? <p>{error}</p> : <p>Reading Stats…</p>}</main>
   }
 
+  const backupDays = view.backup.uncoveredKnownDays
+  const showBackupCard =
+    installed &&
+    backupDays >= snapshot.backupCardDismissedAt + 30 &&
+    !backupCardDismissed
+
+  function dismissBackupCard() {
+    setBackupCardDismissed(true)
+    void source.dismissBackupCard(backupDays).catch(() => setBackupCardDismissed(false))
+  }
+
   if (view.programme.status === 'baseline') {
     return (
       <main className="stats-screen">
@@ -191,21 +229,17 @@ export function StatsScreen({
           <p>{view.programme.knownDays} of 7 Known Logical Days</p>
         </header>
         <Dial hours={view.dial.hours} peakHour={view.dial.peakHour} />
+        <BackupStatus
+          installed={installed}
+          uncoveredKnownDays={backupDays}
+          showCard={showBackupCard}
+          dismissCard={dismissBackupCard}
+        />
       </main>
     )
   }
 
-  const backupDays = view.backup.uncoveredKnownDays
-  const showBackupCard =
-    installed &&
-    backupDays >= snapshot.backupCardDismissedAt + 30 &&
-    !backupCardDismissed
   const targetZero = view.programme.status === 'target-zero'
-
-  function dismissBackupCard() {
-    setBackupCardDismissed(true)
-    void source.dismissBackupCard(backupDays).catch(() => setBackupCardDismissed(false))
-  }
 
   function confirmStepBack() {
     setStepBackError(undefined)
@@ -267,14 +301,12 @@ export function StatsScreen({
         </section>
       ) : null}
 
-      {installed && backupDays > 0 ? <p className="backup-line">{`Last backup: ${backupDays} Logical ${backupDays === 1 ? 'Day' : 'Days'} ago.`}</p> : null}
-      {showBackupCard ? (
-        <section className="backup-card" role="region" aria-label="Backup status">
-          <button type="button" aria-label="Dismiss backup card" onClick={dismissBackupCard}>×</button>
-          <strong>{backupDays} Known Logical Days</strong>
-          <p>That is the record since the last backup.</p>
-        </section>
-      ) : null}
+      <BackupStatus
+        installed={installed}
+        uncoveredKnownDays={backupDays}
+        showCard={showBackupCard}
+        dismissCard={dismissBackupCard}
+      />
 
       {view.programme.status === 'target-zero' && view.programme.stepBackAvailable ? (
         <section className="programme-details">

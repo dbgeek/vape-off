@@ -555,6 +555,66 @@ select:focus-visible {
   color: var(--color-muted);
 }
 
+.settings-screen {
+  min-height: 0;
+  flex: 1;
+  padding: 2.5rem 1.25rem;
+  overflow-y: auto;
+}
+
+.settings-header p {
+  color: var(--color-muted);
+  font-size: 0.65rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.settings-header h1 {
+  margin-top: 0.25rem;
+  font-size: clamp(2.5rem, 12vw, 4.5rem);
+  font-weight: 520;
+  letter-spacing: -0.06em;
+  line-height: 0.95;
+}
+
+.settings-section {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 3rem;
+  border-top: 1px solid color-mix(in srgb, var(--color-paper) 18%, transparent);
+  padding-top: 1rem;
+}
+
+.settings-section h2 {
+  color: var(--color-muted);
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.settings-section button {
+  min-height: 3.25rem;
+  border: 1px solid color-mix(in srgb, var(--color-paper) 28%, transparent);
+  border-radius: 999px;
+  background: var(--color-paper);
+  padding: 0.75rem 1rem;
+  color: var(--color-ink);
+  font-weight: 620;
+}
+
+.settings-section button:disabled {
+  opacity: 0.55;
+}
+
+.settings-section p {
+  color: var(--color-muted);
+  font-size: 0.75rem;
+}
+
+.settings-section [role='alert'] {
+  color: #e7d29e;
+}
+
 .programme-details {
   display: grid;
   justify-items: start;
