@@ -1,10 +1,7 @@
-import { deviceTimeZone, instantOf, logicalDayKeyOf } from '../domain/logical-day.ts'
-import { buildIdentity, type BuildIdentity } from '../shell/build-identity.ts'
-import { browserDatabase } from '../store/browser-database.ts'
-import { SCHEMA_VERSION, type VapeOffDatabase } from '../store/database.ts'
+import { instantOf, logicalDayKeyOf } from '../domain/logical-day.ts'
+import { SCHEMA_VERSION } from '../store/database.ts'
 import { getOrCreateInstallId, setMeta } from '../store/meta.ts'
-import { openDatabase } from '../store/open-database.ts'
-import { evaluate } from '../store/ratchet-writes.ts'
+import { browserSession, type StoreSession } from '../store/session.ts'
 import type { BackupRecord } from './backup-file.ts'
 import { createBackupFile, parseBackupFile } from './backup-file.ts'
 import { handOffBackup, type BackupHandoff } from './browser-handoff.ts'
@@ -30,20 +27,6 @@ export interface BackupSource {
   prepareRestore: (file: File) => Promise<PreparedRestore>
   restore: (candidate: PreparedRestore) => Promise<void>
   recover: (candidate: PreparedRestore) => Promise<void>
-}
-
-export interface BrowserBackupEnvironment {
-  now: () => Date
-  timeZone: () => string
-  randomUUID: () => string
-  appBuild: BuildIdentity
-}
-
-const browserEnvironment: BrowserBackupEnvironment = {
-  now: () => new Date(),
-  timeZone: () => deviceTimeZone(),
-  randomUUID: () => crypto.randomUUID(),
-  appBuild: buildIdentity,
 }
 
 export function knownLogicalDayCount(record: BackupRecord): number {
@@ -72,11 +55,10 @@ function readFile(file: File): Promise<string> {
 }
 
 export function createBrowserBackupSource(
-  db: VapeOffDatabase,
-  environment: BrowserBackupEnvironment = browserEnvironment,
+  session: StoreSession,
   handOff: (file: File) => Promise<BackupHandoff> = handOffBackup,
 ): BackupSource {
-  let opening: Promise<void> | undefined
+  const { db, environment } = session
 
   async function replaceRecord(candidate: PreparedRestore): Promise<void> {
     const now = environment.now()
@@ -111,30 +93,18 @@ export function createBrowserBackupSource(
         })
       },
     )
-    await evaluate(db, environment)
-  }
-
-  async function ensureOpen(): Promise<void> {
-    if (db.isOpen()) return
-    opening ??= openDatabase(db, environment.randomUUID).then((result) => {
-      if (result.status !== 'ok') throw new Error(`Database is ${result.status}`)
-    })
-    await opening
+    await session.evaluate()
   }
 
   return {
     async load() {
-      await ensureOpen()
-      const [puffSessions, resistedUrges, clearDays, ratchetSteps, exports, installId] =
-        await Promise.all([
-          db.puffSessions.toArray(),
-          db.resistedUrges.toArray(),
-          db.clearDays.toArray(),
-          db.ratchetSteps.toArray(),
-          db.exports.toArray(),
-          getOrCreateInstallId(db, environment.randomUUID),
-        ])
-      return { puffSessions, resistedUrges, clearDays, ratchetSteps, exports, installId }
+      await session.ensureOpen()
+      const [record, exports, installId] = await Promise.all([
+        session.readRecord(),
+        db.exports.toArray(),
+        getOrCreateInstallId(db, environment.randomUUID),
+      ])
+      return { ...record, exports, installId }
     },
 
     async backUp(record) {
@@ -173,19 +143,15 @@ export function createBrowserBackupSource(
     },
 
     async restore(candidate) {
-      await ensureOpen()
+      await session.ensureOpen()
       await replaceRecord(candidate)
     },
 
     async recover(candidate) {
-      db.close()
-      await db.delete()
-      const opened = await openDatabase(db, environment.randomUUID)
-      if (opened.status !== 'ok') throw new Error(`Database is ${opened.status}`)
-      opening = Promise.resolve()
+      await session.reset()
       await replaceRecord(candidate)
     },
   }
 }
 
-export const browserBackupSource = createBrowserBackupSource(browserDatabase)
+export const browserBackupSource = createBrowserBackupSource(browserSession)

@@ -1,6 +1,7 @@
 import 'fake-indexeddb/auto'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { VapeOffDatabase } from '../store/database.ts'
+import { createStoreSession } from '../store/session.ts'
 import { createBrowserStatsSource } from './browser-stats-source.ts'
 
 const databases: VapeOffDatabase[] = []
@@ -38,12 +39,13 @@ describe('browser Stats source', () => {
       setAppBadge: vi.fn().mockResolvedValue(undefined),
       clearAppBadge: vi.fn().mockResolvedValue(undefined),
     }
-    const source = createBrowserStatsSource(db, {
+    const source = createBrowserStatsSource(createStoreSession(db, {
       now: () => new Date('2026-08-29T12:00:00.000Z'),
       timeZone: () => 'UTC',
       randomUUID: () => 'step-back',
       badge,
-    })
+      appBuild: { sha: 'abc1234', builtAt: '2026-08-29T08:00:00.000Z' },
+    }))
 
     await expect(source.load()).resolves.toMatchObject({
       record: { puffSessions: [{ id: 'session' }], ratchetSteps: [{ target: 0 }] },

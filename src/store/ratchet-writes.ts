@@ -1,39 +1,19 @@
 import { baselineAverage, type DayLedgerRecord } from '../domain/day-ledger.ts'
-import { deviceTimeZone, instantOf, logicalDayKeyOf } from '../domain/logical-day.ts'
+import { instantOf, logicalDayKeyOf } from '../domain/logical-day.ts'
 import { nextEarnedTarget, targetOn, windowSatisfied } from '../domain/ratchet.ts'
 import type { VapeOffDatabase } from './database.ts'
+import { readRecord } from './read-record.ts'
 import type { RatchetStep } from './records.ts'
-
-export interface RatchetWriteEnvironment {
-  now: () => Date
-  timeZone: () => string
-  randomUUID: () => string
-}
-
-const browserEnvironment: RatchetWriteEnvironment = {
-  now: () => new Date(),
-  timeZone: () => deviceTimeZone(),
-  randomUUID: () => crypto.randomUUID(),
-}
+import type { StoreEnvironment } from './session.ts'
 
 export type EvaluationResult =
   | { status: 'unchanged' }
   | { status: 'handover-offered' }
   | { status: 'step-written'; step: RatchetStep }
 
-async function readRecord(db: VapeOffDatabase): Promise<DayLedgerRecord> {
-  const [puffSessions, resistedUrges, clearDays, ratchetSteps] = await Promise.all([
-    db.puffSessions.toArray(),
-    db.resistedUrges.toArray(),
-    db.clearDays.toArray(),
-    db.ratchetSteps.toArray(),
-  ])
-  return { puffSessions, resistedUrges, clearDays, ratchetSteps }
-}
-
 export async function evaluate(
   db: VapeOffDatabase,
-  environment: RatchetWriteEnvironment = browserEnvironment,
+  environment: StoreEnvironment,
 ): Promise<EvaluationResult> {
   const now = environment.now()
   const timeZone = environment.timeZone()
@@ -86,7 +66,7 @@ export async function evaluate(
 
 export async function declareHandover(
   db: VapeOffDatabase,
-  environment: RatchetWriteEnvironment = browserEnvironment,
+  environment: StoreEnvironment,
 ): Promise<RatchetStep> {
   const now = environment.now()
   const timeZone = environment.timeZone()
@@ -131,7 +111,7 @@ export async function declareHandover(
 
 export async function declareStepBack(
   db: VapeOffDatabase,
-  environment: RatchetWriteEnvironment = browserEnvironment,
+  environment: StoreEnvironment,
 ): Promise<RatchetStep> {
   const now = environment.now()
   const timeZone = environment.timeZone()

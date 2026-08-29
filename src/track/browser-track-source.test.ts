@@ -1,7 +1,10 @@
 import 'fake-indexeddb/auto'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { VapeOffDatabase } from '../store/database.ts'
+import { createStoreSession } from '../store/session.ts'
 import { createBrowserTrackSource } from './browser-track-source.ts'
+
+const appBuild = { sha: 'abc1234', builtAt: '2026-08-29T08:00:00.000Z' }
 
 const databases: VapeOffDatabase[] = []
 
@@ -17,12 +20,13 @@ describe('browser Track source', () => {
       setAppBadge: vi.fn().mockResolvedValue(undefined),
       clearAppBadge: vi.fn().mockResolvedValue(undefined),
     }
-    const source = createBrowserTrackSource(db, {
+    const source = createBrowserTrackSource(createStoreSession(db, {
       now: () => new Date('2026-08-29T12:00:00.000Z'),
       timeZone: () => 'UTC',
       randomUUID: () => crypto.randomUUID(),
       badge,
-    })
+      appBuild,
+    }))
 
     await expect(source.loadFirstRunCardDismissed()).resolves.toBe(false)
 
@@ -52,12 +56,13 @@ describe('browser Track source', () => {
   it('stores an explicit dismissal without inventing history', async () => {
     const db = new VapeOffDatabase(`browser-track-source-${crypto.randomUUID()}`)
     databases.push(db)
-    const source = createBrowserTrackSource(db, {
+    const source = createBrowserTrackSource(createStoreSession(db, {
       now: () => new Date('2026-08-29T12:00:00.000Z'),
       timeZone: () => 'UTC',
       randomUUID: () => crypto.randomUUID(),
       badge: {},
-    })
+      appBuild,
+    }))
 
     await source.dismissFirstRunCard()
 

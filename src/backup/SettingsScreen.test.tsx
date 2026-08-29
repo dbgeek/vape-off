@@ -2,6 +2,7 @@ import 'fake-indexeddb/auto'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { VapeOffDatabase } from '../store/database.ts'
+import { createStoreSession } from '../store/session.ts'
 import {
   createBrowserBackupSource,
   type BackupSource,
@@ -81,13 +82,13 @@ describe('Settings Backup', () => {
         return 'shared' as const
       })
       const backupSource = createBrowserBackupSource(
-        db,
-        {
+        createStoreSession(db, {
           now: () => new Date('2026-08-29T12:34:56.789Z'),
           timeZone: () => 'UTC',
           randomUUID: () => 'current-backup',
+          badge: {},
           appBuild: { sha: 'abc1234', builtAt: '2026-08-29T08:00:00.000Z' },
-        },
+        }),
         handOff,
       )
       render(<SettingsScreen source={backupSource} installed />)

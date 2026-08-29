@@ -1,16 +1,7 @@
-import { deviceTimeZone, instantOf, stampEvent } from '../domain/logical-day.ts'
+import { instantOf, stampEvent } from '../domain/logical-day.ts'
 import type { VapeOffDatabase } from './database.ts'
 import type { ClearDay, PuffSession, ResistedUrge } from './records.ts'
-
-export interface EventWriteEnvironment {
-  timeZone: () => string
-  randomUUID: () => string
-}
-
-const browserEnvironment: EventWriteEnvironment = {
-  timeZone: () => deviceTimeZone(),
-  randomUUID: () => crypto.randomUUID(),
-}
+import type { WriteEnvironment } from './session.ts'
 
 export interface PuffSessionWrite {
   at: Date
@@ -21,7 +12,7 @@ export interface PuffSessionWrite {
 export async function writePuffSession(
   db: VapeOffDatabase,
   input: PuffSessionWrite,
-  environment: EventWriteEnvironment = browserEnvironment,
+  environment: WriteEnvironment,
 ): Promise<PuffSession> {
   const timeZone = environment.timeZone()
   const record: PuffSession = {
@@ -40,7 +31,7 @@ export async function writePuffSession(
 export async function writeResistedUrge(
   db: VapeOffDatabase,
   at: Date,
-  environment: EventWriteEnvironment = browserEnvironment,
+  environment: WriteEnvironment,
 ): Promise<ResistedUrge> {
   const record: ResistedUrge = {
     id: environment.randomUUID(),
@@ -53,7 +44,7 @@ export async function writeResistedUrge(
 export async function writeClearDay(
   db: VapeOffDatabase,
   at: Date,
-  environment: EventWriteEnvironment = browserEnvironment,
+  environment: WriteEnvironment,
 ): Promise<ClearDay | undefined> {
   const record = stampEvent(at, environment.timeZone())
   return db.transaction('rw', db.puffSessions, db.clearDays, async () => {
@@ -74,7 +65,7 @@ export async function updatePuffSession(
   db: VapeOffDatabase,
   id: string,
   input: PuffSessionEdit,
-  environment: EventWriteEnvironment = browserEnvironment,
+  environment: WriteEnvironment,
 ): Promise<PuffSession> {
   if (!Number.isInteger(input.count) || input.count < 1) {
     throw new RangeError('A Puff Session count must be a positive integer')
@@ -106,7 +97,7 @@ export async function updateResistedUrge(
   db: VapeOffDatabase,
   id: string,
   at: Date,
-  environment: EventWriteEnvironment = browserEnvironment,
+  environment: WriteEnvironment,
 ): Promise<ResistedUrge> {
   const existing = await db.resistedUrges.get(id)
   if (!existing) throw new Error('Resisted Urge not found')
