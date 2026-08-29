@@ -2,13 +2,14 @@ import {
   completedDays,
   dayTotal,
   isKnown,
+  knownLogicalDayKeys,
   targetOn,
   type DayLedgerRecord,
 } from '../domain/day-ledger.ts'
 import { logicalDayKeyOf } from '../domain/logical-day.ts'
 import { isMergeWindowOpen } from '../domain/merge-window.ts'
 import { pace } from '../domain/readouts.ts'
-import { windowSatisfied } from '../domain/ratchet.ts'
+import { latestRatchetStep, windowSatisfied } from '../domain/ratchet.ts'
 import type { Instant, LogicalDayKey, PuffSession, ResistedUrge } from '../store/records.ts'
 
 const CATCH_UP_WINDOW_DAYS = 7
@@ -23,7 +24,7 @@ export interface TrackView {
   /** The Puff Session that took the day to its Target, if one has. */
   targetReached: PuffSession | undefined
   /** Today's Puff Sessions that sit past the Target. */
-  pastTargetSessionIds: ReadonlySet<string>
+  overTargetSessionIds: ReadonlySet<string>
   /** The Puff Session another tap would still merge into. */
   openSession: PuffSession | undefined
   /** The Pace slots still ahead of now. */
@@ -51,12 +52,8 @@ function hasHistory(record: DayLedgerRecord): boolean {
  * decisions, and the day a Step took effect is evidence the app was in use.
  */
 function earliestEvidenceDay(record: DayLedgerRecord): LogicalDayKey | undefined {
-  const fromEvents = [
-    ...record.puffSessions.map((session) => session.logicalDay),
-    ...record.resistedUrges.map((urge) => urge.logicalDay),
-    ...record.clearDays.map((day) => day.logicalDay),
-  ].sort()[0]
-  if (fromEvents !== undefined) return fromEvents
+  const earliestKnownDay = [...knownLogicalDayKeys(record)].sort()[0]
+  if (earliestKnownDay !== undefined) return earliestKnownDay
   return [...record.ratchetSteps].sort((left, right) =>
     left.effectiveFrom.localeCompare(right.effectiveFrom),
   )[0]?.effectiveFrom
@@ -83,7 +80,7 @@ function targetReachedBy(
   })
 }
 
-function pastTargetSessionIds(
+function overTargetSessionIds(
   sessions: readonly PuffSession[],
   target: number | undefined,
   reached: PuffSession | undefined,
@@ -103,11 +100,7 @@ function handoverAvailable(
   today: LogicalDayKey,
 ): boolean {
   if (target !== 1) return false
-  const latestStep = record.ratchetSteps.reduce<(typeof record.ratchetSteps)[number] | undefined>(
-    (latest, step) =>
-      latest === undefined || step.effectiveFrom > latest.effectiveFrom ? step : latest,
-    undefined,
-  )
+  const latestStep = latestRatchetStep(record.ratchetSteps)
   return latestStep !== undefined && windowSatisfied(record, latestStep, today)
 }
 
@@ -131,7 +124,7 @@ export function buildTrackView(
     total: dayTotal(record, today),
     target,
     targetReached: reached,
-    pastTargetSessionIds: pastTargetSessionIds(puffSessions, target, reached),
+    overTargetSessionIds: overTargetSessionIds(puffSessions, target, reached),
     openSession: [...puffSessions]
       .reverse()
       .find((session) => isMergeWindowOpen(session.lastTapAt, now)),

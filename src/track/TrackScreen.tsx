@@ -433,7 +433,7 @@ export function TrackScreen({
             <button
               type="button"
               key={session.id}
-              className={`puff-mark${view.pastTargetSessionIds.has(session.id) ? ' over-target' : ''}${view.openSession?.id === session.id ? ' open-mark' : ''}`}
+              className={`puff-mark${view.overTargetSessionIds.has(session.id) ? ' over-target' : ''}${view.openSession?.id === session.id ? ' open-mark' : ''}`}
               style={{
                 top: `${timelinePosition(session.at, now, timeZone)}%`,
                 width: `${size}px`,

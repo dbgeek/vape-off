@@ -91,7 +91,7 @@ describe('Track', () => {
     await waitFor(() => expect(trackSource.logResistedUrge).toHaveBeenCalledTimes(1))
   })
 
-  it('drops Pace ghosts and shows only the count during the Baseline', async () => {
+  it('shows the count alone when the view carries no Target', async () => {
     render(
       <TrackScreen
         source={source({
@@ -104,7 +104,6 @@ describe('Track', () => {
 
     expect(await screen.findByLabelText('Puffs today')).toHaveTextContent('3')
     expect(screen.getByLabelText('Puffs today')).toHaveClass('track-count')
-    expect(screen.queryByLabelText(/Pace slot at/)).not.toBeInTheDocument()
   })
 
   it('states when Target was reached and colors only later Puff Sessions red', async () => {
@@ -155,23 +154,6 @@ describe('Track', () => {
 
     settleFirstWrite(emptyRecord)
     await waitFor(() => expect(trackSource.logPuff).toHaveBeenCalledTimes(2))
-  })
-
-  it('colors every Puff Session at Target 0 without inventing a moment it was reached', async () => {
-    render(
-      <TrackScreen
-        source={source({
-          ...emptyRecord,
-          puffSessions: [session('first', '2026-08-29T10:00:00.000Z', 1)],
-          ratchetSteps: [target(0)],
-        })}
-        clock={{ now: () => new Date('2026-08-29T12:00:00.000Z'), timeZone: () => 'UTC' }}
-      />,
-    )
-
-    expect(await screen.findByLabelText('Puff Session, 1 puff at 10:00')).toHaveClass('over-target')
-    expect(screen.queryByText(/^Target reached/)).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'PUFF' })).toHaveClass('puff-button')
   })
 
   it('greets a new user over live Track once and gives the complete restore account', async () => {

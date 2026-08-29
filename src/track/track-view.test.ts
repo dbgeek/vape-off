@@ -12,16 +12,16 @@ const emptyRecord: DayLedgerRecord = {
 
 function session(
   id: string,
+  logicalDay: string,
   at: string,
   count: number,
   lastTapAt = at,
-  logicalDay = '2026-08-29',
 ): PuffSession {
-  return { id, at, lastTapAt, count, logicalDay, tz: 'UTC' }
+  return { id, logicalDay, at, lastTapAt, count, tz: 'UTC' }
 }
 
-function urge(id: string, at: string, logicalDay = '2026-08-29'): ResistedUrge {
-  return { id, at, logicalDay, tz: 'UTC' }
+function urge(id: string, logicalDay: string, at: string): ResistedUrge {
+  return { id, logicalDay, at, tz: 'UTC' }
 }
 
 function clearDay(logicalDay: string): ClearDay {
@@ -29,8 +29,8 @@ function clearDay(logicalDay: string): ClearDay {
 }
 
 function step(
+  effectiveFrom: string,
   target: number,
-  effectiveFrom = '2026-08-20',
   kind: RatchetStep['kind'] = 'earned',
 ): RatchetStep {
   return {
@@ -47,15 +47,15 @@ describe('the Track view', () => {
     const record = {
       ...emptyRecord,
       puffSessions: [
-        session('later', '2026-08-29T19:00:00.000Z', 2),
-        session('earlier', '2026-08-29T10:00:00.000Z', 7),
-        session('yesterday', '2026-08-28T10:00:00.000Z', 100, undefined, '2026-08-28'),
+        session('later', '2026-08-29', '2026-08-29T19:00:00.000Z', 2),
+        session('earlier', '2026-08-29', '2026-08-29T10:00:00.000Z', 7),
+        session('yesterday', '2026-08-28', '2026-08-28T10:00:00.000Z', 100),
       ],
       resistedUrges: [
-        urge('today', '2026-08-29T14:00:00.000Z'),
-        urge('yesterday', '2026-08-28T14:00:00.000Z', '2026-08-28'),
+        urge('today', '2026-08-29', '2026-08-29T14:00:00.000Z'),
+        urge('yesterday', '2026-08-28', '2026-08-28T14:00:00.000Z'),
       ],
-      ratchetSteps: [step(24)],
+      ratchetSteps: [step('2026-08-20', 24)],
     }
 
     const view = buildTrackView(record, new Date('2026-08-29T19:02:00.000Z'), 'UTC')
@@ -71,7 +71,7 @@ describe('the Track view', () => {
   it('leaves the Target absent during the Baseline', () => {
     const record = {
       ...emptyRecord,
-      puffSessions: [session('only', '2026-08-29T10:00:00.000Z', 3)],
+      puffSessions: [session('only', '2026-08-29', '2026-08-29T10:00:00.000Z', 3)],
     }
 
     const view = buildTrackView(record, new Date('2026-08-29T12:00:00.000Z'), 'UTC')
@@ -79,48 +79,48 @@ describe('the Track view', () => {
     expect(view.target).toBeUndefined()
     expect(view.total).toBe(3)
     expect(view.targetReached).toBeUndefined()
-    expect(view.pastTargetSessionIds.size).toBe(0)
+    expect(view.overTargetSessionIds.size).toBe(0)
   })
 
   it('names the Puff Session that reached the Target and marks only the ones after it', () => {
     const record = {
       ...emptyRecord,
       puffSessions: [
-        session('first', '2026-08-29T10:00:00.000Z', 2),
-        session('reached', '2026-08-29T19:04:00.000Z', 2),
-        session('later', '2026-08-29T20:00:00.000Z', 1),
+        session('first', '2026-08-29', '2026-08-29T10:00:00.000Z', 2),
+        session('reached', '2026-08-29', '2026-08-29T19:04:00.000Z', 2),
+        session('later', '2026-08-29', '2026-08-29T20:00:00.000Z', 1),
       ],
-      ratchetSteps: [step(4)],
+      ratchetSteps: [step('2026-08-20', 4)],
     }
 
     const view = buildTrackView(record, new Date('2026-08-29T21:00:00.000Z'), 'UTC')
 
     expect(view.targetReached?.id).toBe('reached')
-    expect(view.pastTargetSessionIds).toEqual(new Set(['later']))
+    expect(view.overTargetSessionIds).toEqual(new Set(['later']))
   })
 
   it('puts every Puff Session past Target 0 without inventing a moment it was reached', () => {
     const record = {
       ...emptyRecord,
       puffSessions: [
-        session('first', '2026-08-29T10:00:00.000Z', 1),
-        session('second', '2026-08-29T20:00:00.000Z', 1),
+        session('first', '2026-08-29', '2026-08-29T10:00:00.000Z', 1),
+        session('second', '2026-08-29', '2026-08-29T20:00:00.000Z', 1),
       ],
-      ratchetSteps: [step(0, '2026-08-20', 'declared')],
+      ratchetSteps: [step('2026-08-20', 0, 'declared')],
     }
 
     const view = buildTrackView(record, new Date('2026-08-29T21:00:00.000Z'), 'UTC')
 
     expect(view.targetReached).toBeUndefined()
-    expect(view.pastTargetSessionIds).toEqual(new Set(['first', 'second']))
+    expect(view.overTargetSessionIds).toEqual(new Set(['first', 'second']))
   })
 
   it('carries the Puff Session whose Merge Window is still open', () => {
     const record = {
       ...emptyRecord,
       puffSessions: [
-        session('earlier', '2026-08-29T10:00:00.000Z', 1),
-        session('open', '2026-08-29T19:00:00.000Z', 2, '2026-08-29T19:01:00.000Z'),
+        session('earlier', '2026-08-29', '2026-08-29T10:00:00.000Z', 1),
+        session('open', '2026-08-29', '2026-08-29T19:00:00.000Z', 2, '2026-08-29T19:01:00.000Z'),
       ],
     }
 
@@ -134,8 +134,8 @@ describe('the Track view', () => {
   it('keeps only the Pace slots still ahead, and none during the Baseline', () => {
     const record = {
       ...emptyRecord,
-      puffSessions: [session('morning', '2026-08-29T10:00:00.000Z', 2)],
-      ratchetSteps: [step(6)],
+      puffSessions: [session('morning', '2026-08-29', '2026-08-29T10:00:00.000Z', 2)],
+      ratchetSteps: [step('2026-08-20', 6)],
     }
     const now = new Date('2026-08-29T12:00:00.000Z')
 
@@ -158,7 +158,7 @@ describe('the Track view', () => {
   it('offers the seven most recent Unknown Logical Days for catch-up', () => {
     const record = {
       ...emptyRecord,
-      resistedUrges: [urge('old', '2026-08-14T12:00:00.000Z', '2026-08-14')],
+      resistedUrges: [urge('old', '2026-08-14', '2026-08-14T12:00:00.000Z')],
     }
 
     const view = buildTrackView(record, new Date('2026-08-29T12:00:00.000Z'), 'UTC')
@@ -177,7 +177,7 @@ describe('the Track view', () => {
   it('leaves out the Known Logical Days inside the catch-up window', () => {
     const record = {
       ...emptyRecord,
-      resistedUrges: [urge('old', '2026-08-14T12:00:00.000Z', '2026-08-14')],
+      resistedUrges: [urge('old', '2026-08-14', '2026-08-14T12:00:00.000Z')],
       clearDays: [clearDay('2026-08-24'), clearDay('2026-08-27')],
     }
 
@@ -191,7 +191,7 @@ describe('the Track view', () => {
   it('never offers a day before the record has any evidence', () => {
     const record = {
       ...emptyRecord,
-      puffSessions: [session('first', '2026-08-27T10:00:00.000Z', 1, undefined, '2026-08-27')],
+      puffSessions: [session('first', '2026-08-27', '2026-08-27T10:00:00.000Z', 1)],
     }
 
     const view = buildTrackView(record, new Date('2026-08-29T12:00:00.000Z'), 'UTC')
@@ -207,7 +207,7 @@ describe('the Track view', () => {
   })
 
   it('treats a Ratchet Step as evidence when its events are gone', () => {
-    const record = { ...emptyRecord, ratchetSteps: [step(4, '2026-08-26')] }
+    const record = { ...emptyRecord, ratchetSteps: [step('2026-08-26', 4)] }
 
     const view = buildTrackView(record, new Date('2026-08-29T12:00:00.000Z'), 'UTC')
 
@@ -219,7 +219,7 @@ describe('the Track view', () => {
     const record = {
       ...emptyRecord,
       clearDays: [clearDay('2026-08-23')],
-      ratchetSteps: [step(4, '2026-08-27')],
+      ratchetSteps: [step('2026-08-27', 4)],
     }
 
     const view = buildTrackView(record, new Date('2026-08-29T12:00:00.000Z'), 'UTC')
@@ -246,7 +246,7 @@ describe('the Track view', () => {
     const held = {
       ...emptyRecord,
       clearDays: ['22', '23', '24', '25', '26'].map((day) => clearDay(`2026-08-${day}`)),
-      ratchetSteps: [step(1)],
+      ratchetSteps: [step('2026-08-20', 1)],
     }
 
     expect(buildTrackView(held, new Date('2026-08-29T12:00:00.000Z'), 'UTC').handoverAvailable).toBe(true)
@@ -256,11 +256,11 @@ describe('the Track view', () => {
     const clearDays = ['22', '23', '24', '25'].map((day) => clearDay(`2026-08-${day}`))
     const now = new Date('2026-08-29T12:00:00.000Z')
 
-    const notYet = { ...emptyRecord, clearDays, ratchetSteps: [step(1)] }
+    const notYet = { ...emptyRecord, clearDays, ratchetSteps: [step('2026-08-20', 1)] }
     const higherTarget = {
       ...emptyRecord,
       clearDays: [...clearDays, clearDay('2026-08-26')],
-      ratchetSteps: [step(2)],
+      ratchetSteps: [step('2026-08-20', 2)],
     }
 
     expect(buildTrackView(notYet, now, 'UTC').handoverAvailable).toBe(false)
@@ -271,7 +271,7 @@ describe('the Track view', () => {
     const record = {
       ...emptyRecord,
       clearDays: ['22', '23', '24', '25', '26'].map((day) => clearDay(`2026-08-${day}`)),
-      ratchetSteps: [step(2, '2026-08-20'), step(1, '2026-08-26')],
+      ratchetSteps: [step('2026-08-20', 2), step('2026-08-26', 1)],
     }
 
     expect(buildTrackView(record, new Date('2026-08-29T12:00:00.000Z'), 'UTC').handoverAvailable).toBe(false)
@@ -280,7 +280,7 @@ describe('the Track view', () => {
   it('reads the Logical Day from the time zone it is given', () => {
     const record = {
       ...emptyRecord,
-      puffSessions: [session('late', '2026-08-30T01:00:00.000Z', 1, undefined, '2026-08-29')],
+      puffSessions: [session('late', '2026-08-29', '2026-08-30T01:00:00.000Z', 1)],
     }
 
     const view = buildTrackView(record, new Date('2026-08-30T02:00:00.000Z'), 'UTC')
