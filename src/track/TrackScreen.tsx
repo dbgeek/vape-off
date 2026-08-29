@@ -413,7 +413,7 @@ export function TrackScreen({
         }
       })
     }
-    const timer = window.setInterval(() => setNow(clock.now()), 1000)
+    const timer = window.setInterval(() => setNow(clock.now()), 60_000)
     document.addEventListener('visibilitychange', refreshWhenVisible)
     return () => {
       live = false
@@ -559,12 +559,12 @@ export function TrackScreen({
           />
         ))}
 
-        {target === 0 || reached ? (
+        {reached ? (
           <div
-            className={`target-reached${target === 0 ? ' at-boundary' : ''}`}
-            style={{ top: target === 0 ? '0%' : `${timelinePosition(reached!.at, now, timeZone)}%` }}
+            className="target-reached"
+            style={{ top: `${timelinePosition(reached.at, now, timeZone)}%` }}
           >
-            <span>Target reached {target === 0 ? '04:00' : formatTime(reached!.at, timeZone)}</span>
+            <span>Target reached {formatTime(reached.at, timeZone)}</span>
           </div>
         ) : null}
 

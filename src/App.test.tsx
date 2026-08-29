@@ -48,7 +48,7 @@ function recoveryBackupSource(candidate: PreparedRestore): BackupSource {
 
 describe('the shell', () => {
   it('walls an uninstalled empty store before logging or restore is reachable', () => {
-    render(<App shellState={{ status: 'ready', hasHistory: false, installWallBypassed: false }} />)
+    render(<App shellState={{ status: 'ready', hasHistory: false }} />)
 
     expect(screen.getByRole('heading', { name: 'Install vape-off' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Continue anyway' })).toBeInTheDocument()
@@ -60,7 +60,7 @@ describe('the shell', () => {
   it('continues into logging under the permanent install bar, without enabling restore', () => {
     render(
       <App
-        shellState={{ status: 'ready', hasHistory: false, installWallBypassed: false }}
+        shellState={{ status: 'ready', hasHistory: false }}
         trackSource={emptyTrackSource()}
       />,
     )
@@ -70,6 +70,18 @@ describe('the shell', () => {
     expect(screen.getByRole('button', { name: 'PUFF' })).toBeInTheDocument()
     expect(screen.getByRole('complementary', { name: 'Install vape-off' })).toBeInTheDocument()
     expect(screen.queryByLabelText('Choose a backup file')).not.toBeInTheDocument()
+  })
+
+  it('walls again on the next cold start, because the escape is not remembered', () => {
+    const shellState = { status: 'ready', hasHistory: false } as const
+    const { unmount } = render(<App shellState={shellState} trackSource={emptyTrackSource()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Continue anyway' }))
+    expect(screen.getByRole('button', { name: 'PUFF' })).toBeInTheDocument()
+    unmount()
+
+    render(<App shellState={shellState} trackSource={emptyTrackSource()} />)
+
+    expect(screen.getByRole('heading', { name: 'Install vape-off' })).toBeInTheDocument()
   })
 
   it('keeps a failed database open distinct from first run and offers safe recovery', () => {
@@ -114,8 +126,7 @@ describe('the shell', () => {
     const startupSource = {
       load: vi.fn()
         .mockResolvedValueOnce({ status: 'failed-open', error: new Error('transient') })
-        .mockResolvedValueOnce({ status: 'ready', hasHistory: true, installWallBypassed: false }),
-      continueAnyway: vi.fn().mockResolvedValue(undefined),
+        .mockResolvedValueOnce({ status: 'ready', hasHistory: true }),
     }
     render(<App startupSource={startupSource} trackSource={emptyTrackSource()} installed />)
 
@@ -153,7 +164,7 @@ describe('the shell', () => {
     })
     render(
       <App
-        shellState={{ status: 'ready', hasHistory: true, installWallBypassed: false }}
+        shellState={{ status: 'ready', hasHistory: true }}
         trackSource={trackSource}
         installed={false}
       />,
@@ -173,7 +184,7 @@ describe('the shell', () => {
     }
     render(
       <App
-        shellState={{ status: 'ready', hasHistory: true, installWallBypassed: false }}
+        shellState={{ status: 'ready', hasHistory: true }}
         backupSource={recoveryBackupSource(candidate)}
       />,
     )
@@ -181,7 +192,7 @@ describe('the shell', () => {
   })
 
   it('opens on Track, which is the manifest start_url', () => {
-    render(<App shellState={{ status: 'ready', hasHistory: true, installWallBypassed: false }} />)
+    render(<App shellState={{ status: 'ready', hasHistory: true }} />)
     expect(screen.getByRole('heading')).toHaveTextContent('Track')
   })
 
@@ -196,7 +207,7 @@ describe('the shell', () => {
       dismissBackupCard: vi.fn().mockResolvedValue(undefined),
       declareStepBack: vi.fn(),
     }
-    render(<App statsSource={statsSource} shellState={{ status: 'ready', hasHistory: true, installWallBypassed: false }} />)
+    render(<App statsSource={statsSource} shellState={{ status: 'ready', hasHistory: true }} />)
     expect(await screen.findByRole('heading')).toHaveTextContent('Baseline')
   })
 
@@ -209,7 +220,7 @@ describe('the shell', () => {
     }
     render(
       <App
-        shellState={{ status: 'ready', hasHistory: true, installWallBypassed: false }}
+        shellState={{ status: 'ready', hasHistory: true }}
         backupSource={recoveryBackupSource(candidate)}
       />,
     )

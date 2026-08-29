@@ -24,7 +24,6 @@ describe('startup source', () => {
     await expect(emptySource.load()).resolves.toEqual({
       status: 'ready',
       hasHistory: false,
-      installWallBypassed: false,
     })
 
     const populated = databaseForTest()
@@ -39,21 +38,15 @@ describe('startup source', () => {
     await expect(createStartupSource(populated, () => 'populated-install').load()).resolves.toEqual({
       status: 'ready',
       hasHistory: true,
-      installWallBypassed: false,
     })
   })
 
-  it('remembers the install-wall escape across a cold start', async () => {
+  it('writes nothing to meta beyond the installId a first open mints', async () => {
     const database = databaseForTest()
-    const source = createStartupSource(database, () => 'install-id')
-    await source.load()
+    await createStartupSource(database, () => 'install-id').load()
 
-    await source.continueAnyway()
-    database.close()
-
-    await expect(source.load()).resolves.toMatchObject({
-      status: 'ready',
-      installWallBypassed: true,
-    })
+    await expect(database.meta.toArray()).resolves.toEqual([
+      { key: 'installId', value: 'install-id' },
+    ])
   })
 })

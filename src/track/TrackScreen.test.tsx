@@ -157,7 +157,7 @@ describe('Track', () => {
     await waitFor(() => expect(trackSource.logPuff).toHaveBeenCalledTimes(2))
   })
 
-  it('places Target 0 at the opening boundary and colors every Puff Session after it', async () => {
+  it('colors every Puff Session at Target 0 without inventing a moment it was reached', async () => {
     render(
       <TrackScreen
         source={source({
@@ -169,9 +169,8 @@ describe('Track', () => {
       />,
     )
 
-    const fact = await screen.findByText('Target reached 04:00')
-    expect(fact.parentElement).toHaveStyle({ top: '0%' })
-    expect(screen.getByLabelText('Puff Session, 1 puff at 10:00')).toHaveClass('over-target')
+    expect(await screen.findByLabelText('Puff Session, 1 puff at 10:00')).toHaveClass('over-target')
+    expect(screen.queryByText(/^Target reached/)).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'PUFF' })).toHaveClass('puff-button')
   })
 
