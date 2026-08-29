@@ -6,15 +6,20 @@ this page is for.
 
 ## What `vercel.json` already does
 
-- **SPA rewrite.** Every path that is not a real file falls through to
-  `/index.html`, because routing is history routing and the 30-minute update
-  catch-up reloads the page — a reload landing on `/stats` is a request the
-  server really serves.
-- **`/assets/*` immutable for a year.** Vite content-hashes those filenames.
-- **`index.html`, `sw.js` and the webmanifest `no-cache`.** A stale edge `sw.js`
+Read the file for the rules; two of them are load-bearing in ways the JSON
+cannot say:
+
+- **The SPA rewrite is not theoretical.** The 30-minute update catch-up reloads
+  the page, so a reload landing on `/stats` is a request the server really
+  serves.
+- **`no-cache` on `sw.js` is the whole update mechanism.** A stale edge `sw.js`
   means updates never arrive at all.
-- **`X-Robots-Tag: noindex, nofollow` on everything**, alongside the `noindex`
-  meta in `index.html` and the disallow in `public/robots.txt`.
+
+Every route serves the same `index.html` through the rewrite, so each one is
+named in the `no-cache` rules. **Adding a route to `src/shell/routing.ts` means
+adding it here too.** Vercel's default for a static file already revalidates, so
+forgetting costs correctness of intent rather than behaviour — but the intent is
+that no document in this app is ever served from a cache without asking.
 
 ## What you have to set in the dashboard
 

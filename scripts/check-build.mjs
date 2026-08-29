@@ -72,10 +72,7 @@ check('index.html links the manifest', html.includes('rel="manifest"'))
 
 // --- no telemetry, stated because it is a one-click default ---
 
-check(
-  'the bundle carries no Vercel analytics',
-  !readFileSync(join(dist, 'index.html'), 'utf8').includes('/_vercel/insights'),
-)
+check('the bundle carries no Vercel analytics', !html.includes('/_vercel/insights'))
 
 // --- robots ---
 

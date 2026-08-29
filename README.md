@@ -1,11 +1,10 @@
 # vape-off
 
 A personal, local-only iPhone PWA for reducing and eventually stopping vaping.
-It establishes how much you currently vape, then shrinks a daily allowance as
-you demonstrate you can hold it.
 
-Read [`CONTEXT.md`](./CONTEXT.md) first — every capitalised term in this repo is
-defined there and nowhere else. The build order lives in
+Read [`CONTEXT.md`](./CONTEXT.md) first — it says what the app is, and every
+capitalised term in this repo is defined there and nowhere else. The build order
+lives in
 [`docs/spec/slices.md`](./docs/spec/slices.md), the reasoning in
 [`docs/adr/`](./docs/adr/).
 

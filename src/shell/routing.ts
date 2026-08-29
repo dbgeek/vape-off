@@ -12,11 +12,19 @@ import { useEffect, useState } from 'react'
 
 export type Route = 'track' | 'stats' | 'settings'
 
+/** The one place a route and its path are paired. */
 const PATHS: Record<Route, string> = {
   track: '/',
   stats: '/stats',
   settings: '/settings',
 }
+
+/** In the order they are offered. Track first: it is the manifest's start_url. */
+export const ROUTES = Object.keys(PATHS) as Route[]
+
+const BY_PATH: ReadonlyMap<string, Route> = new Map(
+  ROUTES.map((route) => [PATHS[route], route]),
+)
 
 export function pathFor(route: Route): string {
   return PATHS[route]
@@ -24,14 +32,7 @@ export function pathFor(route: Route): string {
 
 export function routeFor(pathname: string): Route {
   const normalised = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname
-  switch (normalised) {
-    case '/stats':
-      return 'stats'
-    case '/settings':
-      return 'settings'
-    default:
-      return 'track'
-  }
+  return BY_PATH.get(normalised) ?? 'track'
 }
 
 /** The current route, and a push that leaves an entry for the back gesture. */

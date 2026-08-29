@@ -1,6 +1,6 @@
 import { formatBuildIdentity } from './shell/build-identity.ts'
 import { isStandalone } from './shell/install-state.ts'
-import { pathFor, useRoute, type Route } from './shell/routing.ts'
+import { pathFor, ROUTES, useRoute, type Route } from './shell/routing.ts'
 
 /**
  * The empty shell. No data, no domain — S1 is the container the app lives in.
@@ -24,7 +24,7 @@ export function App() {
   return (
     <div className="flex h-full flex-col pt-safe-t">
       <nav className="flex gap-4 px-5 pt-4 text-sm">
-        {(Object.keys(TITLES) as Route[]).map((candidate) => (
+        {ROUTES.map((candidate) => (
           <a
             key={candidate}
             href={pathFor(candidate)}

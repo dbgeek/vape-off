@@ -81,7 +81,13 @@ export function startUpdateControl(environment: UpdateControlEnvironment): () =>
     if (wentHiddenAt === null) return
     if (now() - wentHiddenAt <= HIDDEN_CATCH_UP_MS) return
 
-    void catchUp()
+    void catchUp().catch(() => {
+      // Being offline is the ordinary case on this path, not an exception:
+      // `registration.update()` rejects when sw.js cannot be fetched, which is
+      // the airplane mode the app is built to keep working in. The worker stays
+      // waiting and the next cold start or long absence picks it up. Nothing to
+      // report, and nowhere to report it — there is no telemetry.
+    })
   }
 
   /**
