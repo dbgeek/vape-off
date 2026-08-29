@@ -242,14 +242,15 @@ describe('Track', () => {
   })
 
   it('offers catch-up when stored Ratchet decisions outlive hard-deleted events', async () => {
+    const ratchetOnlyTarget = { ...target(4), effectiveFrom: '2026-08-26' }
     render(
       <TrackScreen
-        source={source({ ...emptyRecord, ratchetSteps: [target(4)] })}
+        source={source({ ...emptyRecord, ratchetSteps: [ratchetOnlyTarget] })}
         clock={{ now: () => new Date('2026-08-29T12:00:00.000Z'), timeZone: () => 'UTC' }}
       />,
     )
 
-    expect(within(await screen.findByRole('region', { name: 'Catch up' })).getAllByRole('article')).toHaveLength(7)
+    expect(within(await screen.findByRole('region', { name: 'Catch up' })).getAllByRole('article')).toHaveLength(3)
   })
 
   it('allows today to be declared Clear and surfaces the earned handover at Target 1', async () => {

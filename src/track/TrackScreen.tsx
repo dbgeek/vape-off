@@ -11,7 +11,7 @@ import { momentum, pace } from '../domain/readouts.ts'
 import { windowSatisfied } from '../domain/ratchet.ts'
 import { isStandalone } from '../shell/install-state.ts'
 import { logicalDayKeyOf, stampEvent } from '../store/logical-day.ts'
-import type { PuffSession, ResistedUrge } from '../store/records.ts'
+import type { LogicalDayKey, PuffSession, ResistedUrge } from '../store/records.ts'
 
 const LOGICAL_DAY_START_MINUTE = 4 * 60
 
@@ -115,11 +115,11 @@ function hasHistory(record: DayLedgerRecord): boolean {
   )
 }
 
-function dateAtNoon(logicalDay: string): Date {
+function dateAtNoon(logicalDay: LogicalDayKey): Date {
   return new Date(`${logicalDay}T12:00:00`)
 }
 
-function formatLogicalDay(logicalDay: string): string {
+function formatLogicalDay(logicalDay: LogicalDayKey): string {
   return new Intl.DateTimeFormat('en-GB', {
     weekday: 'short',
     day: 'numeric',
@@ -194,7 +194,7 @@ function RecordEditor({
   editor: EditorState
   source: TrackSource
   record: DayLedgerRecord
-  today: string
+  today: LogicalDayKey
   timeZone: string
   now: Date
   mutate: (operation: () => Promise<DayLedgerRecord>) => void
@@ -418,7 +418,7 @@ export function TrackScreen({
     ? completedDays(7, today).filter(
         (logicalDay) =>
           earliestEvidenceDay !== undefined &&
-          logicalDay > earliestEvidenceDay &&
+          logicalDay >= earliestEvidenceDay &&
           !isKnown(record, logicalDay),
       )
     : []
