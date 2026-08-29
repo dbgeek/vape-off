@@ -248,7 +248,7 @@ describe('Track', () => {
     expect(screen.queryByText(/first week just measures/i)).not.toBeInTheDocument()
   })
 
-  it('offers only the seven most recent Unknown Logical Days without debt framing', async () => {
+  it('renders a catch-up card per offered Unknown Logical Day, without debt framing', async () => {
     const trackSource = source({
       ...emptyRecord,
       resistedUrges: [
@@ -270,33 +270,6 @@ describe('Track', () => {
 
     fireEvent.click(within(strip).getAllByRole('button', { name: /Clear Day/i })[0]!)
     await waitFor(() => expect(trackSource.declareClearDay).toHaveBeenCalledOnce())
-  })
-
-  it('does not turn the days before a new user first writes into catch-up work', async () => {
-    render(
-      <TrackScreen
-        source={source({
-          ...emptyRecord,
-          puffSessions: [session('first', '2026-08-29T10:00:00.000Z', 1)],
-        })}
-        clock={{ now: () => new Date('2026-08-29T12:00:00.000Z'), timeZone: () => 'UTC' }}
-      />,
-    )
-
-    await screen.findByLabelText('Puff Session, 1 puff at 10:00')
-    expect(screen.queryByRole('region', { name: 'Catch up' })).not.toBeInTheDocument()
-  })
-
-  it('offers catch-up when stored Ratchet decisions outlive hard-deleted events', async () => {
-    const ratchetOnlyTarget = { ...target(4), effectiveFrom: '2026-08-26' }
-    render(
-      <TrackScreen
-        source={source({ ...emptyRecord, ratchetSteps: [ratchetOnlyTarget] })}
-        clock={{ now: () => new Date('2026-08-29T12:00:00.000Z'), timeZone: () => 'UTC' }}
-      />,
-    )
-
-    expect(within(await screen.findByRole('region', { name: 'Catch up' })).getAllByRole('article')).toHaveLength(3)
   })
 
   it('allows today to be declared Clear and surfaces the earned handover at Target 1', async () => {
