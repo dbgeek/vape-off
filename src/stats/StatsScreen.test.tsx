@@ -130,6 +130,31 @@ describe('Stats', () => {
     expect(trend.querySelector('.trend-target-segment')?.getAttribute('points')).toBe('276,12')
   })
 
+  it('draws Target changes as steps rather than diagonal interpolation', async () => {
+    render(
+      <StatsScreen
+        source={source({
+          record: {
+            ...emptyRecord,
+            clearDays: [
+              { logicalDay: '2026-08-28', at: '2026-08-28T12:00:00.000Z', tz: 'UTC' },
+              { logicalDay: '2026-08-29', at: '2026-08-29T12:00:00.000Z', tz: 'UTC' },
+            ],
+            ratchetSteps: [step('2026-08-20', 8), step('2026-08-29', 6)],
+          },
+          exports: [],
+          backupCardDismissedAt: 0,
+        })}
+        clock={clock}
+        installed
+      />,
+    )
+
+    const targetLine = (await screen.findByRole('img', { name: '28-day puff and Target trend' }))
+      .querySelector('.trend-target-segment')
+    expect(targetLine?.getAttribute('points')).toBe('265.9259259259259,12 276,12 276,28')
+  })
+
   it('shows backup exposure from the first Known Logical Day and repeats the card at 30', async () => {
     const clearDays = Array.from({ length: 31 }, (_, index) => {
       const day = String(index + 1).padStart(2, '0')

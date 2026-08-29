@@ -68,16 +68,20 @@ function Dial({ hours, peakHour }: { hours: DialHour[]; peakHour: number | undef
 function lineSegments(days: TrendDay[], key: 'total' | 'target', maximum: number): string[] {
   const segments: string[] = []
   let points: string[] = []
+  let previousY: number | undefined
   days.forEach((day, index) => {
     const value = day[key]
     if (value === null) {
       if (points.length > 0) segments.push(points.join(' '))
       points = []
+      previousY = undefined
       return
     }
     const x = 4 + (index / (days.length - 1)) * 272
     const y = 76 - (value / maximum) * 64
+    if (key === 'target' && previousY !== undefined) points.push(`${x},${previousY}`)
     points.push(`${x},${y}`)
+    previousY = y
   })
   if (points.length > 0) segments.push(points.join(' '))
   return segments
