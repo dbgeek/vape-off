@@ -1,7 +1,15 @@
 import 'fake-indexeddb/auto'
 import { afterEach, describe, expect, it } from 'vitest'
 import { VapeOffDatabase } from './database.ts'
-import { writeClearDay, writePuffSession, writeResistedUrge } from './event-writes.ts'
+import {
+  deletePuffSession,
+  deleteResistedUrge,
+  updatePuffSession,
+  updateResistedUrge,
+  writeClearDay,
+  writePuffSession,
+  writeResistedUrge,
+} from './event-writes.ts'
 
 const databases: VapeOffDatabase[] = []
 
@@ -81,5 +89,70 @@ describe('event writes', () => {
 
     await expect(db.puffSessions.get(session.id)).resolves.toEqual(session)
     await expect(db.clearDays.get('2026-08-28')).resolves.toBeUndefined()
+  })
+
+  it('re-stamps an edited Puff Session and drops a Clear Day at its new time', async () => {
+    const db = new VapeOffDatabase(`event-writes-test-${crypto.randomUUID()}`)
+    databases.push(db)
+    const environment = {
+      timeZone: () => 'Europe/Stockholm',
+      randomUUID: () => '4f341b0a-b09a-4ddc-b68c-e570b20c90db',
+    }
+    const originalAt = new Date('2026-08-28T10:00:00.000Z')
+    const session = await writePuffSession(
+      db,
+      { at: originalAt, lastTapAt: new Date('2026-08-28T10:02:00.000Z'), count: 2 },
+      environment,
+    )
+    const movedAt = new Date('2026-08-29T01:00:00.000Z')
+    await writeClearDay(db, movedAt, environment)
+
+    const edited = await updatePuffSession(
+      db,
+      session.id,
+      { at: movedAt, count: 4 },
+      environment,
+    )
+
+    expect(edited).toMatchObject({
+      at: '2026-08-29T03:00:00.000+02:00',
+      lastTapAt: '2026-08-29T03:02:00.000+02:00',
+      count: 4,
+      logicalDay: '2026-08-28',
+      tz: 'Europe/Stockholm',
+    })
+    await expect(db.clearDays.get('2026-08-28')).resolves.toBeUndefined()
+  })
+
+  it('edits and hard-deletes event records without leaving edit history', async () => {
+    const db = new VapeOffDatabase(`event-writes-test-${crypto.randomUUID()}`)
+    databases.push(db)
+    const environment = {
+      timeZone: () => 'UTC',
+      randomUUID: () => '79ae9e0b-dd6f-4e54-b3f7-77947eff8a0e',
+    }
+    const session = await writePuffSession(
+      db,
+      {
+        at: new Date('2026-08-28T10:00:00.000Z'),
+        lastTapAt: new Date('2026-08-28T10:00:00.000Z'),
+        count: 1,
+      },
+      environment,
+    )
+    const urge = await writeResistedUrge(
+      db,
+      new Date('2026-08-28T11:00:00.000Z'),
+      environment,
+    )
+
+    await expect(
+      updateResistedUrge(db, urge.id, new Date('2026-08-29T12:00:00.000Z'), environment),
+    ).resolves.toMatchObject({ logicalDay: '2026-08-29', at: '2026-08-29T12:00:00.000+00:00' })
+    await deletePuffSession(db, session.id)
+    await deleteResistedUrge(db, urge.id)
+
+    await expect(db.puffSessions.toArray()).resolves.toEqual([])
+    await expect(db.resistedUrges.toArray()).resolves.toEqual([])
   })
 })

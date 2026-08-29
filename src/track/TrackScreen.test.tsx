@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { DayLedgerRecord } from '../domain/day-ledger.ts'
 import type { PuffSession, RatchetStep, ResistedUrge } from '../store/records.ts'
@@ -32,8 +32,18 @@ function target(value: number): RatchetStep {
 function source(record: DayLedgerRecord): TrackSource {
   return {
     load: vi.fn().mockResolvedValue(record),
+    loadFirstRunCardDismissed: vi.fn().mockResolvedValue(true),
     logPuff: vi.fn().mockResolvedValue(record),
     logResistedUrge: vi.fn().mockResolvedValue(record),
+    dismissFirstRunCard: vi.fn().mockResolvedValue(undefined),
+    declareClearDay: vi.fn().mockResolvedValue(record),
+    addPuffSession: vi.fn().mockResolvedValue(record),
+    addResistedUrge: vi.fn().mockResolvedValue(record),
+    updatePuffSession: vi.fn().mockResolvedValue(record),
+    deletePuffSession: vi.fn().mockResolvedValue(record),
+    updateResistedUrge: vi.fn().mockResolvedValue(record),
+    deleteResistedUrge: vi.fn().mockResolvedValue(record),
+    declareHandover: vi.fn().mockResolvedValue(record),
   }
 }
 
@@ -162,5 +172,162 @@ describe('Track', () => {
     expect(fact.parentElement).toHaveStyle({ top: '0%' })
     expect(screen.getByLabelText('Puff Session, 1 puff at 10:00')).toHaveClass('over-target')
     expect(screen.getByRole('button', { name: 'PUFF' })).toHaveClass('puff-button')
+  })
+
+  it('greets a new user over live Track once and gives the complete restore account', async () => {
+    const trackSource = source(emptyRecord)
+    vi.mocked(trackSource.loadFirstRunCardDismissed).mockResolvedValue(false)
+
+    render(
+      <TrackScreen
+        source={trackSource}
+        installed={false}
+        clock={{ now: () => new Date('2026-08-29T12:00:00.000Z'), timeZone: () => 'UTC' }}
+      />,
+    )
+
+    expect(await screen.findByText(/first week just measures/i)).toBeInTheDocument()
+    expect(screen.getByText(/seven days of logging/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'PUFF' })).toBeInTheDocument()
+    expect(screen.getByText(/Used vape-off before?/)).toBeInTheDocument()
+    expect(screen.queryByText(/Start fresh/i)).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Restore from a backup/i }))
+    expect(document.querySelector('.restore-account')).toHaveTextContent(/behind a second icon/i)
+    expect(screen.getByText(/other icon has to still exist/i)).toBeInTheDocument()
+    expect(screen.getByText(/Install vape-off before restoring/i)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss welcome' }))
+    await waitFor(() => expect(trackSource.dismissFirstRunCard).toHaveBeenCalledOnce())
+    expect(screen.queryByText(/first week just measures/i)).not.toBeInTheDocument()
+  })
+
+  it('offers only the seven most recent Unknown Logical Days without debt framing', async () => {
+    const trackSource = source({
+      ...emptyRecord,
+      resistedUrges: [
+        { id: 'old', at: '2026-08-14T12:00:00.000Z', logicalDay: '2026-08-14', tz: 'UTC' },
+      ],
+    })
+    render(
+      <TrackScreen
+        source={trackSource}
+        clock={{ now: () => new Date('2026-08-29T12:00:00.000Z'), timeZone: () => 'UTC' }}
+      />,
+    )
+
+    const strip = await screen.findByRole('region', { name: 'Catch up' })
+    expect(within(strip).getAllByRole('article')).toHaveLength(7)
+    expect(strip).toHaveTextContent('Anything you remember?')
+    expect(strip).toHaveTextContent('It is fine to leave a day unknown.')
+    expect(strip).not.toHaveTextContent(/missed|owe|overdue/i)
+
+    fireEvent.click(within(strip).getAllByRole('button', { name: /Clear Day/i })[0]!)
+    await waitFor(() => expect(trackSource.declareClearDay).toHaveBeenCalledOnce())
+  })
+
+  it('does not turn the days before a new user first writes into catch-up work', async () => {
+    render(
+      <TrackScreen
+        source={source({
+          ...emptyRecord,
+          puffSessions: [session('first', '2026-08-29T10:00:00.000Z', 1)],
+        })}
+        clock={{ now: () => new Date('2026-08-29T12:00:00.000Z'), timeZone: () => 'UTC' }}
+      />,
+    )
+
+    await screen.findByLabelText('Puff Session, 1 puff at 10:00')
+    expect(screen.queryByRole('region', { name: 'Catch up' })).not.toBeInTheDocument()
+  })
+
+  it('allows today to be declared Clear and surfaces the earned handover at Target 1', async () => {
+    const clearDays = ['22', '23', '24', '25', '26'].map((day) => ({
+      at: `2026-08-${day}T12:00:00.000Z`,
+      logicalDay: `2026-08-${day}`,
+      tz: 'UTC',
+    }))
+    const record = {
+      ...emptyRecord,
+      clearDays,
+      ratchetSteps: [target(1)],
+    }
+    const trackSource = source(record)
+    render(
+      <TrackScreen
+        source={trackSource}
+        clock={{ now: () => new Date('2026-08-29T12:00:00.000Z'), timeZone: () => 'UTC' }}
+      />,
+    )
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Declare today a Clear Day' }))
+    await waitFor(() => expect(trackSource.declareClearDay).toHaveBeenCalledOnce())
+    fireEvent.click(screen.getByRole('button', { name: 'Set Target to 0' }))
+    await waitFor(() => expect(trackSource.declareHandover).toHaveBeenCalledOnce())
+  })
+
+  it('opens a Puff Session for a cheap count correction and a hard delete', async () => {
+    const record = {
+      ...emptyRecord,
+      puffSessions: [session('morning', '2026-08-29T10:00:00.000Z', 2)],
+    }
+    const trackSource = source(record)
+    render(
+      <TrackScreen
+        source={trackSource}
+        clock={{ now: () => new Date('2026-08-29T12:00:00.000Z'), timeZone: () => 'UTC' }}
+      />,
+    )
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Puff Session, 2 puffs at 10:00' }))
+    const dialog = screen.getByRole('dialog', { name: 'Edit Puff Session' })
+    fireEvent.change(within(dialog).getByLabelText('Puff count'), { target: { value: '3' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save changes' }))
+    await waitFor(() =>
+      expect(trackSource.updatePuffSession).toHaveBeenCalledWith(
+        'morning',
+        expect.objectContaining({ count: 3 }),
+      ),
+    )
+    expect(screen.queryByText(/Are you sure/i)).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Puff Session, 2 puffs at 10:00' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
+    await waitFor(() => expect(trackSource.deletePuffSession).toHaveBeenCalledWith('morning'))
+  })
+
+  it('names a Momentum change before a backfilled Puff Session lands', async () => {
+    const record = {
+      ...emptyRecord,
+      clearDays: [
+        { at: '2026-08-28T12:00:00.000Z', logicalDay: '2026-08-28', tz: 'UTC' },
+      ],
+      ratchetSteps: [target(2)],
+    }
+    const trackSource = source(record)
+    render(
+      <TrackScreen
+        source={trackSource}
+        clock={{ now: () => new Date('2026-08-29T12:00:00.000Z'), timeZone: () => 'UTC' }}
+      />,
+    )
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Add past event' }))
+    const dialog = screen.getByRole('dialog', { name: 'Add to the record' })
+    fireEvent.change(within(dialog).getByLabelText('Time'), {
+      target: { value: '2026-08-28T12:00' },
+    })
+    fireEvent.change(within(dialog).getByLabelText('Puff count'), { target: { value: '3' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save changes' }))
+
+    expect(screen.getByText('This will change your momentum from 1 to 0.')).toBeInTheDocument()
+    expect(trackSource.addPuffSession).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Apply change' }))
+    await waitFor(() =>
+      expect(trackSource.addPuffSession).toHaveBeenCalledWith({
+        at: new Date('2026-08-28T12:00:00.000Z'),
+        count: 3,
+      }),
+    )
   })
 })
