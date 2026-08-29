@@ -1,6 +1,8 @@
 import { formatBuildIdentity } from './shell/build-identity.ts'
 import { isStandalone } from './shell/install-state.ts'
 import { pathFor, ROUTES, useRoute, type Route } from './shell/routing.ts'
+import { browserTrackSource } from './track/browser-track-source.ts'
+import { TrackScreen, type TrackSource } from './track/TrackScreen.tsx'
 
 /**
  * The empty shell. No data, no domain — S1 is the container the app lives in.
@@ -18,12 +20,12 @@ const TITLES: Record<Route, string> = {
   settings: 'Settings',
 }
 
-export function App() {
+export function App({ trackSource = browserTrackSource }: { trackSource?: TrackSource }) {
   const [route, navigate] = useRoute()
 
   return (
-    <div className="flex h-full flex-col pt-safe-t">
-      <nav className="flex gap-4 px-5 pt-4 text-sm">
+    <div className="flex h-full flex-col overflow-hidden pt-safe-t">
+      <nav className="z-20 flex gap-4 px-5 pt-4 text-sm">
         {ROUTES.map((candidate) => (
           <a
             key={candidate}
@@ -42,16 +44,22 @@ export function App() {
         ))}
       </nav>
 
-      <main className="flex flex-1 items-center justify-center px-5">
-        <h1 className="text-2xl">{TITLES[route]}</h1>
-      </main>
+      {route === 'track' ? (
+        <TrackScreen source={trackSource} />
+      ) : (
+        <main className="flex flex-1 items-center justify-center px-5">
+          <h1 className="text-2xl">{TITLES[route]}</h1>
+        </main>
+      )}
 
       {/*
         The build identity. Updates are silent, so this is the only way to tell
         what is running. It lives in Settings from S11; until Settings exists it
         sits here, above the home indicator.
       */}
-      <footer className="px-5 pt-3 pb-safe-b text-center text-xs text-muted">
+      <footer
+        className={`${route === 'track' ? 'hidden' : ''} px-5 pt-3 pb-safe-b text-center text-xs text-muted`}
+      >
         <p className="pb-3">
           {formatBuildIdentity()} · {isStandalone() ? 'installed' : 'in a tab'}
         </p>
