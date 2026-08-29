@@ -268,6 +268,374 @@ select:focus-visible {
   transform: translate(-50%, -50%);
 }
 
+/* Stats keeps the same utilitarian record-book language as Track, but the
+ * concentric Dial gives it one unmistakable gesture of its own. */
+.stats-screen {
+  width: min(100%, 38rem);
+  min-height: 0;
+  flex: 1;
+  align-self: center;
+  overflow-y: auto;
+  padding: 1.5rem 1.25rem calc(2rem + env(safe-area-inset-bottom, 0px));
+  scrollbar-width: none;
+}
+
+.stats-screen::-webkit-scrollbar {
+  display: none;
+}
+
+.stats-header {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: end;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-paper) 18%, transparent);
+}
+
+.stats-header h1 {
+  grid-row: 1 / span 2;
+  font-size: clamp(2.75rem, 13vw, 4.6rem);
+  font-weight: 520;
+  letter-spacing: -0.07em;
+  line-height: 0.82;
+}
+
+.stats-header > p:last-child {
+  color: var(--color-paper);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.stats-kicker,
+.stats-window,
+.stats-section-heading span,
+.stats-tile span,
+.stats-headline > span,
+.stats-momentum span {
+  color: var(--color-muted);
+  font-size: 0.62rem;
+  font-weight: 620;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.stats-dial-section {
+  display: grid;
+  place-items: center;
+  padding: 1.1rem 0 1.5rem;
+}
+
+.stats-dial {
+  width: min(100%, 25rem);
+  overflow: visible;
+}
+
+.dial-ring {
+  fill: color-mix(in srgb, var(--color-paper) 2%, transparent);
+  stroke: color-mix(in srgb, var(--color-paper) 40%, transparent);
+  stroke-width: 1.5;
+}
+
+.dial-grid {
+  stroke: color-mix(in srgb, var(--color-paper) 9%, transparent);
+  stroke-width: 0.6;
+}
+
+.dial-puffs,
+.dial-urges {
+  stroke-linecap: round;
+  stroke-width: 4.5;
+}
+
+.dial-puffs {
+  stroke: #f2c46d;
+}
+
+.dial-urges {
+  stroke: #74d6bc;
+}
+
+.dial-boundary,
+.dial-centre-kicker,
+.dial-centre-hour {
+  font-variant-numeric: tabular-nums;
+}
+
+.dial-boundary {
+  fill: #f2c46d;
+  font-size: 6px;
+  letter-spacing: 0.12em;
+}
+
+.dial-centre-kicker {
+  fill: var(--color-muted);
+  font-size: 4.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.dial-centre-hour {
+  fill: var(--color-paper);
+  font-size: 14px;
+  font-weight: 650;
+  letter-spacing: -0.05em;
+}
+
+.stats-reading {
+  margin-top: -0.3rem;
+  font-size: 0.88rem;
+}
+
+.stats-window {
+  margin-top: 0.35rem;
+  text-align: center;
+}
+
+.stats-tiles {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.65rem;
+  margin-bottom: 1.6rem;
+}
+
+.stats-tile,
+.stats-headline,
+.stats-momentum {
+  position: relative;
+  display: grid;
+  min-height: 7.5rem;
+  align-content: space-between;
+  border: 1px solid color-mix(in srgb, var(--color-paper) 19%, transparent);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--color-paper) 7%, transparent), transparent 62%),
+    repeating-linear-gradient(135deg, transparent 0 8px, color-mix(in srgb, var(--color-paper) 2%, transparent) 8px 9px);
+  padding: 0.85rem;
+}
+
+.stats-tile::after,
+.stats-headline::after {
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  width: 1.1rem;
+  height: 1.1rem;
+  border-top: 2px solid #f2c46d;
+  border-right: 2px solid #f2c46d;
+  content: '';
+}
+
+.stats-tile strong {
+  font-size: clamp(2rem, 10vw, 3rem);
+  font-weight: 540;
+  letter-spacing: -0.06em;
+  line-height: 0.95;
+}
+
+.stats-headline {
+  min-height: 10.5rem;
+  margin-bottom: 0.65rem;
+}
+
+.stats-headline strong {
+  font-size: clamp(2.5rem, 12vw, 4.2rem);
+  font-weight: 540;
+  letter-spacing: -0.07em;
+  line-height: 0.9;
+}
+
+.stats-headline small {
+  color: var(--color-muted);
+  font-size: 0.68rem;
+}
+
+.stats-momentum {
+  min-height: 5.4rem;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  margin-bottom: 1.6rem;
+  border-color: color-mix(in srgb, #74d6bc 32%, transparent);
+}
+
+.stats-momentum strong {
+  color: #74d6bc;
+  font-size: 2.6rem;
+  font-weight: 560;
+}
+
+.stats-section {
+  padding: 1.2rem 0;
+  border-top: 1px solid color-mix(in srgb, var(--color-paper) 14%, transparent);
+}
+
+.stats-section-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.stats-section-heading h2 {
+  font-size: 0.88rem;
+  font-weight: 560;
+}
+
+.stats-trend {
+  width: 100%;
+  margin-top: 0.6rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-paper) 12%, transparent);
+}
+
+.trend-total-segment,
+.trend-target-segment {
+  fill: none;
+  vector-effect: non-scaling-stroke;
+}
+
+.trend-total-segment {
+  stroke: var(--color-paper);
+  stroke-width: 1.7;
+}
+
+.trend-target-segment {
+  stroke: #f2c46d;
+  stroke-width: 1.2;
+  stroke-dasharray: 4 4;
+}
+
+.stats-longest-value {
+  display: block;
+  margin-top: 0.5rem;
+  font-size: 2rem;
+  font-weight: 540;
+  letter-spacing: -0.04em;
+}
+
+.stats-footnote,
+.backup-line {
+  color: var(--color-muted);
+  font-size: 0.68rem;
+}
+
+.stats-footnote {
+  margin-top: 0.3rem;
+}
+
+.backup-line {
+  padding: 1rem 0;
+  border-top: 1px solid color-mix(in srgb, var(--color-paper) 14%, transparent);
+}
+
+.backup-card {
+  position: relative;
+  margin-bottom: 1rem;
+  border: 1px solid color-mix(in srgb, #f2c46d 48%, transparent);
+  background: color-mix(in srgb, #f2c46d 8%, var(--color-ink));
+  padding: 1rem 3rem 1rem 1rem;
+}
+
+.backup-card strong {
+  color: #f2c46d;
+  font-size: 0.82rem;
+}
+
+.backup-card p {
+  margin-top: 0.2rem;
+  color: #d7c79f;
+  font-size: 0.7rem;
+}
+
+.backup-card button {
+  position: absolute;
+  top: 0.25rem;
+  right: 0.25rem;
+  width: 2.75rem;
+  height: 2.75rem;
+  border: 0;
+  background: transparent;
+  color: var(--color-muted);
+}
+
+.programme-details {
+  display: grid;
+  justify-items: start;
+  gap: 0.5rem;
+  padding-top: 0.5rem;
+}
+
+.programme-details button {
+  min-height: 2.75rem;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: var(--color-muted);
+  font-size: 0.7rem;
+  text-decoration: underline;
+  text-underline-offset: 0.25rem;
+}
+
+.step-back-dialog {
+  position: fixed;
+  z-index: 30;
+  right: 1rem;
+  bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+  left: 1rem;
+  max-width: 36rem;
+  margin-inline: auto;
+  border: 1px solid color-mix(in srgb, var(--color-paper) 35%, transparent);
+  background: #171719;
+  box-shadow: 0 1.5rem 5rem rgb(0 0 0 / 65%);
+  padding: 1.2rem;
+}
+
+.step-back-dialog h2 {
+  font-size: 1.25rem;
+}
+
+.step-back-dialog p {
+  margin-top: 0.35rem;
+  color: var(--color-muted);
+  font-size: 0.75rem;
+}
+
+.step-back-dialog div {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.65rem;
+  margin-top: 1rem;
+}
+
+.step-back-dialog button {
+  min-height: 2.75rem;
+  border: 1px solid color-mix(in srgb, var(--color-paper) 22%, transparent);
+  background: transparent;
+  color: var(--color-paper);
+}
+
+.step-back-dialog button:last-child {
+  border-color: #f2c46d;
+  color: #f2c46d;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .stats-header,
+  .stats-dial-section,
+  .stats-tiles,
+  .stats-headline,
+  .stats-section {
+    animation: stats-enter 360ms ease-out both;
+  }
+
+  .stats-dial-section { animation-delay: 45ms; }
+  .stats-tiles,
+  .stats-headline { animation-delay: 90ms; }
+  .stats-section { animation-delay: 135ms; }
+}
+
+@keyframes stats-enter {
+  from { opacity: 0; transform: translateY(0.5rem); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 .puff-mark {
   display: grid;
   place-items: center;

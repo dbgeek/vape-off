@@ -1,6 +1,8 @@
 import { formatBuildIdentity } from './shell/build-identity.ts'
 import { isStandalone } from './shell/install-state.ts'
 import { pathFor, ROUTES, useRoute, type Route } from './shell/routing.ts'
+import { browserStatsSource } from './stats/browser-stats-source.ts'
+import { StatsScreen, type StatsSource } from './stats/StatsScreen.tsx'
 import { browserTrackSource } from './track/browser-track-source.ts'
 import { TrackScreen, type TrackSource } from './track/TrackScreen.tsx'
 
@@ -20,7 +22,13 @@ const TITLES: Record<Route, string> = {
   settings: 'Settings',
 }
 
-export function App({ trackSource = browserTrackSource }: { trackSource?: TrackSource }) {
+export function App({
+  trackSource = browserTrackSource,
+  statsSource = browserStatsSource,
+}: {
+  trackSource?: TrackSource
+  statsSource?: StatsSource
+}) {
   const [route, navigate] = useRoute()
 
   return (
@@ -44,13 +52,13 @@ export function App({ trackSource = browserTrackSource }: { trackSource?: TrackS
         ))}
       </nav>
 
-      {route === 'track' ? (
-        <TrackScreen source={trackSource} />
-      ) : (
+      {route === 'track' ? <TrackScreen source={trackSource} /> : null}
+      {route === 'stats' ? <StatsScreen source={statsSource} /> : null}
+      {route === 'settings' ? (
         <main className="flex flex-1 items-center justify-center px-5">
           <h1 className="text-2xl">{TITLES[route]}</h1>
         </main>
-      )}
+      ) : null}
 
       {/*
         The build identity. Updates are silent, so this is the only way to tell
