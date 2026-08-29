@@ -65,7 +65,7 @@ export function baselineAverage(
   return days.reduce((total, day) => total + dayTotal(record, day), 0) / days.length
 }
 
-function targetOn(record: DayLedgerRecord, logicalDay: LogicalDayKey): number | undefined {
+export function targetOn(record: DayLedgerRecord, logicalDay: LogicalDayKey): number | undefined {
   let latest: RatchetStep | undefined
   for (const step of record.ratchetSteps) {
     if (
