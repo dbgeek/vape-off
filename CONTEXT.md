@@ -31,6 +31,10 @@ _Avoid_: Day (unqualified), Date
 A Logical Day the app has evidence about: it carries a Puff Session, a Resisted Urge, or a Clear Day. Its complement is an **Unknown Logical Day**, which is an absence of evidence and not a record of zero. Opening the app is not evidence.
 _Avoid_: Logged Day, Empty Day, Missed Day, Gap Day
 
+**Pace Window**:
+The 07:00-to-23:00 local period across which Pace spreads whatever is left of the Target. Hard-coded, like the Logical Day, and for the same reason it is not derived from your own Puff Sessions: a window that shrank as you improved would divide the same allowance into shorter intervals and so grow more permissive. Unlike the Logical Day it is a reading concept only — it has no bearing on what is Known, Met or Clear, and a Puff Session logged outside it counts exactly as any other. It always lies wholly within one Logical Day.
+_Avoid_: Waking Hours, Waking Window, Active Hours, Day (unqualified)
+
 ### The programme
 
 **Baseline**:
@@ -55,7 +59,7 @@ _Avoid_: Adjustment, Change, Level
 Said of a completed, Known Logical Day whose total puff count is at or below its Target. An Unknown Logical Day is never Met, and a Logical Day still in progress is not yet judged either way.
 
 **Pace**:
-Whatever is left of the Target, spread across the waking hours that are left, surfaced as the time the next Puff Session would be due. **Rolling, not a fixed schedule from waking**: cut into fixed slots from the start of the day, the read-out goes stale the moment you drop under it and reads *now* for the rest of the day, saying nothing. Rolling, it re-spreads after every Puff Session and keeps meaning something all day. A read-out derived from the Target, not a second mechanism — and a passive one, since nothing on the device can fire a notification to push it.
+Whatever is left of the Target, spread across the remainder of the Pace Window, surfaced as the time the next Puff Session would be due — reckoned from the later of your last Puff Session and the Window's opening, so hours outside the Window count neither as spreading time nor as waiting time. **Rolling, not a fixed schedule from waking**: cut into fixed slots from the start of the day, the read-out goes stale the moment you drop under it and reads *now* for the rest of the day, saying nothing. Rolling, it re-spreads after every Puff Session and keeps meaning something all day. **Silent rather than approximate**: outside the Pace Window, and once the interval it would report falls under ten minutes, Pace shows nothing at all and the count that is left stands alone — a reading you have learned to distrust exerts no pressure. A read-out derived from the Target, not a second mechanism — and a passive one, since nothing on the device can fire a notification to push it.
 _Avoid_: Schedule, Budget, Slots
 
 **Momentum**:
