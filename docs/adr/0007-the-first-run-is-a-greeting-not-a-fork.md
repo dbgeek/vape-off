@@ -4,11 +4,12 @@ The first screen the app ever shows is **Track**, empty, with a dismissible card
 
 This reverses the position the map held while charting, which was that first run must offer *Start fresh* and *Restore from a backup* **with equal weight**, on the grounds that the app cannot tell a genuine first run from a storage wipe and must not steer a returning user into destroying their history. The premise is sound. The conclusion does not follow, because **the choice was never destructive**.
 
-There are three ways the app can find an empty store, and *Start fresh* destroys nothing in any of them:
+There are four ways the app can find an empty store, and *Start fresh* destroys nothing in any of them:
 
 - **A genuine first run.** There is nothing to destroy.
 - **A storage wipe.** The data is already gone. Nothing that survived the wipe is at risk from what the user taps next.
 - **A duplicate Home Screen icon.** Two installs of the same URL keep separate stores, measured on-device in [#12](https://github.com/dbgeek/vape-off/issues/12). The history is intact behind the other icon, in a store this one cannot reach and therefore cannot harm.
+- **A deleted and re-added Home Screen icon.** Deleting the icon destroys that install's store, measured on-device in [#24](https://github.com/dbgeek/vape-off/issues/24). Like the wipe, the loss has already happened before the app runs. This cause was still unmeasured when the decision below was taken; it did not change it, and the last two consequences record what it did change.
 
 And the tap is reversible on top of that: [ADR 0004](./0004-a-backup-replaces-and-never-merges.md) keeps restore permanently reachable, and a restore **replaces**, so a user who logs for a week before remembering their Backup loses that week's throwaway records and nothing else.
 
@@ -30,4 +31,12 @@ So the screen is low-stakes, and the design that follows from believing it high-
 - **The replace-confirmation appears whenever there is something to replace, and so not on first run.** [ADR 0004](./0004-a-backup-replaces-and-never-merges.md) puts restore behind a confirmation naming the counts on both sides; on an empty store that dialog asks the user to confirm destroying zero records, which trains them to tap through the one dialog that will later matter. This is the general rule applied, not an exception carved for first run.
 - **"Start fresh" is retired as a term.** It named the no-op half of a fork that no longer exists, and a term for *the thing that happens if you do nothing* invites someone to rebuild the button. It never reached `CONTEXT.md`, which in hindsight was the model saying so.
 - **Nothing here reaches the glossary.** The card, the install check and the tab refusal are platform, not domain — the same grounds on which [#10](https://github.com/dbgeek/vape-off/issues/10) and [#14](https://github.com/dbgeek/vape-off/issues/14) declined a glossary entry.
-- **A fourth cause of an empty store is unmeasured.** Whether deleting a Home Screen icon and re-adding it destroys the store is unknown; [#12](https://github.com/dbgeek/vape-off/issues/12) measured only concurrent icons. It bears on the *check for a second icon* advice, which would point at an icon that no longer exists. The copy above does not depend on the answer, and the probe is folded into [#24](https://github.com/dbgeek/vape-off/issues/24).
+- **There is a fourth cause of an empty store, and it is the destructive one.** Measured on-device in [#24](https://github.com/dbgeek/vape-off/issues/24): **deleting a Home Screen icon destroys that install's store**, and re-adding from the same URL opens an app with no history. A marker written before the deletion was gone afterwards. This is amended in from the *unmeasured* note this bullet used to carry.
+
+  **It does not disturb the decision above**, because from the app's side it is a wipe by another name: the data is already gone by the time the app runs, so *Start fresh* remains a no-op and the greeting stays low-stakes. What it disturbs is the **advice**.
+
+- **The second-icon advice needs its companion sentence, or it is cruel.** The restore door tells a user with an empty store to check the Home Screen and App Library. For the duplicate-icon user that recovers everything; for the user who deleted an icon and re-added it, it sends them hunting for an icon that cannot be found and implies their history is one tap away when it is unrecoverable. The door must say both: **the other icon has to still exist — if you deleted it, its history went with it, and only a Backup file will bring it back.**
+
+  Whether deleting *one* of two concurrent icons harms the other is **inferred, not measured**: [#12](https://github.com/dbgeek/vape-off/issues/12)'s separate stores and #24's per-icon destruction both point at a per-install container, so the surviving icon should be intact. The advice reads the same either way, which is why it was not worth another device trip.
+
+- **This is the strongest argument the Backup has, and nothing in the app can make it.** Deleting a Home Screen icon is an unremarkable act of tidying, iOS gives no warning that it is destructive, and the app is by definition not running to object. Every other cause of an empty store is either harmless or already covered; this one is a routine gesture that silently destroys the record the Ratchet runs on. It is [#9](https://github.com/dbgeek/vape-off/issues/9)'s export nag, not this screen, that stands between the user and it.
