@@ -113,35 +113,30 @@ describe('readouts', () => {
   })
 
   it('counts the exact descent including the handover and measures only Earned Step cadence', () => {
-    expect(stepsRemaining(emptyRecord, '2026-08-29')).toBeUndefined()
+    expect(stepsRemaining(emptyRecord, '2026-08-29')).toEqual({ status: 'absent' })
     expect(
       stepsRemaining(
         { ...emptyRecord, ratchetSteps: [ratchetStep('2026-08-20', 0, 'declared')] },
         '2026-08-29',
       ),
-    ).toBeUndefined()
+    ).toEqual({ status: 'retired' })
     expect(
       stepsRemaining(
         { ...emptyRecord, ratchetSteps: [ratchetStep('2026-08-20', 1)] },
         '2026-08-29',
       ),
-    ).toBe(1)
+    ).toEqual({ status: 'available', value: 1 })
     expect(
-      [
-        [18, 16],
-        [54, 26],
-        [135, 35],
-      ].map(([target, expected]) => [
+      [18, 54, 135].map((target) =>
         stepsRemaining(
           { ...emptyRecord, ratchetSteps: [ratchetStep('2026-08-20', target!)] },
           '2026-08-29',
         ),
-        expected,
-      ]),
+      ),
     ).toEqual([
-      [16, 16],
-      [26, 26],
-      [35, 35],
+      { status: 'available', value: 16 },
+      { status: 'available', value: 26 },
+      { status: 'available', value: 35 },
     ])
 
     const record = {
@@ -158,13 +153,13 @@ describe('readouts', () => {
   })
 
   it('shows a coarse Quit Horizon only while the Earned Step cadence is credible', () => {
-    expect(quitHorizon(emptyRecord, '2026-08-08')).toBeUndefined()
+    expect(quitHorizon(emptyRecord, '2026-08-08')).toEqual({ status: 'absent' })
     expect(
       quitHorizon(
         { ...emptyRecord, ratchetSteps: [ratchetStep('2026-08-01', 10)] },
         '2026-08-08',
       ),
-    ).toBeUndefined()
+    ).toEqual({ status: 'absent' })
     expect(
       quitHorizon(
         {
@@ -173,7 +168,7 @@ describe('readouts', () => {
         },
         '2026-08-20',
       ),
-    ).toBeUndefined()
+    ).toEqual({ status: 'withdrawn' })
     expect(
       quitHorizon(
         {
@@ -185,7 +180,7 @@ describe('readouts', () => {
         },
         '2026-08-08',
       ),
-    ).toEqual({ precision: 'months', value: 3 })
+    ).toEqual({ status: 'available', precision: 'months', value: 3 })
     expect(
       quitHorizon(
         {
@@ -197,7 +192,7 @@ describe('readouts', () => {
         },
         '2026-08-20',
       ),
-    ).toEqual({ precision: 'weeks', value: 4 })
+    ).toEqual({ status: 'available', precision: 'weeks', value: 4 })
     expect(
       quitHorizon(
         {
@@ -209,13 +204,13 @@ describe('readouts', () => {
         },
         '2026-08-08',
       ),
-    ).toEqual({ precision: 'date', value: '2026-08-14' })
+    ).toEqual({ status: 'available', precision: 'date', value: '2026-08-14' })
     expect(
       quitHorizon(
         { ...emptyRecord, ratchetSteps: [ratchetStep('2026-08-01', 0, 'declared')] },
         '2026-08-08',
       ),
-    ).toBeUndefined()
+    ).toEqual({ status: 'retired' })
   })
 
   it('measures only Puff Session gaps lying wholly within Known Logical Days', () => {

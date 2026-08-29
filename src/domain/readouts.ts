@@ -1,6 +1,6 @@
 import type { LogicalDayKey } from '../store/records.ts'
 import { logicalDayKeyOf } from '../store/logical-day.ts'
-import { dayTotal, isKnown, isMet, targetOn, type DayLedgerRecord } from './day-ledger.ts'
+import { dayTotal, isMet, targetOn, type DayLedgerRecord } from './day-ledger.ts'
 import { nextEarnedTarget } from './ratchet.ts'
 
 const PACE_WINDOW_OPEN_HOUR = 7
@@ -13,9 +13,14 @@ export interface PaceReading {
   slots: string[]
 }
 
+export type StepsRemaining =
+  | { status: 'absent' | 'retired' }
+  | { status: 'available'; value: number }
+
 export type QuitHorizon =
-  | { precision: 'months' | 'weeks'; value: number }
-  | { precision: 'date'; value: LogicalDayKey }
+  | { status: 'absent' | 'retired' | 'withdrawn' }
+  | { status: 'available'; precision: 'months' | 'weeks'; value: number }
+  | { status: 'available'; precision: 'date'; value: LogicalDayKey }
 
 interface LocalDateTime {
   year: number
@@ -96,6 +101,12 @@ function knownLogicalDayKeys(record: DayLedgerRecord): Set<LogicalDayKey> {
   ])
 }
 
+function earnedSteps(record: DayLedgerRecord) {
+  return record.ratchetSteps
+    .filter((step) => step.kind === 'earned')
+    .sort((left, right) => left.effectiveFrom.localeCompare(right.effectiveFrom))
+}
+
 function intervalIsKnown(
   knownDays: ReadonlySet<LogicalDayKey>,
   start: LogicalDayKey,
@@ -113,7 +124,7 @@ export function momentum(record: DayLedgerRecord, today: LogicalDayKey): number 
 
   let score = 0
   for (const logicalDay of [...knownDays].filter((day) => day < today).sort()) {
-    if (!isKnown(record, logicalDay) || targetOn(record, logicalDay) === undefined) continue
+    if (targetOn(record, logicalDay) === undefined) continue
     score = isMet(record, logicalDay, today) ? score + 1 : Math.max(0, score - 1)
   }
   return score
@@ -158,22 +169,21 @@ export function pace(
 export function stepsRemaining(
   record: DayLedgerRecord,
   today: LogicalDayKey,
-): number | undefined {
+): StepsRemaining {
   let target = targetOn(record, today)
-  if (target === undefined || target === 0) return undefined
+  if (target === undefined) return { status: 'absent' }
+  if (target === 0) return { status: 'retired' }
 
   let steps = 1 // the Declared handover from Target 1 to Target 0
   while (target > 1) {
     target = nextEarnedTarget(target)
     steps += 1
   }
-  return steps
+  return { status: 'available', value: steps }
 }
 
 export function stepCadence(record: DayLedgerRecord): number | undefined {
-  const earned = record.ratchetSteps
-    .filter((step) => step.kind === 'earned')
-    .sort((left, right) => left.effectiveFrom.localeCompare(right.effectiveFrom))
+  const earned = earnedSteps(record)
   if (earned.length < 2) return undefined
   return daysBetween(earned[0]!.effectiveFrom, earned.at(-1)!.effectiveFrom) / (earned.length - 1)
 }
@@ -181,23 +191,28 @@ export function stepCadence(record: DayLedgerRecord): number | undefined {
 export function quitHorizon(
   record: DayLedgerRecord,
   today: LogicalDayKey,
-): QuitHorizon | undefined {
+): QuitHorizon {
   const target = targetOn(record, today)
-  if (target === undefined || target === 0) return undefined
+  if (target === undefined) return { status: 'absent' }
+  if (target === 0) return { status: 'retired' }
 
   const cadence = stepCadence(record)
-  if (cadence === undefined) return undefined
-  const latestEarnedStep = record.ratchetSteps
-    .filter((step) => step.kind === 'earned')
-    .sort((left, right) => left.effectiveFrom.localeCompare(right.effectiveFrom))
-    .at(-1)!
-  if (daysBetween(latestEarnedStep.effectiveFrom, today) > 2 * cadence) return undefined
+  if (cadence === undefined) return { status: 'absent' }
+  const latestEarnedStep = earnedSteps(record).at(-1)!
+  if (daysBetween(latestEarnedStep.effectiveFrom, today) > 2 * cadence) {
+    return { status: 'withdrawn' }
+  }
 
-  const remaining = stepsRemaining(record, today)!
-  const days = remaining * cadence
-  if (days > 84) return { precision: 'months', value: round(days / 30.44) }
-  if (days >= 14) return { precision: 'weeks', value: round(days / 7) }
-  return { precision: 'date', value: shiftLogicalDay(today, round(days)) }
+  const remaining = stepsRemaining(record, today)
+  if (remaining.status !== 'available') return remaining
+  const days = remaining.value * cadence
+  if (days > 84) return { status: 'available', precision: 'months', value: round(days / 30.44) }
+  if (days >= 14) return { status: 'available', precision: 'weeks', value: round(days / 7) }
+  return {
+    status: 'available',
+    precision: 'date',
+    value: shiftLogicalDay(today, round(days)),
+  }
 }
 
 export function longestGap(
