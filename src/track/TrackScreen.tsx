@@ -11,10 +11,6 @@ import {
   targetOn,
   type DayLedgerRecord,
 } from '../domain/day-ledger.ts'
-import { isMergeWindowOpen } from '../domain/merge-window.ts'
-import { momentum, pace } from '../domain/readouts.ts'
-import { windowSatisfied } from '../domain/ratchet.ts'
-import { isStandalone } from '../shell/install-state.ts'
 import {
   dateTimeInputValue,
   deviceTimeZone,
@@ -25,6 +21,10 @@ import {
   logicalMinuteOf,
   stampEvent,
 } from '../domain/logical-day.ts'
+import { isMergeWindowOpen } from '../domain/merge-window.ts'
+import { momentum, pace } from '../domain/readouts.ts'
+import { windowSatisfied } from '../domain/ratchet.ts'
+import { isStandalone } from '../shell/install-state.ts'
 import type { LogicalDayKey, PuffSession, ResistedUrge } from '../store/records.ts'
 
 const emptyRecord: DayLedgerRecord = {

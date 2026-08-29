@@ -90,8 +90,9 @@ export function deviceTimeZone(): string {
 
 const timeZoneValidity = new Map<string, boolean>()
 
-/** Whether the runtime recognises this IANA time-zone identifier. */
-export function isTimeZone(value: string): boolean {
+/** Whether `value` is an IANA time-zone identifier the runtime recognises. */
+export function isTimeZone(value: unknown): value is string {
+  if (typeof value !== 'string') return false
   const cached = timeZoneValidity.get(value)
   if (cached !== undefined) return cached
   let valid = true
@@ -195,7 +196,14 @@ export function daysBetween(start: LogicalDayKey, end: LogicalDayKey): number {
   )
 }
 
-/** Whether every Logical Day from `start` to `end` inclusive is Known. */
+/**
+ * Whether every Logical Day from `start` to `end` inclusive is Known.
+ *
+ * An interval that ends before it starts vouches for nothing, so it is not
+ * Known. That case is reachable: a Logical Day is stamped in the zone in force
+ * when the event was written (ADR 0008), so travelling west can leave a later
+ * event carrying an earlier key than the one before it.
+ */
 export function intervalIsKnown(
   knownDays: ReadonlySet<LogicalDayKey>,
   start: LogicalDayKey,

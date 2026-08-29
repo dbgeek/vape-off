@@ -94,10 +94,6 @@ function isLogicalDayKey(value: unknown): value is LogicalDayKey {
     && date.getUTCDate() === day
 }
 
-function isTimeZoneKey(value: unknown): value is string {
-  return isNonemptyString(value) && isTimeZone(value)
-}
-
 function isIntegerAtLeast(value: unknown, minimum: number): value is number {
   return typeof value === 'number' && Number.isInteger(value) && value >= minimum
 }
@@ -109,7 +105,7 @@ function hasStrings(value: UnknownRecord, keys: readonly string[]): boolean {
 function hasEventStamp(value: UnknownRecord): boolean {
   return isInstant(value.at)
     && isLogicalDayKey(value.logicalDay)
-    && isTimeZoneKey(value.tz)
+    && isTimeZone(value.tz)
 }
 
 function isPuffSession(value: unknown): value is PuffSession {

@@ -1,6 +1,4 @@
-import 'fake-indexeddb/auto'
-import { afterEach, describe, expect, it } from 'vitest'
-import { VapeOffDatabase } from '../store/database.ts'
+import { describe, expect, it } from 'vitest'
 import {
   dateTimeInputValue,
   daysBetween,
@@ -22,12 +20,6 @@ import {
 
 const STOCKHOLM = 'Europe/Stockholm'
 const NEW_YORK = 'America/New_York'
-
-const databases: VapeOffDatabase[] = []
-
-afterEach(async () => {
-  await Promise.all(databases.splice(0).map((database) => database.delete()))
-})
 
 describe('logicalDayKeyOf', () => {
   it('uses the previous date immediately before the 04:00 boundary', () => {
@@ -84,22 +76,18 @@ describe('instantOf', () => {
 })
 
 describe('stampEvent', () => {
-  it('keeps the Logical Day stamped in the device zone when read in another zone', async () => {
-    const db = new VapeOffDatabase(`logical-day-test-${crypto.randomUUID()}`)
-    databases.push(db)
-    const at = new Date('2026-08-29T02:30:00.000Z')
-    const stamp = stampEvent(at, STOCKHOLM)
+  it('keeps the Logical Day stamped in the device zone when read from another zone', () => {
+    const stamp = stampEvent(new Date('2026-08-29T02:30:00.000Z'), STOCKHOLM)
 
-    expect(stamp.at).toBe('2026-08-29T04:30:00.000+02:00')
-
-    await db.resistedUrges.add({
-      id: '79ae9e0b-dd6f-4e54-b3f7-77947eff8a0e',
-      ...stamp,
+    expect(stamp).toEqual({
+      at: '2026-08-29T04:30:00.000+02:00',
+      logicalDay: '2026-08-29',
+      tz: STOCKHOLM,
     })
-
-    const stored = await db.resistedUrges.get('79ae9e0b-dd6f-4e54-b3f7-77947eff8a0e')
-    expect(stored).toMatchObject({ logicalDay: '2026-08-29', tz: STOCKHOLM })
-    expect(logicalDayKeyOf(new Date(stored!.at), NEW_YORK)).toBe('2026-08-28')
+    // The stamp travels with the record: reading it from New York must not
+    // re-bucket the day it was written under (ADR 0008).
+    expect(logicalDayKeyOf(stamp.at, NEW_YORK)).toBe('2026-08-28')
+    expect(stamp.logicalDay).toBe('2026-08-29')
   })
 
   it('stamps the zone the device has moved to, leaving earlier stamps alone', () => {

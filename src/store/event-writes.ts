@@ -1,5 +1,5 @@
-import type { VapeOffDatabase } from './database.ts'
 import { deviceTimeZone, instantOf, stampEvent } from '../domain/logical-day.ts'
+import type { VapeOffDatabase } from './database.ts'
 import type { ClearDay, PuffSession, ResistedUrge } from './records.ts'
 
 export interface EventWriteEnvironment {

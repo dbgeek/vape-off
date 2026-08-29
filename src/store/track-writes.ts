@@ -1,6 +1,6 @@
+import { deviceTimeZone, instantOf, stampEvent } from '../domain/logical-day.ts'
 import { isMergeWindowOpen } from '../domain/merge-window.ts'
 import type { VapeOffDatabase } from './database.ts'
-import { deviceTimeZone, instantOf, stampEvent } from '../domain/logical-day.ts'
 import type { PuffSession } from './records.ts'
 
 export interface TrackWriteEnvironment {

@@ -1,5 +1,12 @@
 import type { LogicalDayKey } from '../store/records.ts'
 import {
+  dayTotal,
+  isMet,
+  knownLogicalDayKeys,
+  targetOn,
+  type DayLedgerRecord,
+} from './day-ledger.ts'
+import {
   daysBetween,
   instantAtWallClock,
   intervalIsKnown,
@@ -7,13 +14,6 @@ import {
   shiftLogicalDay,
   wallClockAt,
 } from './logical-day.ts'
-import {
-  dayTotal,
-  isMet,
-  knownLogicalDayKeys,
-  targetOn,
-  type DayLedgerRecord,
-} from './day-ledger.ts'
 import { nextEarnedTarget } from './ratchet.ts'
 
 const PACE_WINDOW_OPEN_HOUR = 7

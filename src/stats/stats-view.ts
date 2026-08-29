@@ -6,6 +6,13 @@ import {
   type DayLedgerRecord,
 } from '../domain/day-ledger.ts'
 import {
+  LOGICAL_DAY_START_HOUR,
+  hourOf,
+  intervalIsKnown,
+  logicalDayKeyOf,
+  shiftLogicalDay,
+} from '../domain/logical-day.ts'
+import {
   longestGap,
   momentum,
   quitHorizon,
@@ -13,13 +20,6 @@ import {
   type QuitHorizon,
   type StepsRemaining,
 } from '../domain/readouts.ts'
-import {
-  hourOf,
-  intervalIsKnown,
-  logicalDayKeyOf,
-  shiftLogicalDay,
-  LOGICAL_DAY_START_HOUR,
-} from '../domain/logical-day.ts'
 import type { ExportRecord, LogicalDayKey } from '../store/records.ts'
 
 const DIAL_WINDOW_DAYS = 14
