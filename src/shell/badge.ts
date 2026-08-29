@@ -1,5 +1,5 @@
 import { dayTotal, targetOn, type DayLedgerRecord } from '../domain/day-ledger.ts'
-import { logicalDayKeyOf } from '../store/logical-day.ts'
+import { logicalDayKeyOf } from '../domain/logical-day.ts'
 
 export interface BadgeController {
   setAppBadge?: (contents?: number) => Promise<void>

@@ -1,7 +1,7 @@
 import { baselineAverage, type DayLedgerRecord } from '../domain/day-ledger.ts'
+import { deviceTimeZone, instantOf, logicalDayKeyOf } from '../domain/logical-day.ts'
 import { nextEarnedTarget, targetOn, windowSatisfied } from '../domain/ratchet.ts'
 import type { VapeOffDatabase } from './database.ts'
-import { instantOf, logicalDayKeyOf } from './logical-day.ts'
 import type { RatchetStep } from './records.ts'
 
 export interface RatchetWriteEnvironment {
@@ -12,7 +12,7 @@ export interface RatchetWriteEnvironment {
 
 const browserEnvironment: RatchetWriteEnvironment = {
   now: () => new Date(),
-  timeZone: () => Intl.DateTimeFormat().resolvedOptions().timeZone,
+  timeZone: () => deviceTimeZone(),
   randomUUID: () => crypto.randomUUID(),
 }
 

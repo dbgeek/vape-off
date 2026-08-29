@@ -1,7 +1,7 @@
+import { deviceTimeZone, instantOf, logicalDayKeyOf } from '../domain/logical-day.ts'
 import { buildIdentity, type BuildIdentity } from '../shell/build-identity.ts'
 import { browserDatabase } from '../store/browser-database.ts'
 import { SCHEMA_VERSION, type VapeOffDatabase } from '../store/database.ts'
-import { instantOf, logicalDayKeyOf } from '../store/logical-day.ts'
 import { getOrCreateInstallId, setMeta } from '../store/meta.ts'
 import { openDatabase } from '../store/open-database.ts'
 import { evaluate } from '../store/ratchet-writes.ts'
@@ -41,7 +41,7 @@ export interface BrowserBackupEnvironment {
 
 const browserEnvironment: BrowserBackupEnvironment = {
   now: () => new Date(),
-  timeZone: () => Intl.DateTimeFormat().resolvedOptions().timeZone,
+  timeZone: () => deviceTimeZone(),
   randomUUID: () => crypto.randomUUID(),
   appBuild: buildIdentity,
 }

@@ -5,18 +5,13 @@ import type {
   RatchetStep,
   ResistedUrge,
 } from '../store/records.ts'
+import { shiftLogicalDay } from './logical-day.ts'
 
 export interface DayLedgerRecord {
   puffSessions: readonly PuffSession[]
   resistedUrges: readonly ResistedUrge[]
   clearDays: readonly ClearDay[]
   ratchetSteps: readonly RatchetStep[]
-}
-
-function shiftLogicalDay(logicalDay: LogicalDayKey, days: number): LogicalDayKey {
-  const date = new Date(`${logicalDay}T00:00:00.000Z`)
-  date.setUTCDate(date.getUTCDate() + days)
-  return date.toISOString().slice(0, 10)
 }
 
 export function dayTotal(record: DayLedgerRecord, logicalDay: LogicalDayKey): number {

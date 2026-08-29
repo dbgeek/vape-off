@@ -1,5 +1,4 @@
 import type { LogicalDayKey } from '../store/records.ts'
-import { logicalDayKeyOf } from '../store/logical-day.ts'
 import {
   dayTotal,
   isMet,
@@ -7,6 +6,14 @@ import {
   targetOn,
   type DayLedgerRecord,
 } from './day-ledger.ts'
+import {
+  daysBetween,
+  instantAtWallClock,
+  intervalIsKnown,
+  logicalDayKeyOf,
+  shiftLogicalDay,
+  wallClockAt,
+} from './logical-day.ts'
 import { nextEarnedTarget } from './ratchet.ts'
 
 const PACE_WINDOW_OPEN_HOUR = 7
@@ -28,73 +35,6 @@ export type QuitHorizon =
   | { status: 'available'; precision: 'months' | 'weeks'; value: number }
   | { status: 'available'; precision: 'date'; value: LogicalDayKey }
 
-interface LocalDateTime {
-  year: number
-  month: number
-  day: number
-  hour: number
-  minute: number
-}
-
-function localDateTime(at: Date, timeZone: string): LocalDateTime {
-  const parts = new Intl.DateTimeFormat('en-CA-u-hc-h23', {
-    timeZone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-  }).formatToParts(at)
-  const numberPart = (type: Intl.DateTimeFormatPartTypes): number => {
-    const value = parts.find((part) => part.type === type)?.value
-    if (value === undefined) throw new RangeError(`Missing ${type} from formatted instant`)
-    return Number(value)
-  }
-  return {
-    year: numberPart('year'),
-    month: numberPart('month'),
-    day: numberPart('day'),
-    hour: numberPart('hour'),
-    minute: numberPart('minute'),
-  }
-}
-
-function offsetMilliseconds(at: Date, timeZone: string): number {
-  const name = new Intl.DateTimeFormat('en', {
-    timeZone,
-    timeZoneName: 'longOffset',
-  })
-    .formatToParts(at)
-    .find((part) => part.type === 'timeZoneName')?.value
-  if (name === undefined) throw new RangeError('Missing time-zone offset from formatted instant')
-  if (name === 'GMT') return 0
-  const match = /^GMT([+-])(\d{2}):(\d{2})$/.exec(name)
-  if (!match) throw new RangeError(`Unsupported time-zone offset: ${name}`)
-  const sign = match[1] === '+' ? 1 : -1
-  return sign * (Number(match[2]) * 60 + Number(match[3])) * 60 * 1000
-}
-
-function instantAtLocalHour(local: LocalDateTime, hour: number, timeZone: string): Date {
-  const wallClock = Date.UTC(local.year, local.month - 1, local.day, hour)
-  let result = new Date(wallClock - offsetMilliseconds(new Date(wallClock), timeZone))
-  result = new Date(wallClock - offsetMilliseconds(result, timeZone))
-  return result
-}
-
-function daysBetween(start: LogicalDayKey, end: LogicalDayKey): number {
-  return (
-    (Date.parse(`${end}T00:00:00.000Z`) - Date.parse(`${start}T00:00:00.000Z`)) /
-    (24 * 60 * 60 * 1000)
-  )
-}
-
-function shiftLogicalDay(logicalDay: LogicalDayKey, days: number): LogicalDayKey {
-  const date = new Date(`${logicalDay}T00:00:00.000Z`)
-  date.setUTCDate(date.getUTCDate() + days)
-  return date.toISOString().slice(0, 10)
-}
-
 function round(value: number): number {
   return Math.floor(value + 0.5)
 }
@@ -103,18 +43,6 @@ function earnedSteps(record: DayLedgerRecord) {
   return record.ratchetSteps
     .filter((step) => step.kind === 'earned')
     .sort((left, right) => left.effectiveFrom.localeCompare(right.effectiveFrom))
-}
-
-function intervalIsKnown(
-  knownDays: ReadonlySet<LogicalDayKey>,
-  start: LogicalDayKey,
-  end: LogicalDayKey,
-): boolean {
-  if (start > end) return false
-  for (let day = start; day <= end; day = shiftLogicalDay(day, 1)) {
-    if (!knownDays.has(day)) return false
-  }
-  return true
 }
 
 export function momentum(record: DayLedgerRecord, today: LogicalDayKey): number {
@@ -133,8 +61,8 @@ export function pace(
   now: Date,
   timeZone: string,
 ): PaceReading | undefined {
-  const local = localDateTime(now, timeZone)
-  const minutesSinceMidnight = local.hour * 60 + local.minute
+  const wall = wallClockAt(now, timeZone)
+  const minutesSinceMidnight = wall.hour * 60 + wall.minute
   if (
     minutesSinceMidnight < PACE_WINDOW_OPEN_HOUR * 60 ||
     minutesSinceMidnight >= PACE_WINDOW_CLOSE_HOUR * 60
@@ -148,8 +76,9 @@ export function pace(
   const remaining = target - dayTotal(record, today)
   if (remaining <= 0) return undefined
 
-  const open = instantAtLocalHour(local, PACE_WINDOW_OPEN_HOUR, timeZone)
-  const close = instantAtLocalHour(local, PACE_WINDOW_CLOSE_HOUR, timeZone)
+  const localDate = { year: wall.year, month: wall.month, day: wall.day }
+  const open = instantAtWallClock({ ...localDate, hour: PACE_WINDOW_OPEN_HOUR }, timeZone)
+  const close = instantAtWallClock({ ...localDate, hour: PACE_WINDOW_CLOSE_HOUR }, timeZone)
   const intervalMs = (close.getTime() - now.getTime()) / remaining
   if (intervalMs < MIN_PACE_INTERVAL_MS) return undefined
 

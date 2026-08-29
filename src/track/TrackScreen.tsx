@@ -11,14 +11,21 @@ import {
   targetOn,
   type DayLedgerRecord,
 } from '../domain/day-ledger.ts'
+import {
+  dateTimeInputValue,
+  deviceTimeZone,
+  formatLogicalDayWithWeekday,
+  formatWallTime,
+  instantFromDateTimeInput,
+  logicalDayKeyOf,
+  logicalMinuteOf,
+  stampEvent,
+} from '../domain/logical-day.ts'
 import { isMergeWindowOpen } from '../domain/merge-window.ts'
 import { momentum, pace } from '../domain/readouts.ts'
 import { windowSatisfied } from '../domain/ratchet.ts'
 import { isStandalone } from '../shell/install-state.ts'
-import { logicalDayKeyOf, stampEvent } from '../store/logical-day.ts'
 import type { LogicalDayKey, PuffSession, ResistedUrge } from '../store/records.ts'
-
-const LOGICAL_DAY_START_MINUTE = 4 * 60
 
 const emptyRecord: DayLedgerRecord = {
   puffSessions: [],
@@ -53,36 +60,12 @@ export interface TrackClock {
 
 const browserClock: TrackClock = {
   now: () => new Date(),
-  timeZone: () => Intl.DateTimeFormat().resolvedOptions().timeZone,
-}
-
-function formatTime(at: string | Date, timeZone: string): string {
-  return new Intl.DateTimeFormat('en-GB', {
-    timeZone,
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-  }).format(typeof at === 'string' ? new Date(at) : at)
-}
-
-function logicalMinute(at: string | Date, timeZone: string): number {
-  const parts = new Intl.DateTimeFormat('en-GB-u-hc-h23', {
-    timeZone,
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hourCycle: 'h23',
-  }).formatToParts(typeof at === 'string' ? new Date(at) : at)
-  const numberPart = (type: Intl.DateTimeFormatPartTypes) =>
-    Number(parts.find((part) => part.type === type)?.value ?? 0)
-  const wallMinute =
-    numberPart('hour') * 60 + numberPart('minute') + numberPart('second') / 60
-  return (wallMinute - LOGICAL_DAY_START_MINUTE + 24 * 60) % (24 * 60)
+  timeZone: () => deviceTimeZone(),
 }
 
 function timelinePosition(at: string | Date, now: Date, timeZone: string): number {
-  const eventMinute = logicalMinute(at, timeZone)
-  const nowMinute = logicalMinute(now, timeZone)
+  const eventMinute = logicalMinuteOf(at, timeZone)
+  const nowMinute = logicalMinuteOf(now, timeZone)
   if (eventMinute <= nowMinute) {
     return nowMinute === 0 ? 0 : (eventMinute / nowMinute) * 50
   }
@@ -108,7 +91,7 @@ function targetReachedSession(
 
 function puffLabel(session: PuffSession, timeZone: string): string {
   const unit = session.count === 1 ? 'puff' : 'puffs'
-  return `Puff Session, ${session.count} ${unit} at ${formatTime(session.at, timeZone)}`
+  return `Puff Session, ${session.count} ${unit} at ${formatWallTime(session.at, timeZone)}`
 }
 
 function hasHistory(record: DayLedgerRecord): boolean {
@@ -122,63 +105,6 @@ function hasHistory(record: DayLedgerRecord): boolean {
 
 function dateAtNoon(logicalDay: LogicalDayKey): Date {
   return new Date(`${logicalDay}T12:00:00`)
-}
-
-function formatLogicalDay(logicalDay: LogicalDayKey): string {
-  return new Intl.DateTimeFormat('en-GB', {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-    timeZone: 'UTC',
-  }).format(new Date(`${logicalDay}T12:00:00.000Z`))
-}
-
-function wallParts(at: Date, timeZone: string): Record<string, string> {
-  return Object.fromEntries(
-    new Intl.DateTimeFormat('en-CA-u-hc-h23', {
-      timeZone,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      hourCycle: 'h23',
-    })
-      .formatToParts(at)
-      .filter((part) => part.type !== 'literal')
-      .map((part) => [part.type, part.value]),
-  )
-}
-
-function dateTimeInputValue(at: string | Date, timeZone: string): string {
-  const date = typeof at === 'string' ? new Date(at) : at
-  const parts = wallParts(date, timeZone)
-  return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`
-}
-
-function instantFromDateTimeInput(value: string, timeZone: string): Date {
-  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value)
-  if (!match) throw new RangeError('Enter a date and time')
-  const year = Number(match[1]!)
-  const month = Number(match[2]!)
-  const day = Number(match[3]!)
-  const hour = Number(match[4]!)
-  const minute = Number(match[5]!)
-  const desiredWallTime = Date.UTC(year, month - 1, day, hour, minute)
-  let candidate = new Date(desiredWallTime)
-
-  for (let pass = 0; pass < 2; pass += 1) {
-    const parts = wallParts(candidate, timeZone)
-    const candidateWallTime = Date.UTC(
-      Number(parts.year),
-      Number(parts.month) - 1,
-      Number(parts.day),
-      Number(parts.hour),
-      Number(parts.minute),
-    )
-    candidate = new Date(candidate.getTime() + desiredWallTime - candidateWallTime)
-  }
-  return candidate
 }
 
 type EditorState =
@@ -527,7 +453,7 @@ export function TrackScreen({
           <div className="catch-up-days">
             {catchUpDays.map((logicalDay) => (
               <article key={logicalDay} className="catch-up-day">
-                <time dateTime={logicalDay}>{formatLogicalDay(logicalDay)}</time>
+                <time dateTime={logicalDay}>{formatLogicalDayWithWeekday(logicalDay)}</time>
                 <button type="button" onClick={() => setEditor({ kind: 'new', at: dateAtNoon(logicalDay) })}>
                   Add what I remember
                 </button>
@@ -547,7 +473,7 @@ export function TrackScreen({
 
         <div className="now-line" style={{ top: '50%' }}>
           <span>now</span>
-          <time>{formatTime(now, timeZone)}</time>
+          <time>{formatWallTime(now, timeZone)}</time>
         </div>
 
         {ghostSlots.map((slot) => (
@@ -555,7 +481,7 @@ export function TrackScreen({
             key={slot}
             className="pace-slot"
             style={{ top: `${timelinePosition(slot, now, timeZone)}%` }}
-            aria-label={`Pace slot at ${formatTime(slot, timeZone)}`}
+            aria-label={`Pace slot at ${formatWallTime(slot, timeZone)}`}
           />
         ))}
 
@@ -564,7 +490,7 @@ export function TrackScreen({
             className="target-reached"
             style={{ top: `${timelinePosition(reached.at, now, timeZone)}%` }}
           >
-            <span>Target reached {formatTime(reached.at, timeZone)}</span>
+            <span>Target reached {formatWallTime(reached.at, timeZone)}</span>
           </div>
         ) : null}
 
@@ -594,7 +520,7 @@ export function TrackScreen({
             key={urge.id}
             className="resisted-mark"
             style={{ top: `${timelinePosition(urge.at, now, timeZone)}%` }}
-            aria-label={`Resisted Urge at ${formatTime(urge.at, timeZone)}`}
+            aria-label={`Resisted Urge at ${formatWallTime(urge.at, timeZone)}`}
             onClick={() => setEditor({ kind: 'urge', urge })}
           />
         ))}

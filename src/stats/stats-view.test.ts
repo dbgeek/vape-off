@@ -118,6 +118,49 @@ describe('the Stats view', () => {
     expect(view.longestGap).toEqual({ milliseconds: 54 * 60 * 60 * 1000, disqualifiedByUnknownDay: false })
   })
 
+  it('disqualifies a gap whose Logical Days run backwards against the clock', () => {
+    // Flying far enough west stamps a later Puff Session with an earlier Logical
+    // Day than the one before it (ADR 0008: the key is written in the zone then in
+    // force). Such an interval vouches for nothing, so it is excluded from Longest
+    // Gap — and, being the longest thing excluded, it has to be owned up to.
+    const record = {
+      ...emptyRecord,
+      puffSessions: [
+        {
+          id: 'before-the-flight',
+          logicalDay: '2026-08-29',
+          at: '2026-08-29T14:00:00.000+14:00',
+          lastTapAt: '2026-08-29T14:00:00.000+14:00',
+          count: 1,
+          tz: 'Pacific/Kiritimati',
+        },
+        {
+          id: 'after-the-flight',
+          logicalDay: '2026-08-28',
+          at: '2026-08-28T23:00:00.000-11:00',
+          lastTapAt: '2026-08-28T23:00:00.000-11:00',
+          count: 1,
+          tz: 'Pacific/Midway',
+        },
+        {
+          id: 'later-that-night',
+          logicalDay: '2026-08-28',
+          at: '2026-08-29T01:00:00.000-11:00',
+          lastTapAt: '2026-08-29T01:00:00.000-11:00',
+          count: 1,
+          tz: 'Pacific/Midway',
+        },
+      ],
+    }
+
+    const view = buildStatsView(record, [], new Date('2026-08-29T13:00:00.000Z'), 'UTC')
+
+    expect(view.longestGap).toEqual({
+      milliseconds: 2 * 60 * 60 * 1000,
+      disqualifiedByUnknownDay: true,
+    })
+  })
+
   it('retires programme estimates at Target 0 while keeping Longest Gap and Momentum', () => {
     const record = {
       ...emptyRecord,

@@ -6,6 +6,13 @@ import {
   type DayLedgerRecord,
 } from '../domain/day-ledger.ts'
 import {
+  LOGICAL_DAY_START_HOUR,
+  hourOf,
+  intervalIsKnown,
+  logicalDayKeyOf,
+  shiftLogicalDay,
+} from '../domain/logical-day.ts'
+import {
   longestGap,
   momentum,
   quitHorizon,
@@ -13,12 +20,10 @@ import {
   type QuitHorizon,
   type StepsRemaining,
 } from '../domain/readouts.ts'
-import { logicalDayKeyOf } from '../store/logical-day.ts'
 import type { ExportRecord, LogicalDayKey } from '../store/records.ts'
 
 const DIAL_WINDOW_DAYS = 14
 const TREND_WINDOW_DAYS = 28
-const LOGICAL_DAY_START_HOUR = 4
 
 export interface DialHour {
   hour: number
@@ -59,24 +64,6 @@ export interface StatsView {
     disqualifiedByUnknownDay: boolean
   }
   backup: { uncoveredKnownDays: number }
-}
-
-function shiftLogicalDay(logicalDay: LogicalDayKey, days: number): LogicalDayKey {
-  const date = new Date(`${logicalDay}T00:00:00.000Z`)
-  date.setUTCDate(date.getUTCDate() + days)
-  return date.toISOString().slice(0, 10)
-}
-
-function hourOf(at: string, timeZone: string): number {
-  const hour = new Intl.DateTimeFormat('en-GB-u-hc-h23', {
-    timeZone,
-    hour: '2-digit',
-    hourCycle: 'h23',
-  })
-    .formatToParts(new Date(at))
-    .find((part) => part.type === 'hour')?.value
-  if (hour === undefined) throw new RangeError('Missing hour from formatted instant')
-  return Number(hour)
 }
 
 function dial(record: DayLedgerRecord, today: LogicalDayKey): StatsView['dial'] {
@@ -153,17 +140,6 @@ function trend(record: DayLedgerRecord, today: LogicalDayKey): TrendDay[] {
       target: targetOn(record, logicalDay) ?? null,
     }
   })
-}
-
-function intervalIsKnown(
-  knownDays: ReadonlySet<LogicalDayKey>,
-  start: LogicalDayKey,
-  end: LogicalDayKey,
-): boolean {
-  for (let day = start; day <= end; day = shiftLogicalDay(day, 1)) {
-    if (!knownDays.has(day)) return false
-  }
-  return true
 }
 
 function hasDisqualifiedGap(
