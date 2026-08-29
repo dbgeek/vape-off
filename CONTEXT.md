@@ -15,7 +15,7 @@ A wanted-one-didn't moment, recorded as a bare timestamp. Carries no intensity o
 _Avoid_: Craving, Temptation, Urge (unqualified)
 
 **Clear Day**:
-A Logical Day you have declared had no Puff Sessions. A deliberate assertion, never an inferred zero — it is the only way a day with nothing on it becomes Known. Writing a Puff Session into a Clear Day drops the mark.
+A Logical Day you have declared had no Puff Sessions. A deliberate assertion, never an inferred zero — it is the only way a day with nothing on it becomes Known. Writing a Puff Session into a Clear Day drops the mark, so the declaration can be made while the Logical Day is still running and corrects itself if the day turns out otherwise. That matters at Target 0, where a Clear Day is the only way to be Met and a mark you could apply only in hindsight would fall due at 04:00.
 _Avoid_: Zero Day, Clean Day, Abstinent Day, Rest Day
 
 **Merge Window**:
@@ -48,18 +48,25 @@ The puff allowance for a Logical Day. The first Target is 90% of the Baseline Av
 _Avoid_: Goal, Limit, Quota, Allowance
 
 **Ratchet**:
-The mechanism that lowers the Target. It steps down by 10% (minimum one puff) once five of the seven most recent completed Logical Days were Met — counting only Logical Days strictly after the current Ratchet Step, so each step down has to be earned again at the new Target and the day a Target changed is never judged against it. Unknown Logical Days are not Met, so a stretch of unlogged days stalls the Ratchet rather than advancing it. It never raises the Target, never lowers it on a schedule, and never lowers it twice for the same seven days.
+The mechanism that lowers the Target. It steps down by 10% (minimum one puff) once five of the seven most recent completed Logical Days were Met — counting only Logical Days strictly after the current Ratchet Step, so each step down has to be earned again at the new Target and the day a Target changed is never judged against it. Unknown Logical Days are not Met, so a stretch of unlogged days stalls the Ratchet rather than advancing it. It never raises the Target, never lowers it on a schedule, and never lowers it twice for the same seven days. **It stops at Target 1**: the last step to zero is not the Ratchet's to write, and at Target 0 it is dormant rather than finished, waking only if a Declared Step puts Target 1 back in force.
 _Avoid_: Taper, Schedule, Plan
 
 **Ratchet Step**:
-A single act of the Ratchet: the Target became this number, from this Logical Day onward. Steps accumulate and are never amended or withdrawn, so the Target in force on any past Logical Day is the most recent Step at or before it. The first Step is the Baseline's conclusion.
+A single act on the Target: it became this number, from this Logical Day onward. Steps accumulate and are never amended or withdrawn, so the Target in force on any past Logical Day is the most recent Step at or before it. The first Step is the Baseline's conclusion. Every Step is either Earned or Declared.
 _Avoid_: Adjustment, Change, Level
 
+**Earned Step**:
+A Ratchet Step written by the Ratchet on its own evidence, always downward. Every Step from the Baseline's conclusion down to Target 1 is Earned, and only Earned Steps feed Step Cadence.
+
+**Declared Step**:
+A Ratchet Step you write yourself, by tap — the only kind that can raise the Target, and the only kind whose timing is not the mechanism's. It exists solely at the boundary between Target 1 and Target 0, in either direction: the app offers `1 → 0` once you have held Target 1, and `0 → 1` stands available while Target 0 is in force. Because it is available nowhere else on the descent, the Target is never a number you picked.
+_Avoid_: Manual Step, Override, Reset, Restart
+
 **Met**:
-Said of a completed, Known Logical Day whose total puff count is at or below its Target. An Unknown Logical Day is never Met, and a Logical Day still in progress is not yet judged either way.
+Said of a completed, Known Logical Day whose total puff count is at or below its Target. An Unknown Logical Day is never Met, and a Logical Day still in progress is not yet judged either way. At Target 0 that admits only a Clear Day — the single point in the programme where staying Met takes a deliberate daily act rather than simply staying under a number.
 
 **Pace**:
-Whatever is left of the Target, spread across the remainder of the Pace Window, surfaced as the time the next Puff Session would be due — reckoned from the later of your last Puff Session and the Window's opening, so hours outside the Window count neither as spreading time nor as waiting time. **Rolling, not a fixed schedule from waking**: cut into fixed slots from the start of the day, the read-out goes stale the moment you drop under it and reads *now* for the rest of the day, saying nothing. Rolling, it re-spreads after every Puff Session and keeps meaning something all day. **Silent rather than approximate**: outside the Pace Window, and once the interval it would report falls under ten minutes, Pace shows nothing at all and the count that is left stands alone — a reading you have learned to distrust exerts no pressure. A read-out derived from the Target, not a second mechanism — and a passive one, since nothing on the device can fire a notification to push it.
+Whatever is left of the Target, spread across the remainder of the Pace Window, surfaced as the time the next Puff Session would be due — reckoned from the later of your last Puff Session and the Window's opening, so hours outside the Window count neither as spreading time nor as waiting time. **Rolling, not a fixed schedule from waking**: cut into fixed slots from the start of the day, the read-out goes stale the moment you drop under it and reads *now* for the rest of the day, saying nothing. Rolling, it re-spreads after every Puff Session and keeps meaning something all day. **Silent rather than approximate**: outside the Pace Window, once the interval it would report falls under ten minutes, and whenever nothing is left of the Target (permanently so at Target 0, and from your one Puff Session onward at Target 1), Pace shows nothing at all and the count that is left stands alone — a reading you have learned to distrust exerts no pressure. A read-out derived from the Target, not a second mechanism — and a passive one, since nothing on the device can fire a notification to push it.
 _Avoid_: Schedule, Budget, Slots
 
 **Momentum**:
@@ -67,15 +74,15 @@ A running score over Met Logical Days: a Met day adds one, a day that is not Met
 _Avoid_: Streak, Chain, Combo
 
 **Steps Remaining**:
-The number of Ratchet Steps between the current Target and zero. Exact, never estimated: the Ratchet's arithmetic is fixed, so the entire descent from any Target is already determined and only its speed is open. Undefined during the Baseline, which has no Target to count down from.
+The number of Ratchet Steps between the current Target and zero, the Declared Step out of Target 1 included: it counts to the end of the programme, not to the end of the Ratchet's part in it. Exact, never estimated: the Ratchet's arithmetic is fixed, so the entire descent from any Target is already determined and only its speed is open. Undefined during the Baseline, which has no Target to count down from, and retired at Target 0, where there is nothing left to count.
 _Avoid_: Steps Left, Countdown, Progress, Levels
 
 **Step Cadence**:
-How long a Ratchet Step takes, averaged across every Step so far — the one quantity in the programme that is estimated rather than derived. Distinct from Pace, which is a reading within a single Logical Day; Step Cadence is measured in Logical Days per Step and spans the whole programme. A stall inflates it rather than hiding in it, because the interval containing the stall is simply a long one.
+How long a Ratchet Step takes, averaged across every Earned Step so far — the one quantity in the programme that is estimated rather than derived. Declared Steps are excluded, since Cadence estimates the rate of the mechanism and a Declared Step is timed by a decision of yours. Distinct from Pace, which is a reading within a single Logical Day; Step Cadence is measured in Logical Days per Step and spans the whole programme. A stall inflates it rather than hiding in it, because the interval containing the stall is simply a long one.
 _Avoid_: Pace (which means something else here), Rate, Velocity, Speed
 
 **Quit Horizon**:
-How far off the end of the programme looks: Steps Remaining at the Step Cadence kept so far. An estimate, and named as one — a horizon is a region, not a point. Shown as a duration that coarsens with distance and hardens into an actual date only once it is close enough to deserve one. It lengthens as readily as it shortens, and it is absent whenever it would be a guess: before any Step Cadence exists, and once a stall has made the existing one a lie. The app's pressure signal in place of a fixed deadline, and deliberately a soft one.
+How far off the end of the programme looks: Steps Remaining at the Step Cadence kept so far. An estimate, and named as one — a horizon is a region, not a point. Shown as a duration that coarsens with distance and hardens into an actual date only once it is close enough to deserve one. It lengthens as readily as it shortens, and it is absent whenever it would be a guess: before any Step Cadence exists, and once a stall has made the existing one a lie. Retired at Target 0 alongside Steps Remaining, there being no distance left to project; past zero it is Longest Gap that carries the reading. The app's pressure signal in place of a fixed deadline, and deliberately a soft one.
 _Avoid_: Projected Quit Date, Deadline, ETA, Target Date, Finish Line
 
 **Longest Gap**:
