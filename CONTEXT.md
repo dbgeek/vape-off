@@ -63,14 +63,14 @@ A Ratchet Step you write yourself, by tap — the only kind that can raise the T
 _Avoid_: Manual Step, Override, Reset, Restart
 
 **Met**:
-Said of a completed, Known Logical Day whose total puff count is at or below its Target. An Unknown Logical Day is never Met, and a Logical Day still in progress is not yet judged either way. At Target 0 that admits only a Clear Day — the single point in the programme where staying Met takes a deliberate daily act rather than simply staying under a number.
+Said of a completed, Known Logical Day whose total puff count is at or below its Target. An Unknown Logical Day is never Met, and a Logical Day still in progress is not yet judged either way. At Target 0 that admits only a day with no Puff Sessions on it at all — a Clear Day, or a day carrying nothing but Resisted Urges — which makes it the single point in the programme where staying Met takes a deliberate daily act rather than simply staying under a number.
 
 **Pace**:
 Whatever is left of the Target, spread across the remainder of the Pace Window, surfaced as the time the next Puff Session would be due — reckoned from the later of your last Puff Session and the Window's opening, so hours outside the Window count neither as spreading time nor as waiting time. **Rolling, not a fixed schedule from waking**: cut into fixed slots from the start of the day, the read-out goes stale the moment you drop under it and reads *now* for the rest of the day, saying nothing. Rolling, it re-spreads after every Puff Session and keeps meaning something all day. **Silent rather than approximate**: outside the Pace Window, once the interval it would report falls under ten minutes, and whenever nothing is left of the Target (permanently so at Target 0, and from your one Puff Session onward at Target 1), Pace shows nothing at all and the count that is left stands alone — a reading you have learned to distrust exerts no pressure. A read-out derived from the Target, not a second mechanism — and a passive one, since nothing on the device can fire a notification to push it.
 _Avoid_: Schedule, Budget, Slots
 
 **Momentum**:
-A running score over Met Logical Days: a Met day adds one, a day that is not Met subtracts one, and it never falls below zero or resets. Unknown Logical Days move it in neither direction: it holds across a gap and resumes where it left off. Deliberately not a count of consecutive days — one bad day costs a point, not everything you have built.
+A running score over Met Logical Days: a Met day adds one, a day that is not Met subtracts one, and it never falls below zero or resets. Unknown Logical Days move it in neither direction: it holds across a gap and resumes where it left off. It begins where the first Target does — a Logical Day with no Target in force has nothing to be Met against and moves it in neither direction either, so the Baseline neither builds Momentum nor spends it. Deliberately not a count of consecutive days — one bad day costs a point, not everything you have built.
 _Avoid_: Streak, Chain, Combo
 
 **Steps Remaining**:
@@ -92,5 +92,5 @@ _Avoid_: Longest Break, Clean Time, Abstinence, Time Since Last Puff
 ### The record
 
 **Backup**:
-A complete copy of everything the app has been told: every Puff Session, Resisted Urge and Clear Day, together with every Ratchet Step. Because the app holds no derived state, a Backup is the whole of what cannot be recomputed — and, there being no sync, it is the only way a history reaches another device. Restoring one **replaces** the app's history rather than merging into it, so the app never holds two accounts of the same period and never has to decide between them.
+A complete copy of everything the app has been told: every Puff Session, Resisted Urge and Clear Day, together with every Ratchet Step and the app's own record of when Backups were taken — which travels inside the file, so a restored history knows how well backed up it already is rather than starting from no knowledge. Because the app holds no derived state, a Backup is the whole of what cannot be recomputed — and, there being no sync, it is the only way a history reaches another device. Restoring one **replaces** the app's history rather than merging into it, so the app never holds two accounts of the same period and never has to decide between them.
 _Avoid_: Sync, Save, Snapshot, Archive, Export (as a noun for the file)
