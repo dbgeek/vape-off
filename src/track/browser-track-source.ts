@@ -1,9 +1,18 @@
 import type { DayLedgerRecord } from '../domain/day-ledger.ts'
 import { updateBadge, type BadgeController } from '../shell/badge.ts'
 import { VapeOffDatabase } from '../store/database.ts'
-import { writeResistedUrge } from '../store/event-writes.ts'
+import {
+  deletePuffSession,
+  deleteResistedUrge,
+  updatePuffSession,
+  updateResistedUrge,
+  writeClearDay,
+  writePuffSession,
+  writeResistedUrge,
+} from '../store/event-writes.ts'
+import { getMeta, setMeta } from '../store/meta.ts'
 import { openDatabase } from '../store/open-database.ts'
-import { evaluate } from '../store/ratchet-writes.ts'
+import { declareHandover, evaluate } from '../store/ratchet-writes.ts'
 import { logPuff } from '../store/track-writes.ts'
 import type { TrackSource } from './TrackScreen.tsx'
 
@@ -45,7 +54,7 @@ export function createBrowserTrackSource(
     await opening
   }
 
-  async function afterWrite(at: Date): Promise<DayLedgerRecord> {
+  async function refresh(at: Date): Promise<DayLedgerRecord> {
     await evaluate(db, {
       now: () => at,
       timeZone: environment.timeZone,
@@ -60,20 +69,77 @@ export function createBrowserTrackSource(
     return record
   }
 
+  async function refreshAfterWrite(at: Date): Promise<DayLedgerRecord> {
+    await setMeta(db, 'firstRunCardDismissed', true)
+    return refresh(at)
+  }
+
   return {
     async load() {
       await ensureOpen()
-      return afterWrite(environment.now())
+      return refresh(environment.now())
+    },
+    async loadFirstRunCardDismissed() {
+      await ensureOpen()
+      return (await getMeta(db, 'firstRunCardDismissed')) ?? false
     },
     async logPuff(at) {
       await ensureOpen()
       await logPuff(db, at, environment)
-      return afterWrite(at)
+      return refreshAfterWrite(at)
     },
     async logResistedUrge(at) {
       await ensureOpen()
       await writeResistedUrge(db, at, environment)
-      return afterWrite(at)
+      return refreshAfterWrite(at)
+    },
+    async dismissFirstRunCard() {
+      await ensureOpen()
+      await setMeta(db, 'firstRunCardDismissed', true)
+    },
+    async declareClearDay(at) {
+      await ensureOpen()
+      await writeClearDay(db, at, environment)
+      return refreshAfterWrite(environment.now())
+    },
+    async addPuffSession(input) {
+      await ensureOpen()
+      await writePuffSession(
+        db,
+        { at: input.at, lastTapAt: input.at, count: input.count },
+        environment,
+      )
+      return refreshAfterWrite(environment.now())
+    },
+    async addResistedUrge(at) {
+      await ensureOpen()
+      await writeResistedUrge(db, at, environment)
+      return refreshAfterWrite(environment.now())
+    },
+    async updatePuffSession(id, input) {
+      await ensureOpen()
+      await updatePuffSession(db, id, input, environment)
+      return refreshAfterWrite(environment.now())
+    },
+    async deletePuffSession(id) {
+      await ensureOpen()
+      await deletePuffSession(db, id)
+      return refreshAfterWrite(environment.now())
+    },
+    async updateResistedUrge(id, at) {
+      await ensureOpen()
+      await updateResistedUrge(db, id, at, environment)
+      return refreshAfterWrite(environment.now())
+    },
+    async deleteResistedUrge(id) {
+      await ensureOpen()
+      await deleteResistedUrge(db, id)
+      return refreshAfterWrite(environment.now())
+    },
+    async declareHandover() {
+      await ensureOpen()
+      await declareHandover(db, environment)
+      return refreshAfterWrite(environment.now())
     },
   }
 }

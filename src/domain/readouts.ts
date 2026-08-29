@@ -1,6 +1,12 @@
 import type { LogicalDayKey } from '../store/records.ts'
 import { logicalDayKeyOf } from '../store/logical-day.ts'
-import { dayTotal, isMet, targetOn, type DayLedgerRecord } from './day-ledger.ts'
+import {
+  dayTotal,
+  isMet,
+  knownLogicalDayKeys,
+  targetOn,
+  type DayLedgerRecord,
+} from './day-ledger.ts'
 import { nextEarnedTarget } from './ratchet.ts'
 
 const PACE_WINDOW_OPEN_HOUR = 7
@@ -91,14 +97,6 @@ function shiftLogicalDay(logicalDay: LogicalDayKey, days: number): LogicalDayKey
 
 function round(value: number): number {
   return Math.floor(value + 0.5)
-}
-
-function knownLogicalDayKeys(record: DayLedgerRecord): Set<LogicalDayKey> {
-  return new Set([
-    ...record.puffSessions.map((session) => session.logicalDay),
-    ...record.resistedUrges.map((urge) => urge.logicalDay),
-    ...record.clearDays.map((day) => day.logicalDay),
-  ])
 }
 
 function earnedSteps(record: DayLedgerRecord) {

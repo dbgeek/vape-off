@@ -25,7 +25,7 @@ export function dayTotal(record: DayLedgerRecord, logicalDay: LogicalDayKey): nu
     .reduce((total, session) => total + session.count, 0)
 }
 
-function knownLogicalDays(record: DayLedgerRecord): Set<LogicalDayKey> {
+export function knownLogicalDayKeys(record: DayLedgerRecord): Set<LogicalDayKey> {
   return new Set([
     ...record.puffSessions.map((session) => session.logicalDay),
     ...record.resistedUrges.map((urge) => urge.logicalDay),
@@ -34,7 +34,7 @@ function knownLogicalDays(record: DayLedgerRecord): Set<LogicalDayKey> {
 }
 
 export function isKnown(record: DayLedgerRecord, logicalDay: LogicalDayKey): boolean {
-  return knownLogicalDays(record).has(logicalDay)
+  return knownLogicalDayKeys(record).has(logicalDay)
 }
 
 export function isCompleted(logicalDay: LogicalDayKey, today: LogicalDayKey): boolean {
@@ -49,7 +49,7 @@ export function baselineDays(
   record: DayLedgerRecord,
   today: LogicalDayKey,
 ): LogicalDayKey[] | undefined {
-  const days = [...knownLogicalDays(record)]
+  const days = [...knownLogicalDayKeys(record)]
     .filter((day) => isCompleted(day, today))
     .sort()
     .slice(0, 7)
