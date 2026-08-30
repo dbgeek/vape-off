@@ -19,12 +19,7 @@ function emptyTrackSource(): TrackSource {
     logResistedUrge: vi.fn().mockResolvedValue(record),
     dismissFirstRunCard: vi.fn().mockResolvedValue(undefined),
     declareClearDay: vi.fn().mockResolvedValue(record),
-    addPuffSession: vi.fn().mockResolvedValue(record),
-    addResistedUrge: vi.fn().mockResolvedValue(record),
-    updatePuffSession: vi.fn().mockResolvedValue(record),
-    deletePuffSession: vi.fn().mockResolvedValue(record),
-    updateResistedUrge: vi.fn().mockResolvedValue(record),
-    deleteResistedUrge: vi.fn().mockResolvedValue(record),
+    correct: vi.fn().mockResolvedValue({ status: 'corrected', record }),
     declareHandover: vi.fn().mockResolvedValue(record),
   }
 }

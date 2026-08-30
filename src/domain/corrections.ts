@@ -1,6 +1,6 @@
 import type { LogicalDayKey, PuffSession, ResistedUrge } from '../store/records.ts'
 import type { DayLedgerRecord } from './day-ledger.ts'
-import { stampEvent } from './logical-day.ts'
+import { instantOf, stampEvent } from './logical-day.ts'
 
 /**
  * Corrections: what changing the record after the fact does to it.
@@ -64,6 +64,29 @@ export function dropsClearDay(correction: Correction): boolean {
   return correction.kind === 'add-puff-session' || correction.kind === 'update-puff-session'
 }
 
+/**
+ * A Puff Session re-timed by a Correction. The pickup keeps its length — the
+ * last tap moves with the first — so a re-timed sitting is still the sitting it
+ * was, and not one that suddenly began and ended at the same instant.
+ *
+ * Stated here because the preview and the write both need it, and a Correction
+ * whose two halves disagree is one whose confirmation names a record the write
+ * does not produce.
+ */
+export function retimedPuffSession(
+  session: PuffSession,
+  correction: Extract<Correction, { kind: 'update-puff-session' }>,
+  timeZone: string,
+): PuffSession {
+  const shift = correction.at.getTime() - Date.parse(session.at)
+  return {
+    ...session,
+    ...stampEvent(correction.at, timeZone),
+    lastTapAt: instantOf(new Date(Date.parse(session.lastTapAt) + shift), timeZone),
+    count: correction.count,
+  }
+}
+
 function withoutClearDay(
   record: DayLedgerRecord,
   logicalDay: LogicalDayKey,
@@ -115,7 +138,7 @@ export function applyCorrection(
           ...record,
           puffSessions: record.puffSessions.map((session) =>
             session.id === correction.id
-              ? { ...session, ...stamp, count: correction.count }
+              ? retimedPuffSession(session, correction, timeZone)
               : session,
           ),
           clearDays: withoutClearDay(record, stamp.logicalDay),

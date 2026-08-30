@@ -30,6 +30,11 @@ const emptyRecord: DayLedgerRecord = {
   ratchetSteps: [],
 }
 
+/** A Correction the record accepted, or the reason it could not hold it. */
+export type CorrectionResult =
+  | { status: 'corrected'; record: DayLedgerRecord }
+  | { status: 'refused'; reason: CorrectionRefusal }
+
 export interface TrackSource {
   load: () => Promise<DayLedgerRecord>
   loadFirstRunCardDismissed: () => Promise<boolean>
@@ -37,15 +42,8 @@ export interface TrackSource {
   logResistedUrge: (at: Date) => Promise<DayLedgerRecord>
   dismissFirstRunCard: () => Promise<void>
   declareClearDay: (at: Date) => Promise<DayLedgerRecord>
-  addPuffSession: (input: { at: Date; count: number }) => Promise<DayLedgerRecord>
-  addResistedUrge: (at: Date) => Promise<DayLedgerRecord>
-  updatePuffSession: (
-    id: string,
-    input: { at: Date; count: number },
-  ) => Promise<DayLedgerRecord>
-  deletePuffSession: (id: string) => Promise<DayLedgerRecord>
-  updateResistedUrge: (id: string, at: Date) => Promise<DayLedgerRecord>
-  deleteResistedUrge: (id: string) => Promise<DayLedgerRecord>
+  /** Every Correction, described once and carried whole. */
+  correct: (correction: Correction) => Promise<CorrectionResult>
   declareHandover: () => Promise<DayLedgerRecord>
 }
 
@@ -94,21 +92,19 @@ type EditorState =
 
 function RecordEditor({
   editor,
-  source,
   record,
   today,
   timeZone,
   now,
-  mutate,
+  correct,
   close,
 }: {
   editor: EditorState
-  source: TrackSource
   record: DayLedgerRecord
   today: LogicalDayKey
   timeZone: string
   now: Date
-  mutate: (operation: () => Promise<DayLedgerRecord>) => void
+  correct: (correction: Correction) => void
   close: () => void
 }) {
   const [eventKind, setEventKind] = useState<'puff' | 'urge'>(
@@ -130,27 +126,6 @@ function RecordEditor({
         ? 'Edit Resisted Urge'
         : 'Add to the record'
 
-  /** The write that makes a Correction the reader has confirmed. */
-  function writeCorrection(correction: Correction): Promise<DayLedgerRecord> {
-    switch (correction.kind) {
-      case 'add-puff-session':
-        return source.addPuffSession({ at: correction.at, count: correction.count })
-      case 'add-resisted-urge':
-        return source.addResistedUrge(correction.at)
-      case 'update-puff-session':
-        return source.updatePuffSession(correction.id, {
-          at: correction.at,
-          count: correction.count,
-        })
-      case 'update-resisted-urge':
-        return source.updateResistedUrge(correction.id, correction.at)
-      case 'delete-puff-session':
-        return source.deletePuffSession(correction.id)
-      case 'delete-resisted-urge':
-        return source.deleteResistedUrge(correction.id)
-    }
-  }
-
   /**
    * Show what the Correction would do to Momentum before making it, and say so
    * when it moves (ADR 0011). The record it is measured against is the one the
@@ -166,7 +141,7 @@ function RecordEditor({
     }
 
     const apply = () => {
-      mutate(() => writeCorrection(correction))
+      correct(correction)
       close()
     }
     const before = momentum(record, today)
@@ -279,6 +254,7 @@ export function TrackScreen({
   const [now, setNow] = useState(clock.now)
   const [pendingWrites, setPendingWrites] = useState(0)
   const [loadFailed, setLoadFailed] = useState(false)
+  const [correctionError, setCorrectionError] = useState<string>()
   const [loaded, setLoaded] = useState(false)
   const [firstRunCardDismissed, setFirstRunCardDismissed] = useState(true)
   const [restoreDoorOpen, setRestoreDoorOpen] = useState(false)
@@ -337,11 +313,17 @@ export function TrackScreen({
     [record, now, timeZone],
   )
 
-  function mutate(operation: () => Promise<DayLedgerRecord>, at = clock.now()) {
+  /**
+   * One write at a time, in order. An operation that returns no record has
+   * already said so for itself — nothing to set, and not a failure.
+   */
+  function mutate(operation: () => Promise<DayLedgerRecord | undefined>, at = clock.now()) {
     setPendingWrites((count) => count + 1)
     writeQueue.current = writeQueue.current.then(async () => {
       try {
-        setRecord(await operation())
+        const written = await operation()
+        if (written === undefined) return
+        setRecord(written)
         setFirstRunCardDismissed(true)
         setNow(at)
       } catch {
@@ -349,6 +331,23 @@ export function TrackScreen({
       } finally {
         setPendingWrites((count) => count - 1)
       }
+    })
+  }
+
+  /**
+   * A Correction the reader confirmed. `propose` has already refused anything
+   * the record cannot hold, so a refusal here is a backstop — but a silent one
+   * would read as a tap that did nothing, and the editor has already closed.
+   */
+  function correct(correction: Correction) {
+    mutate(async () => {
+      const written = await source.correct(correction)
+      if (written.status === 'refused') {
+        setCorrectionError(REFUSAL_MESSAGES[written.reason])
+        return undefined
+      }
+      setCorrectionError(undefined)
+      return written.record
     })
   }
 
@@ -383,6 +382,7 @@ export function TrackScreen({
       </header>
 
       {loadFailed ? <p className="track-load-error">Track could not read your record.</p> : null}
+      {correctionError ? <p className="track-load-error" role="alert">{correctionError}</p> : null}
 
       {!installed && (forceInstallBar || view.hasHistory || restoreDoorOpen) ? (
         <aside className="install-bar" aria-label="Install vape-off">
@@ -555,12 +555,11 @@ export function TrackScreen({
       {editor ? (
         <RecordEditor
           editor={editor}
-          source={source}
           record={record}
           today={view.today}
           timeZone={timeZone}
           now={now}
-          mutate={mutate}
+          correct={correct}
           close={() => setEditor(undefined)}
         />
       ) : null}

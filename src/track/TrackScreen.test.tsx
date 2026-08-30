@@ -38,12 +38,7 @@ function source(record: DayLedgerRecord): TrackSource {
     logResistedUrge: vi.fn().mockResolvedValue(record),
     dismissFirstRunCard: vi.fn().mockResolvedValue(undefined),
     declareClearDay: vi.fn().mockResolvedValue(record),
-    addPuffSession: vi.fn().mockResolvedValue(record),
-    addResistedUrge: vi.fn().mockResolvedValue(record),
-    updatePuffSession: vi.fn().mockResolvedValue(record),
-    deletePuffSession: vi.fn().mockResolvedValue(record),
-    updateResistedUrge: vi.fn().mockResolvedValue(record),
-    deleteResistedUrge: vi.fn().mockResolvedValue(record),
+    correct: vi.fn().mockResolvedValue({ status: 'corrected', record }),
     declareHandover: vi.fn().mockResolvedValue(record),
   }
 }
@@ -297,16 +292,20 @@ describe('Track', () => {
     fireEvent.change(within(dialog).getByLabelText('Puff count'), { target: { value: '3' } })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Save changes' }))
     await waitFor(() =>
-      expect(trackSource.updatePuffSession).toHaveBeenCalledWith(
-        'morning',
-        expect.objectContaining({ count: 3 }),
+      expect(trackSource.correct).toHaveBeenCalledWith(
+        expect.objectContaining({ kind: 'update-puff-session', id: 'morning', count: 3 }),
       ),
     )
     expect(screen.queryByText(/Are you sure/i)).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Puff Session, 2 puffs at 10:00' }))
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
-    await waitFor(() => expect(trackSource.deletePuffSession).toHaveBeenCalledWith('morning'))
+    await waitFor(() =>
+      expect(trackSource.correct).toHaveBeenCalledWith({
+        kind: 'delete-puff-session',
+        id: 'morning',
+      }),
+    )
   })
 
   it('names a Momentum change before a backfilled Puff Session lands', async () => {
@@ -334,10 +333,11 @@ describe('Track', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Save changes' }))
 
     expect(screen.getByText('This will change your momentum from 1 to 0.')).toBeInTheDocument()
-    expect(trackSource.addPuffSession).not.toHaveBeenCalled()
+    expect(trackSource.correct).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: 'Apply change' }))
     await waitFor(() =>
-      expect(trackSource.addPuffSession).toHaveBeenCalledWith({
+      expect(trackSource.correct).toHaveBeenCalledWith({
+        kind: 'add-puff-session',
         at: new Date('2026-08-28T12:00:00.000Z'),
         count: 3,
       }),
@@ -358,7 +358,7 @@ describe('Track', () => {
     fireEvent.change(within(dialog).getByLabelText('Puff count'), { target: { value: '0' } })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Save changes' }))
     expect(within(dialog).getByText('Enter a whole puff count of at least 1.')).toBeInTheDocument()
-    expect(trackSource.addPuffSession).not.toHaveBeenCalled()
+    expect(trackSource.correct).not.toHaveBeenCalled()
 
     fireEvent.change(within(dialog).getByLabelText('Puff count'), { target: { value: '1' } })
     fireEvent.change(within(dialog).getByLabelText('Time'), {
@@ -366,7 +366,7 @@ describe('Track', () => {
     })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Save changes' }))
     expect(within(dialog).getByText('Choose a time that has already happened.')).toBeInTheDocument()
-    expect(trackSource.addPuffSession).not.toHaveBeenCalled()
+    expect(trackSource.correct).not.toHaveBeenCalled()
   })
 
   it('re-evaluates the Ratchet when the app returns to view', async () => {
@@ -387,5 +387,34 @@ describe('Track', () => {
     document.dispatchEvent(new Event('visibilitychange'))
 
     await waitFor(() => expect(trackSource.load).toHaveBeenCalledTimes(2))
+  })
+
+  it('surfaces a Correction the record refused, after the editor has closed', async () => {
+    // propose() has already refused anything it can judge, so this is a
+    // backstop — but the editor is gone by the time it answers, and a silent
+    // refusal reads as a tap that did nothing.
+    const trackSource = source(emptyRecord)
+    vi.mocked(trackSource.correct).mockResolvedValue({
+      status: 'refused',
+      reason: 'in-the-future',
+    })
+    render(
+      <TrackScreen
+        source={trackSource}
+        clock={{ now: () => new Date('2026-08-29T12:00:00.000Z'), timeZone: () => 'UTC' }}
+      />,
+    )
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Add past event' }))
+    const dialog = screen.getByRole('dialog', { name: 'Add to the record' })
+    fireEvent.change(within(dialog).getByLabelText('Time'), {
+      target: { value: '2026-08-28T12:00' },
+    })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save changes' }))
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('Choose a time that has already happened.')
+    expect(screen.queryByRole('dialog', { name: 'Add to the record' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Track could not read your record.')).not.toBeInTheDocument()
   })
 })

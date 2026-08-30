@@ -1,17 +1,10 @@
+import type { Correction } from '../domain/corrections.ts'
 import type { DayLedgerRecord } from '../domain/day-ledger.ts'
-import {
-  deletePuffSession,
-  deleteResistedUrge,
-  updatePuffSession,
-  updateResistedUrge,
-  writeClearDay,
-  writePuffSession,
-  writeResistedUrge,
-} from '../store/event-writes.ts'
+import { writeCorrection } from '../store/correction-writes.ts'
 import { getMeta, setMeta } from '../store/meta.ts'
 import { declareHandover } from '../store/ratchet-writes.ts'
 import { browserSession, type StoreSession } from '../store/session.ts'
-import { logPuff } from '../store/track-writes.ts'
+import { logPuff, logResistedUrge, writeClearDay } from '../store/track-writes.ts'
 import type { TrackSource } from './TrackScreen.tsx'
 
 export function createBrowserTrackSource(session: StoreSession): TrackSource {
@@ -43,9 +36,11 @@ export function createBrowserTrackSource(session: StoreSession): TrackSource {
       await logPuff(db, at, environment)
       return refreshAfterWrite(at)
     },
+    // A live tap and an added Resisted Urge write the same record, and are not
+    // the same act: one happens now, the other says something about the past.
     async logResistedUrge(at) {
       await session.ensureOpen()
-      await writeResistedUrge(db, at, environment)
+      await logResistedUrge(db, at, environment)
       return refreshAfterWrite(at)
     },
     async dismissFirstRunCard() {
@@ -57,43 +52,13 @@ export function createBrowserTrackSource(session: StoreSession): TrackSource {
       await writeClearDay(db, at, environment)
       return refreshAfterWrite(environment.now())
     },
-    async addPuffSession(input) {
+    // The Correction crosses whole. The clock is the session's, so a Correction
+    // landing in the future is refused here rather than by whoever remembers to.
+    async correct(correction: Correction) {
       await session.ensureOpen()
-      await writePuffSession(
-        db,
-        { kind: 'add-puff-session', at: input.at, count: input.count },
-        environment,
-      )
-      return refreshAfterWrite(environment.now())
-    },
-    async addResistedUrge(at) {
-      await session.ensureOpen()
-      await writeResistedUrge(db, at, environment)
-      return refreshAfterWrite(environment.now())
-    },
-    async updatePuffSession(id, input) {
-      await session.ensureOpen()
-      await updatePuffSession(
-        db,
-        { kind: 'update-puff-session', id, at: input.at, count: input.count },
-        environment,
-      )
-      return refreshAfterWrite(environment.now())
-    },
-    async deletePuffSession(id) {
-      await session.ensureOpen()
-      await deletePuffSession(db, id)
-      return refreshAfterWrite(environment.now())
-    },
-    async updateResistedUrge(id, at) {
-      await session.ensureOpen()
-      await updateResistedUrge(db, id, at, environment)
-      return refreshAfterWrite(environment.now())
-    },
-    async deleteResistedUrge(id) {
-      await session.ensureOpen()
-      await deleteResistedUrge(db, id)
-      return refreshAfterWrite(environment.now())
+      const written = await writeCorrection(db, correction, environment)
+      if (written.status === 'refused') return written
+      return { status: 'corrected', record: await refreshAfterWrite(environment.now()) }
     },
     async declareHandover() {
       await session.ensureOpen()
