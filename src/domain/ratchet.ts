@@ -1,5 +1,6 @@
 import type { LogicalDayKey, RatchetStep } from '../store/records.ts'
 import { completedDays, isMet, type DayLedgerRecord } from './day-ledger.ts'
+import { stepLog } from './step-log.ts'
 
 export { targetOn } from './day-ledger.ts'
 
@@ -7,11 +8,7 @@ export { targetOn } from './day-ledger.ts'
 export function latestRatchetStep(
   steps: readonly RatchetStep[],
 ): RatchetStep | undefined {
-  return steps.reduce<RatchetStep | undefined>(
-    (latest, step) =>
-      latest === undefined || step.effectiveFrom > latest.effectiveFrom ? step : latest,
-    undefined,
-  )
+  return stepLog(steps).latest()
 }
 
 export function nextEarnedTarget(target: number): number {
