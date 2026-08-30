@@ -1,29 +1,53 @@
+import {
+  correctionRefusal,
+  dropsClearDay,
+  type Correction,
+  type CorrectionRefusal,
+} from '../domain/corrections.ts'
 import { instantOf, stampEvent } from '../domain/logical-day.ts'
 import type { VapeOffDatabase } from './database.ts'
 import type { ClearDay, PuffSession, ResistedUrge } from './records.ts'
 import type { WriteEnvironment } from './session.ts'
 
-export interface PuffSessionWrite {
-  at: Date
-  lastTapAt: Date
-  count: number
+/**
+ * Writing a Correction into the record. What a Correction *does* is decided in
+ * `domain/corrections.ts`, so the preview the reader was shown and the write
+ * they confirmed cannot disagree; what is here is the Dexie half of it.
+ *
+ * The store is told the instant rather than reading a clock, so it cannot judge
+ * whether a Correction lands in the future — that check belongs to the caller
+ * holding the clock. Everything else it refuses for itself.
+ */
+
+const REFUSALS: Record<CorrectionRefusal, string> = {
+  'count-below-one': 'A Puff Session count must be a positive integer',
+  'in-the-future': 'A Correction cannot land in the future',
+}
+
+function refuseIfUnholdable(correction: Correction): void {
+  const refusal = correctionRefusal(correction)
+  if (refusal !== undefined) throw new RangeError(REFUSALS[refusal])
 }
 
 export async function writePuffSession(
   db: VapeOffDatabase,
-  input: PuffSessionWrite,
+  correction: Extract<Correction, { kind: 'add-puff-session' }>,
   environment: WriteEnvironment,
 ): Promise<PuffSession> {
+  refuseIfUnholdable(correction)
+
   const timeZone = environment.timeZone()
+  const stamp = stampEvent(correction.at, timeZone)
   const record: PuffSession = {
     id: environment.randomUUID(),
-    ...stampEvent(input.at, timeZone),
-    lastTapAt: instantOf(input.lastTapAt, timeZone),
-    count: input.count,
+    ...stamp,
+    lastTapAt: stamp.at,
+    count: correction.count,
   }
+
   await db.transaction('rw', db.puffSessions, db.clearDays, async () => {
     await db.puffSessions.add(record)
-    await db.clearDays.delete(record.logicalDay)
+    if (dropsClearDay(correction)) await db.clearDays.delete(record.logicalDay)
   })
   return record
 }
@@ -56,35 +80,28 @@ export async function writeClearDay(
   })
 }
 
-export interface PuffSessionEdit {
-  at: Date
-  count: number
-}
-
 export async function updatePuffSession(
   db: VapeOffDatabase,
-  id: string,
-  input: PuffSessionEdit,
+  correction: Extract<Correction, { kind: 'update-puff-session' }>,
   environment: WriteEnvironment,
 ): Promise<PuffSession> {
-  if (!Number.isInteger(input.count) || input.count < 1) {
-    throw new RangeError('A Puff Session count must be a positive integer')
-  }
+  refuseIfUnholdable(correction)
 
   return db.transaction('rw', db.puffSessions, db.clearDays, async () => {
-    const existing = await db.puffSessions.get(id)
+    const existing = await db.puffSessions.get(correction.id)
     if (!existing) throw new Error('Puff Session not found')
 
     const timeZone = environment.timeZone()
-    const shift = input.at.getTime() - Date.parse(existing.at)
+    // The pickup keeps its length: the last tap moves with the first.
+    const shift = correction.at.getTime() - Date.parse(existing.at)
     const edited: PuffSession = {
       ...existing,
-      ...stampEvent(input.at, timeZone),
+      ...stampEvent(correction.at, timeZone),
       lastTapAt: instantOf(new Date(Date.parse(existing.lastTapAt) + shift), timeZone),
-      count: input.count,
+      count: correction.count,
     }
     await db.puffSessions.put(edited)
-    await db.clearDays.delete(edited.logicalDay)
+    if (dropsClearDay(correction)) await db.clearDays.delete(edited.logicalDay)
     return edited
   })
 }

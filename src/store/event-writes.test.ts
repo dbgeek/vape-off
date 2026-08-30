@@ -32,11 +32,7 @@ describe('event writes', () => {
 
     const puffSession = await writePuffSession(
       db,
-      {
-        at: new Date('2026-08-29T01:59:00.000Z'),
-        lastTapAt: new Date('2026-08-29T02:00:00.000Z'),
-        count: 2,
-      },
+      { kind: 'add-puff-session', at: new Date('2026-08-29T01:59:00.000Z'), count: 2 },
       environment,
     )
     const resistedUrge = await writeResistedUrge(
@@ -53,7 +49,7 @@ describe('event writes', () => {
     await expect(db.puffSessions.get(puffSession.id)).resolves.toEqual({
       id: '4f341b0a-b09a-4ddc-b68c-e570b20c90db',
       at: '2026-08-29T03:59:00.000+02:00',
-      lastTapAt: '2026-08-29T04:00:00.000+02:00',
+      lastTapAt: '2026-08-29T03:59:00.000+02:00',
       count: 2,
       logicalDay: '2026-08-28',
       tz: 'Europe/Stockholm',
@@ -84,7 +80,7 @@ describe('event writes', () => {
 
     const session = await writePuffSession(
       db,
-      { at, lastTapAt: at, count: 1 },
+      { kind: 'add-puff-session', at, count: 1 },
       environment,
     )
 
@@ -100,7 +96,7 @@ describe('event writes', () => {
       randomUUID: () => '4f341b0a-b09a-4ddc-b68c-e570b20c90db',
     }
     const at = new Date('2026-08-28T12:00:00.000Z')
-    await writePuffSession(db, { at, lastTapAt: at, count: 1 }, environment)
+    await writePuffSession(db, { kind: 'add-puff-session', at, count: 1 }, environment)
 
     await expect(writeClearDay(db, at, environment)).resolves.toBeUndefined()
     await expect(db.clearDays.get('2026-08-28')).resolves.toBeUndefined()
@@ -113,19 +109,23 @@ describe('event writes', () => {
       timeZone: () => 'Europe/Stockholm',
       randomUUID: () => '4f341b0a-b09a-4ddc-b68c-e570b20c90db',
     }
-    const originalAt = new Date('2026-08-28T10:00:00.000Z')
-    const session = await writePuffSession(
-      db,
-      { at: originalAt, lastTapAt: new Date('2026-08-28T10:02:00.000Z'), count: 2 },
-      environment,
-    )
+    // A pickup that ran two minutes: the edit has to move the last tap with the
+    // first, so seed the span rather than writing a fresh single-tap Session.
+    const session = {
+      id: 'a-two-minute-pickup',
+      at: '2026-08-28T12:00:00.000+02:00',
+      lastTapAt: '2026-08-28T12:02:00.000+02:00',
+      count: 2,
+      logicalDay: '2026-08-28',
+      tz: 'Europe/Stockholm',
+    }
+    await db.puffSessions.add(session)
     const movedAt = new Date('2026-08-29T01:00:00.000Z')
     await writeClearDay(db, movedAt, environment)
 
     const edited = await updatePuffSession(
       db,
-      session.id,
-      { at: movedAt, count: 4 },
+      { kind: 'update-puff-session', id: session.id, at: movedAt, count: 4 },
       environment,
     )
 
@@ -148,11 +148,7 @@ describe('event writes', () => {
     }
     const session = await writePuffSession(
       db,
-      {
-        at: new Date('2026-08-28T10:00:00.000Z'),
-        lastTapAt: new Date('2026-08-28T10:00:00.000Z'),
-        count: 1,
-      },
+      { kind: 'add-puff-session', at: new Date('2026-08-28T10:00:00.000Z'), count: 1 },
       environment,
     )
     const urge = await writeResistedUrge(

@@ -4,6 +4,11 @@ import {
   type BackupSource,
 } from '../backup/browser-backup-source.ts'
 import { useRestore } from '../backup/use-restore.ts'
+import {
+  applyCorrection,
+  type Correction,
+  type CorrectionRefusal,
+} from '../domain/corrections.ts'
 import type { DayLedgerRecord } from '../domain/day-ledger.ts'
 import {
   dateTimeInputValue,
@@ -12,7 +17,6 @@ import {
   formatWallTime,
   instantFromDateTimeInput,
   logicalMinuteOf,
-  stampEvent,
 } from '../domain/logical-day.ts'
 import { momentum } from '../domain/readouts.ts'
 import { isStandalone } from '../shell/install-state.ts'
@@ -78,6 +82,11 @@ function dateAtNoon(logicalDay: LogicalDayKey): Date {
   return new Date(`${logicalDay}T12:00:00`)
 }
 
+const REFUSAL_MESSAGES: Record<CorrectionRefusal, string> = {
+  'count-below-one': 'Enter a whole puff count of at least 1.',
+  'in-the-future': 'Choose a time that has already happened.',
+}
+
 type EditorState =
   | { kind: 'puff'; session: PuffSession }
   | { kind: 'urge'; urge: ResistedUrge }
@@ -121,9 +130,47 @@ function RecordEditor({
         ? 'Edit Resisted Urge'
         : 'Add to the record'
 
-  function confirmMomentumChange(draft: DayLedgerRecord, apply: () => void) {
+  /** The write that makes a Correction the reader has confirmed. */
+  function writeCorrection(correction: Correction): Promise<DayLedgerRecord> {
+    switch (correction.kind) {
+      case 'add-puff-session':
+        return source.addPuffSession({ at: correction.at, count: correction.count })
+      case 'add-resisted-urge':
+        return source.addResistedUrge(correction.at)
+      case 'update-puff-session':
+        return source.updatePuffSession(correction.id, {
+          at: correction.at,
+          count: correction.count,
+        })
+      case 'update-resisted-urge':
+        return source.updateResistedUrge(correction.id, correction.at)
+      case 'delete-puff-session':
+        return source.deletePuffSession(correction.id)
+      case 'delete-resisted-urge':
+        return source.deleteResistedUrge(correction.id)
+    }
+  }
+
+  /**
+   * Show what the Correction would do to Momentum before making it, and say so
+   * when it moves (ADR 0011). The record it is measured against is the one the
+   * Correction module produces, so the number named here is the one the write
+   * lands on.
+   */
+  function propose(correction: Correction) {
+    setValidationError(undefined)
+    const corrected = applyCorrection(record, correction, now, timeZone)
+    if (corrected.status === 'refused') {
+      setValidationError(REFUSAL_MESSAGES[corrected.reason])
+      return
+    }
+
+    const apply = () => {
+      mutate(() => writeCorrection(correction))
+      close()
+    }
     const before = momentum(record, today)
-    const after = momentum(draft, today)
+    const after = momentum(corrected.record, today)
     if (before === after) {
       apply()
       return
@@ -131,21 +178,8 @@ function RecordEditor({
     setConfirmation({ before, after, apply })
   }
 
-  function finish(operation: () => Promise<DayLedgerRecord>) {
-    mutate(operation)
-    close()
-  }
-
   function save() {
     setValidationError(undefined)
-    const parsedCount = Number(count)
-    if (
-      (editor.kind === 'puff' || (editor.kind === 'new' && eventKind === 'puff')) &&
-      (!Number.isInteger(parsedCount) || parsedCount < 1)
-    ) {
-      setValidationError('Enter a whole puff count of at least 1.')
-      return
-    }
     let editedAt: Date
     try {
       editedAt = instantFromDateTimeInput(at, timeZone)
@@ -153,50 +187,30 @@ function RecordEditor({
       setValidationError('Enter a date and time.')
       return
     }
-    if (editedAt.getTime() > now.getTime()) {
-      setValidationError('Choose a time that has already happened.')
-      return
-    }
-    const stamp = stampEvent(editedAt, timeZone)
+    const parsedCount = Number(count)
+
     if (editor.kind === 'puff') {
-      const edited = { ...editor.session, ...stamp, count: parsedCount }
-      const draft = {
-        ...record,
-        puffSessions: record.puffSessions.map((session) => session.id === edited.id ? edited : session),
-        clearDays: record.clearDays.filter((day) => day.logicalDay !== edited.logicalDay),
-      }
-      confirmMomentumChange(draft, () => finish(() => source.updatePuffSession(editor.session.id, { at: editedAt, count: parsedCount })))
+      propose({
+        kind: 'update-puff-session',
+        id: editor.session.id,
+        at: editedAt,
+        count: parsedCount,
+      })
     } else if (editor.kind === 'urge') {
-      const edited = { id: editor.urge.id, ...stamp }
-      const draft = {
-        ...record,
-        resistedUrges: record.resistedUrges.map((urge) => urge.id === edited.id ? edited : urge),
-      }
-      confirmMomentumChange(draft, () => finish(() => source.updateResistedUrge(editor.urge.id, editedAt)))
+      propose({ kind: 'update-resisted-urge', id: editor.urge.id, at: editedAt })
     } else if (eventKind === 'puff') {
-      const draft = {
-        ...record,
-        puffSessions: [...record.puffSessions, { id: 'preview', ...stamp, lastTapAt: stamp.at, count: parsedCount }],
-        clearDays: record.clearDays.filter((day) => day.logicalDay !== stamp.logicalDay),
-      }
-      confirmMomentumChange(draft, () => finish(() => source.addPuffSession({ at: editedAt, count: parsedCount })))
+      propose({ kind: 'add-puff-session', at: editedAt, count: parsedCount })
     } else {
-      const draft = {
-        ...record,
-        resistedUrges: [...record.resistedUrges, { id: 'preview', ...stamp }],
-      }
-      confirmMomentumChange(draft, () => finish(() => source.addResistedUrge(editedAt)))
+      propose({ kind: 'add-resisted-urge', at: editedAt })
     }
   }
 
   function remove() {
     if (editor.kind === 'puff') {
-      const draft = { ...record, puffSessions: record.puffSessions.filter((session) => session.id !== editor.session.id) }
-      confirmMomentumChange(draft, () => finish(() => source.deletePuffSession(editor.session.id)))
+      propose({ kind: 'delete-puff-session', id: editor.session.id })
     }
     if (editor.kind === 'urge') {
-      const draft = { ...record, resistedUrges: record.resistedUrges.filter((urge) => urge.id !== editor.urge.id) }
-      confirmMomentumChange(draft, () => finish(() => source.deleteResistedUrge(editor.urge.id)))
+      propose({ kind: 'delete-resisted-urge', id: editor.urge.id })
     }
   }
 
