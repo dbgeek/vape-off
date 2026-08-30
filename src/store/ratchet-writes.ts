@@ -1,20 +1,45 @@
-import { baselineAverage, type DayLedgerRecord } from '../domain/day-ledger.ts'
 import { instantOf, logicalDayKeyOf } from '../domain/logical-day.ts'
-import { nextEarnedTarget, targetOn, windowSatisfied } from '../domain/ratchet.ts'
+import {
+  decideStep,
+  type RatchetDecision,
+  type RefusalReason,
+  type StepRequest,
+} from '../domain/ratchet.ts'
 import type { VapeOffDatabase } from './database.ts'
 import { readRecord } from './read-record.ts'
 import type { RatchetStep } from './records.ts'
 import type { StoreEnvironment } from './session.ts'
+
+/**
+ * The Ratchet's writes: the decision is the Ratchet's, and everything here is
+ * the store's half of it — reading the record the decision is made against,
+ * dating the Step, and appending it. The transaction is what makes "no Step yet
+ * today" still true at the moment the Step lands; `&effectiveFrom` is the
+ * backstop behind it (ADR 0011).
+ */
 
 export type EvaluationResult =
   | { status: 'unchanged' }
   | { status: 'handover-offered' }
   | { status: 'step-written'; step: RatchetStep }
 
-export async function evaluate(
+/** A refused tap is answered in words, because Stats shows the reader this sentence. */
+const REFUSALS: Record<RefusalReason, string> = {
+  'already-stepped-today': 'You have already changed your target today',
+  'handover-unavailable': 'The handover is not available',
+  'not-at-target-zero': 'A step back is only available at Target 0',
+}
+
+interface WrittenDecision {
+  decision: RatchetDecision
+  step: RatchetStep | undefined
+}
+
+async function decideAndWrite(
   db: VapeOffDatabase,
   environment: StoreEnvironment,
-): Promise<EvaluationResult> {
+  request: StepRequest,
+): Promise<WrittenDecision> {
   const now = environment.now()
   const timeZone = environment.timeZone()
   const today = logicalDayKeyOf(now, timeZone)
@@ -27,119 +52,52 @@ export async function evaluate(
     db.ratchetSteps,
     async () => {
       const record = await readRecord(db)
-      if (record.ratchetSteps.some((step) => step.effectiveFrom === today)) {
-        return { status: 'unchanged' }
-      }
-
-      let target: number
-      if (record.ratchetSteps.length === 0) {
-        const average = baselineAverage(record, today)
-        if (average === undefined) return { status: 'unchanged' }
-        target = Math.max(1, Math.floor(0.9 * average + 0.5))
-      } else {
-        const latestStep = record.ratchetSteps.reduce((latest, step) =>
-          step.effectiveFrom > latest.effectiveFrom ? step : latest,
-        )
-        if (latestStep.target === 0) return { status: 'unchanged' }
-        const satisfied = windowSatisfied(record, latestStep, today)
-        if (latestStep.target === 1) {
-          return satisfied ? { status: 'handover-offered' } : { status: 'unchanged' }
-        }
-        if (!satisfied) {
-          return { status: 'unchanged' }
-        }
-        target = nextEarnedTarget(latestStep.target)
-      }
+      const decision = decideStep(record, today, request)
+      if (decision.status !== 'step') return { decision, step: undefined }
 
       const step: RatchetStep = {
         id: environment.randomUUID(),
         effectiveFrom: today,
-        target,
-        kind: 'earned',
+        target: decision.target,
+        kind: decision.kind,
         at: instantOf(now, timeZone),
       }
       await db.ratchetSteps.add(step)
-      return { status: 'step-written', step }
+      return { decision, step }
     },
   )
+}
+
+function refuse(decision: RatchetDecision): never {
+  throw new Error(
+    decision.status === 'refused'
+      ? REFUSALS[decision.reason]
+      : 'The Target could not be changed',
+  )
+}
+
+export async function evaluate(
+  db: VapeOffDatabase,
+  environment: StoreEnvironment,
+): Promise<EvaluationResult> {
+  const { decision, step } = await decideAndWrite(db, environment, 'evaluate')
+  if (step !== undefined) return { status: 'step-written', step }
+  if (decision.status === 'handover-offered') return { status: 'handover-offered' }
+  return { status: 'unchanged' }
 }
 
 export async function declareHandover(
   db: VapeOffDatabase,
   environment: StoreEnvironment,
 ): Promise<RatchetStep> {
-  const now = environment.now()
-  const timeZone = environment.timeZone()
-  const today = logicalDayKeyOf(now, timeZone)
-
-  return db.transaction(
-    'rw',
-    db.puffSessions,
-    db.resistedUrges,
-    db.clearDays,
-    db.ratchetSteps,
-    async () => {
-      const record = await readRecord(db)
-      if (record.ratchetSteps.some((step) => step.effectiveFrom === today)) {
-        throw new Error('You have already changed your target today')
-      }
-      const latestStep = record.ratchetSteps.reduce<RatchetStep | undefined>(
-        (latest, step) =>
-          latest === undefined || step.effectiveFrom > latest.effectiveFrom ? step : latest,
-        undefined,
-      )
-      if (
-        targetOn(record, today) !== 1 ||
-        latestStep === undefined ||
-        !windowSatisfied(record, latestStep, today)
-      ) {
-        throw new Error('The handover is not available')
-      }
-
-      const step: RatchetStep = {
-        id: environment.randomUUID(),
-        effectiveFrom: today,
-        target: 0,
-        kind: 'declared',
-        at: instantOf(now, timeZone),
-      }
-      await db.ratchetSteps.add(step)
-      return step
-    },
-  )
+  const { decision, step } = await decideAndWrite(db, environment, 'handover')
+  return step ?? refuse(decision)
 }
 
 export async function declareStepBack(
   db: VapeOffDatabase,
   environment: StoreEnvironment,
 ): Promise<RatchetStep> {
-  const now = environment.now()
-  const timeZone = environment.timeZone()
-  const today = logicalDayKeyOf(now, timeZone)
-
-  return db.transaction('rw', db.ratchetSteps, async () => {
-    const ratchetSteps = await db.ratchetSteps.toArray()
-    if (ratchetSteps.some((step) => step.effectiveFrom === today)) {
-      throw new Error('You have already changed your target today')
-    }
-    const record: DayLedgerRecord = {
-      puffSessions: [],
-      resistedUrges: [],
-      clearDays: [],
-      ratchetSteps,
-    }
-    if (targetOn(record, today) !== 0) {
-      throw new Error('A step back is only available at Target 0')
-    }
-
-    const step: RatchetStep = {
-      id: environment.randomUUID(),
-      effectiveFrom: today,
-      target: 1,
-      kind: 'declared',
-      at: instantOf(now, timeZone),
-    }
-    await db.ratchetSteps.add(step)
-    return step
-  })
+  const { decision, step } = await decideAndWrite(db, environment, 'step-back')
+  return step ?? refuse(decision)
 }
