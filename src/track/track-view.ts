@@ -7,7 +7,7 @@ import {
   type DayLedgerRecord,
 } from '../domain/day-ledger.ts'
 import { logicalDayKeyOf } from '../domain/logical-day.ts'
-import { isMergeWindowOpen } from '../domain/merge-window.ts'
+import { openSessionAt } from '../domain/merge-window.ts'
 import { pace } from '../domain/readouts.ts'
 import { decideStep } from '../domain/ratchet.ts'
 import type { Instant, LogicalDayKey, PuffSession, ResistedUrge } from '../store/records.ts'
@@ -123,9 +123,7 @@ export function buildTrackView(
     target,
     targetReached: reached,
     overTargetSessionIds: overTargetSessionIds(puffSessions, target, reached),
-    openSession: [...puffSessions]
-      .reverse()
-      .find((session) => isMergeWindowOpen(session.lastTapAt, now)),
+    openSession: openSessionAt(record.puffSessions, now, timeZone),
     paceSlots:
       pace(record, now, timeZone)?.slots.filter((slot) => Date.parse(slot) > now.getTime()) ?? [],
     catchUpDays: catchUpDays(record, today),
