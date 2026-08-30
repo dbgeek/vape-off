@@ -233,4 +233,41 @@ describe('Corrections', () => {
       expect(momentum(after, today)).toBe(0)
     })
   })
+
+  it('re-times a Puff Session by moving the last tap with the first', () => {
+    // The preview and the write share this rule, so the record the confirmation
+    // is measured against is the record the write produces.
+    const record: DayLedgerRecord = {
+      ...emptyRecord,
+      puffSessions: [
+        {
+          id: 'a-two-minute-pickup',
+          at: '2026-08-29T12:00:00.000+00:00',
+          lastTapAt: '2026-08-29T12:02:00.000+00:00',
+          count: 2,
+          logicalDay: '2026-08-29',
+          tz: 'UTC',
+        },
+      ],
+    }
+
+    const corrected = applyCorrection(
+      record,
+      {
+        kind: 'update-puff-session',
+        id: 'a-two-minute-pickup',
+        at: new Date('2026-08-29T15:00:00.000Z'),
+        count: 4,
+      },
+      now,
+      'UTC',
+    )
+
+    expect(corrected.status).toBe('corrected')
+    expect(corrected.status === 'corrected' && corrected.record.puffSessions[0]).toMatchObject({
+      at: '2026-08-29T15:00:00.000+00:00',
+      lastTapAt: '2026-08-29T15:02:00.000+00:00',
+      count: 4,
+    })
+  })
 })
