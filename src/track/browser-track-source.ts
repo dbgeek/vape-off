@@ -61,7 +61,7 @@ export function createBrowserTrackSource(session: StoreSession): TrackSource {
       await session.ensureOpen()
       await writePuffSession(
         db,
-        { at: input.at, lastTapAt: input.at, count: input.count },
+        { kind: 'add-puff-session', at: input.at, count: input.count },
         environment,
       )
       return refreshAfterWrite(environment.now())
@@ -73,7 +73,11 @@ export function createBrowserTrackSource(session: StoreSession): TrackSource {
     },
     async updatePuffSession(id, input) {
       await session.ensureOpen()
-      await updatePuffSession(db, id, input, environment)
+      await updatePuffSession(
+        db,
+        { kind: 'update-puff-session', id, at: input.at, count: input.count },
+        environment,
+      )
       return refreshAfterWrite(environment.now())
     },
     async deletePuffSession(id) {

@@ -21,6 +21,10 @@ _Avoid_: Zero Day, Clean Day, Abstinent Day, Rest Day
 **Merge Window**:
 The 90 seconds after a tap during which another tap increments that Puff Session's puff count rather than creating a new one. It **slides**: every tap pushes the window out again, so a sitting of any length stays a single Puff Session. The session keeps the timestamp of its first tap, which is therefore when the pickup began, not when it ended.
 
+**Correction**:
+A change to what the record already says: a Puff Session or Resisted Urge added after the fact, re-timed, re-counted or removed. Always deliberate and always the reader's — nothing corrects the record on its own. Because the app stores only events and the Ratchet's decisions, a Correction moves every derived figure that depends on the day it lands in, Momentum included, which is why one is proposed and named before it is made rather than applied silently. Declaring a Clear Day is not a Correction: it asserts something about a day the record has nothing on, rather than changing what the record already says.
+_Avoid_: Edit, Amendment, Fix, Backfill (which names only one kind of Correction)
+
 ### Time
 
 **Logical Day**:
