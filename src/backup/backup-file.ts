@@ -1,5 +1,5 @@
 import { isTimeZone } from '../domain/logical-day.ts'
-import { latestRatchetStep } from '../domain/ratchet.ts'
+import { stepLog } from '../domain/step-log.ts'
 import type { BuildIdentity } from '../shell/build-identity.ts'
 import type {
   ClearDay,
@@ -254,7 +254,7 @@ function logicalDayBounds(record: BackupRecord): {
 }
 
 function currentTarget(ratchetSteps: readonly RatchetStep[]): number | null {
-  return latestRatchetStep(ratchetSteps)?.target ?? null
+  return stepLog(ratchetSteps).latest()?.target ?? null
 }
 
 export function createBackupFile(

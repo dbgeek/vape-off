@@ -9,7 +9,7 @@ import {
 import { logicalDayKeyOf } from '../domain/logical-day.ts'
 import { isMergeWindowOpen } from '../domain/merge-window.ts'
 import { pace } from '../domain/readouts.ts'
-import { latestRatchetStep, windowSatisfied } from '../domain/ratchet.ts'
+import { decideStep } from '../domain/ratchet.ts'
 import type { Instant, LogicalDayKey, PuffSession, ResistedUrge } from '../store/records.ts'
 
 const CATCH_UP_WINDOW_DAYS = 7
@@ -94,14 +94,12 @@ function overTargetSessionIds(
   )
 }
 
-function handoverAvailable(
-  record: DayLedgerRecord,
-  target: number | undefined,
-  today: LogicalDayKey,
-): boolean {
-  if (target !== 1) return false
-  const latestStep = latestRatchetStep(record.ratchetSteps)
-  return latestStep !== undefined && windowSatisfied(record, latestStep, today)
+/**
+ * Whether the offer should stand — asked of the Ratchet in the same terms the
+ * tap will be, so the button is never shown for a write that would be refused.
+ */
+function handoverAvailable(record: DayLedgerRecord, today: LogicalDayKey): boolean {
+  return decideStep(record, today, 'handover').status === 'step'
 }
 
 /** Everything the Track screen reads, derived from the record alone. */
@@ -132,7 +130,7 @@ export function buildTrackView(
       pace(record, now, timeZone)?.slots.filter((slot) => Date.parse(slot) > now.getTime()) ?? [],
     catchUpDays: catchUpDays(record, today),
     todayIsClear: record.clearDays.some((day) => day.logicalDay === today),
-    handoverAvailable: handoverAvailable(record, target, today),
+    handoverAvailable: handoverAvailable(record, today),
     hasHistory: hasHistory(record),
   }
 }

@@ -6,6 +6,7 @@ import type {
   ResistedUrge,
 } from '../store/records.ts'
 import { shiftLogicalDay } from './logical-day.ts'
+import { stepLog } from './step-log.ts'
 
 export interface DayLedgerRecord {
   puffSessions: readonly PuffSession[]
@@ -60,17 +61,9 @@ export function baselineAverage(
   return days.reduce((total, day) => total + dayTotal(record, day), 0) / days.length
 }
 
+/** The Target in force on a Logical Day, for callers that hold a whole record. */
 export function targetOn(record: DayLedgerRecord, logicalDay: LogicalDayKey): number | undefined {
-  let latest: RatchetStep | undefined
-  for (const step of record.ratchetSteps) {
-    if (
-      step.effectiveFrom <= logicalDay &&
-      (latest === undefined || step.effectiveFrom > latest.effectiveFrom)
-    ) {
-      latest = step
-    }
-  }
-  return latest?.target
+  return stepLog(record.ratchetSteps).targetOn(logicalDay)
 }
 
 export function isMet(
