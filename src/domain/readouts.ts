@@ -142,30 +142,71 @@ export function quitHorizon(
   }
 }
 
+/**
+ * The Longest Gap, and the admission that goes with it.
+ *
+ * One walk of the record answers both: a stretch lying wholly within Known
+ * Logical Days is eligible, and one that is not is excluded — and if the
+ * longest thing excluded beats the figure, the reading is a floor rather than a
+ * measure and has to say so. A stretch of negative length is evidence of
+ * nothing either way: travelling east can stamp a Puff Session ahead of the
+ * clock (ADR 0008), and neither half of the reading should count it.
+ */
+export interface LongestGap {
+  /** The longest eligible stretch, or undefined when none is. */
+  milliseconds: number | undefined
+  /** Whether a longer stretch was excluded for crossing an Unknown Logical Day. */
+  disqualifiedByUnknownDay: boolean
+}
+
 export function longestGap(
   record: DayLedgerRecord,
   now: Date,
   today: LogicalDayKey,
-): number | undefined {
+): LongestGap {
   const sessions = [...record.puffSessions].sort(
     (left, right) => Date.parse(left.at) - Date.parse(right.at),
   )
-  if (sessions.length === 0) return undefined
+  if (sessions.length === 0) {
+    return { milliseconds: undefined, disqualifiedByUnknownDay: false }
+  }
 
   const knownDays = knownLogicalDayKeys(record)
   let best: number | undefined
-  for (let index = 1; index < sessions.length; index += 1) {
-    const previous = sessions[index - 1]!
-    const current = sessions[index]!
-    if (intervalIsKnown(knownDays, previous.logicalDay, current.logicalDay)) {
-      best = Math.max(best ?? 0, Date.parse(current.at) - Date.parse(previous.at))
+  let longestExcluded: number | undefined
+
+  function consider(
+    fromAt: number,
+    fromDay: LogicalDayKey,
+    toAt: number,
+    toDay: LogicalDayKey,
+  ): void {
+    const stretch = toAt - fromAt
+    if (stretch < 0) return
+    if (intervalIsKnown(knownDays, fromDay, toDay)) {
+      best = Math.max(best ?? 0, stretch)
+    } else {
+      longestExcluded = Math.max(longestExcluded ?? 0, stretch)
     }
   }
 
-  const latest = sessions.at(-1)!
-  if (intervalIsKnown(knownDays, latest.logicalDay, today)) {
-    const runningGap = now.getTime() - Date.parse(latest.at)
-    if (runningGap >= 0) best = Math.max(best ?? 0, runningGap)
+  for (let index = 1; index < sessions.length; index += 1) {
+    const previous = sessions[index - 1]!
+    const current = sessions[index]!
+    consider(
+      Date.parse(previous.at),
+      previous.logicalDay,
+      Date.parse(current.at),
+      current.logicalDay,
+    )
   }
-  return best
+
+  const latest = sessions.at(-1)!
+  consider(Date.parse(latest.at), latest.logicalDay, now.getTime(), today)
+
+  return {
+    milliseconds: best,
+    disqualifiedByUnknownDay:
+      longestExcluded !== undefined && longestExcluded > (best ?? -Infinity),
+  }
 }
