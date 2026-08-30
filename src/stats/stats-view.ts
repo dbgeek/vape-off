@@ -8,7 +8,6 @@ import {
 import {
   LOGICAL_DAY_START_HOUR,
   hourOf,
-  intervalIsKnown,
   logicalDayKeyOf,
   shiftLogicalDay,
 } from '../domain/logical-day.ts'
@@ -17,6 +16,7 @@ import {
   momentum,
   quitHorizon,
   stepsRemaining,
+  type LongestGap,
   type QuitHorizon,
   type StepsRemaining,
 } from '../domain/readouts.ts'
@@ -59,10 +59,7 @@ export interface StatsView {
   }
   programme: ProgrammeView
   trend: TrendDay[]
-  longestGap: {
-    milliseconds: number | undefined
-    disqualifiedByUnknownDay: boolean
-  }
+  longestGap: LongestGap
   backup: { uncoveredKnownDays: number }
 }
 
@@ -142,30 +139,6 @@ function trend(record: DayLedgerRecord, today: LogicalDayKey): TrendDay[] {
   })
 }
 
-function hasDisqualifiedGap(
-  record: DayLedgerRecord,
-  now: Date,
-  today: LogicalDayKey,
-  honestGap: number | undefined,
-): boolean {
-  const sessions = [...record.puffSessions].sort(
-    (left, right) => Date.parse(left.at) - Date.parse(right.at),
-  )
-  if (sessions.length === 0) return false
-  const knownDays = knownLogicalDayKeys(record)
-  const excludedDurations = sessions.slice(1).flatMap((session, index) => {
-    const previous = sessions[index]!
-    return intervalIsKnown(knownDays, previous.logicalDay, session.logicalDay)
-      ? []
-      : [Date.parse(session.at) - Date.parse(previous.at)]
-  })
-  const latest = sessions.at(-1)!
-  if (!intervalIsKnown(knownDays, latest.logicalDay, today)) {
-    excludedDurations.push(now.getTime() - Date.parse(latest.at))
-  }
-  return excludedDurations.some((duration) => duration > (honestGap ?? -Infinity))
-}
-
 function uncoveredKnownDays(
   record: DayLedgerRecord,
   exports: readonly ExportRecord[],
@@ -186,15 +159,11 @@ export function buildStatsView(
   timeZone: string,
 ): StatsView {
   const today = logicalDayKeyOf(now, timeZone)
-  const gap = longestGap(record, now, today)
   return {
     dial: dial(record, today),
     programme: programme(record, today),
     trend: trend(record, today),
-    longestGap: {
-      milliseconds: gap,
-      disqualifiedByUnknownDay: hasDisqualifiedGap(record, now, today, gap),
-    },
+    longestGap: longestGap(record, now, today),
     backup: { uncoveredKnownDays: uncoveredKnownDays(record, exports) },
   }
 }

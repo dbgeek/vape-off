@@ -82,7 +82,7 @@ describe('the Stats view', () => {
     ])
   })
 
-  it('counts backup exposure from the last export and flags a gap disqualified by Unknown days', () => {
+  it('counts backup exposure from the last export and surfaces the Longest Gap reading', () => {
     const record = {
       ...emptyRecord,
       puffSessions: [
@@ -100,65 +100,6 @@ describe('the Stats view', () => {
 
     expect(view.backup.uncoveredKnownDays).toBe(3)
     expect(view.longestGap).toEqual({ milliseconds: 54 * 60 * 60 * 1000, disqualifiedByUnknownDay: true })
-  })
-
-  it('does not qualify Longest Gap when an excluded interval is shorter than the honest figure', () => {
-    const record = {
-      ...emptyRecord,
-      puffSessions: [
-        session('first', '2026-08-20', '2026-08-20T12:00:00.000Z', 1),
-        session('second', '2026-08-22', '2026-08-22T12:00:00.000Z', 1),
-      ],
-      clearDays: [clearDay('2026-08-23'), clearDay('2026-08-24')],
-      ratchetSteps: [step('2026-08-19', 5)],
-    }
-
-    const view = buildStatsView(record, [], new Date('2026-08-24T18:00:00.000Z'), 'UTC')
-
-    expect(view.longestGap).toEqual({ milliseconds: 54 * 60 * 60 * 1000, disqualifiedByUnknownDay: false })
-  })
-
-  it('disqualifies a gap whose Logical Days run backwards against the clock', () => {
-    // Flying far enough west stamps a later Puff Session with an earlier Logical
-    // Day than the one before it (ADR 0008: the key is written in the zone then in
-    // force). Such an interval vouches for nothing, so it is excluded from Longest
-    // Gap — and, being the longest thing excluded, it has to be owned up to.
-    const record = {
-      ...emptyRecord,
-      puffSessions: [
-        {
-          id: 'before-the-flight',
-          logicalDay: '2026-08-29',
-          at: '2026-08-29T14:00:00.000+14:00',
-          lastTapAt: '2026-08-29T14:00:00.000+14:00',
-          count: 1,
-          tz: 'Pacific/Kiritimati',
-        },
-        {
-          id: 'after-the-flight',
-          logicalDay: '2026-08-28',
-          at: '2026-08-28T23:00:00.000-11:00',
-          lastTapAt: '2026-08-28T23:00:00.000-11:00',
-          count: 1,
-          tz: 'Pacific/Midway',
-        },
-        {
-          id: 'later-that-night',
-          logicalDay: '2026-08-28',
-          at: '2026-08-29T01:00:00.000-11:00',
-          lastTapAt: '2026-08-29T01:00:00.000-11:00',
-          count: 1,
-          tz: 'Pacific/Midway',
-        },
-      ],
-    }
-
-    const view = buildStatsView(record, [], new Date('2026-08-29T13:00:00.000Z'), 'UTC')
-
-    expect(view.longestGap).toEqual({
-      milliseconds: 2 * 60 * 60 * 1000,
-      disqualifiedByUnknownDay: true,
-    })
   })
 
   it('retires programme estimates at Target 0 while keeping Longest Gap and Momentum', () => {

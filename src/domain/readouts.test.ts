@@ -213,43 +213,139 @@ describe('readouts', () => {
     ).toEqual({ status: 'retired' })
   })
 
-  it('measures only Puff Session gaps lying wholly within Known Logical Days', () => {
-    expect(longestGap(emptyRecord, new Date('2026-08-14T08:00:00.000Z'), '2026-08-14')).toBeUndefined()
+  describe('Longest Gap', () => {
+    const hours = (count: number) => count * 60 * 60 * 1000
 
-    const first = {
-      ...puffSession('2026-08-01', 1),
-      at: '2026-08-01T10:00:00.000Z',
+    function sessionAt(logicalDay: string, at: string): PuffSession {
+      return { ...puffSession(logicalDay, 1), id: `session-${at}`, at }
     }
-    const second = {
-      ...puffSession('2026-08-02', 1),
-      at: '2026-08-02T08:00:00.000Z',
-    }
-    const absentForTwelveDays = { ...emptyRecord, puffSessions: [second, first] }
-    expect(
-      longestGap(
-        absentForTwelveDays,
-        new Date('2026-08-14T08:00:00.000Z'),
-        '2026-08-14',
-      ),
-    ).toBe(22 * 60 * 60 * 1000)
 
-    const clearDays: ClearDay[] = ['21', '22', '23'].map((day) => ({
-      at: `2026-08-${day}T20:00:00.000Z`,
-      logicalDay: `2026-08-${day}`,
-      tz: 'UTC',
-    }))
-    expect(
-      longestGap(
-        {
-          ...emptyRecord,
-          puffSessions: [
-            { ...puffSession('2026-08-20', 1), at: '2026-08-20T12:00:00.000Z' },
-          ],
-          clearDays,
-        },
-        new Date('2026-08-23T18:00:00.000Z'),
-        '2026-08-23',
-      ),
-    ).toBe(78 * 60 * 60 * 1000)
+    function clearDay(logicalDay: string): ClearDay {
+      return { logicalDay, at: `${logicalDay}T20:00:00.000Z`, tz: 'UTC' }
+    }
+
+    it('has nothing to measure and nothing to admit without a Puff Session', () => {
+      expect(longestGap(emptyRecord, new Date('2026-08-14T08:00:00.000Z'), '2026-08-14')).toEqual({
+        milliseconds: undefined,
+        disqualifiedByUnknownDay: false,
+      })
+    })
+
+    it('measures only stretches lying wholly within Known Logical Days', () => {
+      // Twelve days away: the stretch since the last Puff Session crosses Unknown
+      // Logical Days, so the 22 hours between the two known ones is all that stands.
+      const record = {
+        ...emptyRecord,
+        puffSessions: [
+          sessionAt('2026-08-02', '2026-08-02T08:00:00.000Z'),
+          sessionAt('2026-08-01', '2026-08-01T10:00:00.000Z'),
+        ],
+      }
+
+      expect(longestGap(record, new Date('2026-08-14T08:00:00.000Z'), '2026-08-14')).toEqual({
+        milliseconds: hours(22),
+        disqualifiedByUnknownDay: true,
+      })
+    })
+
+    it('counts the still-running stretch when Clear Days vouch for it', () => {
+      const record = {
+        ...emptyRecord,
+        puffSessions: [sessionAt('2026-08-20', '2026-08-20T12:00:00.000Z')],
+        clearDays: ['21', '22', '23'].map((day) => clearDay(`2026-08-${day}`)),
+      }
+
+      expect(longestGap(record, new Date('2026-08-23T18:00:00.000Z'), '2026-08-23')).toEqual({
+        milliseconds: hours(78),
+        disqualifiedByUnknownDay: false,
+      })
+    })
+
+    it('stays silent about an excluded stretch shorter than the figure it reports', () => {
+      const record = {
+        ...emptyRecord,
+        puffSessions: [
+          sessionAt('2026-08-20', '2026-08-20T12:00:00.000Z'),
+          sessionAt('2026-08-22', '2026-08-22T12:00:00.000Z'),
+        ],
+        clearDays: ['23', '24'].map((day) => clearDay(`2026-08-${day}`)),
+      }
+
+      expect(longestGap(record, new Date('2026-08-24T18:00:00.000Z'), '2026-08-24')).toEqual({
+        milliseconds: hours(54),
+        disqualifiedByUnknownDay: false,
+      })
+    })
+
+    it('owns up when an Unknown Logical Day excluded a longer stretch', () => {
+      const record = {
+        ...emptyRecord,
+        puffSessions: [
+          sessionAt('2026-08-20', '2026-08-20T12:00:00.000Z'),
+          sessionAt('2026-08-23', '2026-08-23T12:00:00.000Z'),
+        ],
+        clearDays: ['23', '24', '25'].map((day) => clearDay(`2026-08-${day}`)),
+      }
+
+      expect(longestGap(record, new Date('2026-08-25T18:00:00.000Z'), '2026-08-25')).toEqual({
+        milliseconds: hours(54),
+        disqualifiedByUnknownDay: true,
+      })
+    })
+
+    it('excludes a stretch whose Logical Days run backwards against the clock', () => {
+      // Flying far enough west stamps a later Puff Session with an earlier Logical
+      // Day than the one before it (ADR 0008: the key is written in the zone then
+      // in force). Such an interval vouches for nothing, so it is excluded — and,
+      // being the longest thing excluded, it has to be owned up to.
+      const record = {
+        ...emptyRecord,
+        puffSessions: [
+          {
+            id: 'before-the-flight',
+            logicalDay: '2026-08-29',
+            at: '2026-08-29T14:00:00.000+14:00',
+            lastTapAt: '2026-08-29T14:00:00.000+14:00',
+            count: 1,
+            tz: 'Pacific/Kiritimati',
+          },
+          {
+            id: 'after-the-flight',
+            logicalDay: '2026-08-28',
+            at: '2026-08-28T23:00:00.000-11:00',
+            lastTapAt: '2026-08-28T23:00:00.000-11:00',
+            count: 1,
+            tz: 'Pacific/Midway',
+          },
+          {
+            id: 'later-that-night',
+            logicalDay: '2026-08-28',
+            at: '2026-08-29T01:00:00.000-11:00',
+            lastTapAt: '2026-08-29T01:00:00.000-11:00',
+            count: 1,
+            tz: 'Pacific/Midway',
+          },
+        ],
+      }
+
+      expect(longestGap(record, new Date('2026-08-29T13:00:00.000Z'), '2026-08-29')).toEqual({
+        milliseconds: hours(2),
+        disqualifiedByUnknownDay: true,
+      })
+    })
+
+    it('counts a Puff Session stamped ahead of the clock as neither run nor exclusion', () => {
+      // Travelling east can stamp a Puff Session ahead of now. The stretch back to
+      // it has negative length, which is evidence of nothing in either direction.
+      const record = {
+        ...emptyRecord,
+        puffSessions: [sessionAt('2026-08-20', '2026-08-20T12:00:00.000Z')],
+      }
+
+      expect(longestGap(record, new Date('2026-08-20T06:00:00.000Z'), '2026-08-19')).toEqual({
+        milliseconds: undefined,
+        disqualifiedByUnknownDay: false,
+      })
+    })
   })
 })
