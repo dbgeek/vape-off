@@ -300,6 +300,13 @@ export function TrackScreen({
   )
 
   /**
+   * Where the now-line is drawn — read off the same fixed axis as everything
+   * else, so it travels down the screen through the day rather than sitting
+   * pinned at the middle. It is a reading of the axis, not an input to it.
+   */
+  const nowPosition = timelinePosition(now, timeZone)
+
+  /**
    * One write at a time, in order. An operation that returns no record has
    * already said so for itself — nothing to set, and not a failure.
    */
@@ -404,7 +411,12 @@ export function TrackScreen({
         <div className="timeline-axis" aria-hidden="true" />
         <span className="track-boundary-end">04:00</span>
 
-        <div className="now-line" style={{ top: '50%' }}>
+        {/* The hours below `now` have not happened yet, and the reader has to
+          * know which content is real. Tone only: it sits behind everything and
+          * moves nothing (`screens.md` § The two lanes). */}
+        <div className="timeline-unlived" aria-hidden="true" style={{ top: `${nowPosition}%` }} />
+
+        <div className="now-line" style={{ top: `${nowPosition}%` }}>
           <span>now</span>
           <time>{formatWallTime(now, timeZone)}</time>
         </div>
@@ -413,7 +425,7 @@ export function TrackScreen({
           <span
             key={slot}
             className="pace-slot"
-            style={{ top: `${timelinePosition(slot, now, timeZone)}%` }}
+            style={{ top: `${timelinePosition(slot, timeZone)}%` }}
             aria-label={`Pace slot at ${formatWallTime(slot, timeZone)}`}
           />
         ))}
@@ -421,7 +433,7 @@ export function TrackScreen({
         {view.targetReached ? (
           <div
             className="target-reached"
-            style={{ top: `${timelinePosition(view.targetReached.at, now, timeZone)}%` }}
+            style={{ top: `${timelinePosition(view.targetReached.at, timeZone)}%` }}
           >
             <span>Target reached {formatWallTime(view.targetReached.at, timeZone)}</span>
           </div>
@@ -435,7 +447,7 @@ export function TrackScreen({
               key={session.id}
               className={`puff-mark${view.overTargetSessionIds.has(session.id) ? ' over-target' : ''}${view.openSession?.id === session.id ? ' open-mark' : ''}`}
               style={{
-                top: `${timelinePosition(session.at, now, timeZone)}%`,
+                top: `${timelinePosition(session.at, timeZone)}%`,
                 width: `${size}px`,
                 height: `${size}px`,
               }}
@@ -452,7 +464,7 @@ export function TrackScreen({
             type="button"
             key={urge.id}
             className="resisted-mark"
-            style={{ top: `${timelinePosition(urge.at, now, timeZone)}%` }}
+            style={{ top: `${timelinePosition(urge.at, timeZone)}%` }}
             aria-label={`Resisted Urge at ${formatWallTime(urge.at, timeZone)}`}
             onClick={() => setEditor({ kind: 'urge', urge })}
           />
