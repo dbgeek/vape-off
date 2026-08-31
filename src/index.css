@@ -284,10 +284,10 @@ select:focus-visible {
   color: #9fe7d4;
 }
 
-/* `--spine` — where the live lane's axis stands — is set inline from
- * `timeline-geometry.ts`. It is deliberately not defaulted here: the fan
- * measures the lane from the same number, and a stylesheet holding its own copy
- * is a lane that fans into the wrong width without saying so. */
+/* `--spine` and `--yesterday-spine` — where the two lanes' axes stand — are set
+ * inline from `timeline-geometry.ts`. They are deliberately not defaulted here:
+ * the fan measures each lane from the same numbers, and a stylesheet holding its
+ * own copy is a lane that fans into the wrong width without saying so. */
 .timeline {
   position: relative;
   min-height: 12rem;
@@ -316,6 +316,54 @@ select:focus-visible {
   left: calc(var(--spine) - 0.25rem);
   z-index: 0;
   background: color-mix(in srgb, var(--color-ink) 55%, transparent);
+}
+
+/* The Yesterday lane: the previous Logical Day drawn whole on today's exact
+ * axis (`screens.md` § The Yesterday lane).
+ *
+ * `opacity` on the lane rather than a dim colour on each thing inside it,
+ * because the lane is *uniformly* dim top to bottom — all of yesterday
+ * happened, so the unlived tone is the live lane's alone — and one number is
+ * what keeps it uniform. `pointer-events: none` sits here for the same reason:
+ * read-only is a property of the lane, not a habit of its contents. */
+.yesterday-lane {
+  position: absolute;
+  inset: 0;
+  opacity: 0.42;
+  pointer-events: none;
+}
+
+.yesterday-axis {
+  position: absolute;
+  inset: 0 auto 0 var(--yesterday-spine);
+  width: 1px;
+  background: color-mix(in srgb, var(--color-paper) 14%, transparent);
+}
+
+/* The lane's head, left of its spine — the one strip of the timeline nothing
+ * fans into, because both lanes fan right. Exactly one word, and the `Clear`
+ * token stacked directly beneath it rather than merged into it. */
+.yesterday-head {
+  position: absolute;
+  top: 0;
+  right: calc(100% - var(--yesterday-spine) + 0.35rem);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.15rem;
+  color: var(--color-muted);
+  font-size: 0.6rem;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.yesterday-clear {
+  border: 1px solid color-mix(in srgb, var(--color-paper) 24%, transparent);
+  border-radius: 0.6rem;
+  padding: 0.05rem 0.32rem;
+  font-size: 0.55rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 .track-boundary-start,
@@ -403,11 +451,23 @@ select:focus-visible {
   transform: translate(-50%, -50%);
 }
 
+/* Yesterday hangs on its own lane's spine, and fans right from it into the gap
+ * between the two. No `z-index`: the lane is drawn first and stays under the
+ * axis labels and the whole of the live lane. */
+.yesterday-mark,
+.yesterday-ring {
+  position: absolute;
+  left: var(--yesterday-spine);
+  box-sizing: border-box;
+  transform: translate(-50%, -50%);
+}
+
 /* The hairline back to the spine. A fanned mark has stepped sideways, so this
  * is what still points at the moment it happened: it hangs at the mark's own
  * true height, which the fan never moves (`screens.md` § When marks collide —
  * the fan). Under the marks, and never in the way of a tap. */
-.fan-spoke {
+.fan-spoke,
+.yesterday-spoke {
   position: absolute;
   left: var(--spine);
   z-index: 3;
@@ -415,6 +475,11 @@ select:focus-visible {
   background: color-mix(in srgb, var(--color-paper) 22%, transparent);
   transform: translateY(-50%);
   pointer-events: none;
+}
+
+.yesterday-spoke {
+  left: var(--yesterday-spine);
+  z-index: auto;
 }
 
 /* Stats keeps the same utilitarian record-book language as Track, but the
@@ -864,7 +929,13 @@ select:focus-visible {
   to { opacity: 1; transform: translateY(0); }
 }
 
-.puff-mark {
+/* Yesterday's marks are the same shape, told apart by lane and dimness rather
+ * than by a vocabulary of their own — solid-but-dim in their own lane, against
+ * the live lane's hollow ambient ghost slots. Everything that makes a mark a
+ * handle rather than a drawing — the cursor, the tap — is `.puff-mark`'s alone
+ * below. */
+.puff-mark,
+.yesterday-mark {
   display: grid;
   place-items: center;
   border: 2px solid var(--color-ink);
@@ -880,8 +951,11 @@ select:focus-visible {
   line-height: 1;
   font-weight: 700;
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-paper) 25%, transparent);
-  cursor: pointer;
   padding: 0;
+}
+
+.puff-mark {
+  cursor: pointer;
 }
 
 .puff-mark.over-target {
@@ -896,12 +970,16 @@ select:focus-visible {
 /* A Resisted Urge's ring: hollow, and carrying no numeral. Its diameter is set
  * inline from `timeline-geometry.ts`, where it is read against the mark tiers
  * it has to stay smaller than — so it is deliberately not sized here. */
-.resisted-mark {
+.resisted-mark,
+.yesterday-ring {
   border: 2px solid #74d6bc;
   border-radius: 50%;
   background: var(--color-ink);
-  cursor: pointer;
   padding: 0;
+}
+
+.resisted-mark {
+  cursor: pointer;
 }
 
 .pace-slot {

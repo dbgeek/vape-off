@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { BackupSource, PreparedRestore } from '../backup/browser-backup-source.ts'
 import type { DayLedgerRecord } from '../domain/day-ledger.ts'
-import type { PuffSession, RatchetStep, ResistedUrge } from '../store/records.ts'
+import type { ClearDay, PuffSession, RatchetStep, ResistedUrge } from '../store/records.ts'
 import { TrackScreen, type TrackSource } from './TrackScreen.tsx'
 
 const emptyRecord: DayLedgerRecord = {
@@ -18,6 +18,25 @@ function session(id: string, at: string, count: number, lastTapAt = at): PuffSes
 
 function resistedUrge(at: string): ResistedUrge {
   return { id: 'resisted', at, logicalDay: '2026-08-29', tz: 'UTC' }
+}
+
+/** The Logical Day before the 29th every clock in this file is reading. */
+const YESTERDAY = '2026-08-28'
+
+function sessionOn(logicalDay: string, id: string, at: string, count: number): PuffSession {
+  return { id, at, lastTapAt: at, count, logicalDay, tz: 'UTC' }
+}
+
+function yesterdaySession(id: string, at: string, count: number): PuffSession {
+  return sessionOn(YESTERDAY, id, at, count)
+}
+
+function yesterdayUrge(id: string, at: string): ResistedUrge {
+  return { id, at, logicalDay: YESTERDAY, tz: 'UTC' }
+}
+
+function yesterdayClearDay(): ClearDay {
+  return { logicalDay: YESTERDAY, at: `${YESTERDAY}T12:00:00.000Z`, tz: 'UTC' }
 }
 
 function target(value: number): RatchetStep {
@@ -281,7 +300,7 @@ describe('Track', () => {
     // The column is measured from the spine, and the spine is one number: the
     // stylesheet keeps no copy of it, so it has to arrive here for anything on
     // the timeline to be positioned at all.
-    expect(timelineElement('.timeline').style.getPropertyValue('--spine')).toBe('42%')
+    expect(timelineElement('.timeline').style.getPropertyValue('--spine')).toBe('46%')
   })
 
   it('fans a Resisted Urge ring with everything else, at its own size', async () => {
@@ -653,5 +672,233 @@ describe('Track', () => {
     expect(alert).toHaveTextContent('Choose a time that has already happened.')
     expect(screen.queryByRole('dialog', { name: 'Add to the record' })).not.toBeInTheDocument()
     expect(screen.queryByText('Track could not read your record.')).not.toBeInTheDocument()
+  })
+})
+
+describe('the Yesterday lane', () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  /** The morning screen the lane exists for: 07:51, with today barely begun. */
+  const morning = { now: () => new Date('2026-08-29T07:51:00.000Z'), timeZone: () => 'UTC' }
+
+  it('draws yesterday whole, in its own lane, on the axis today is drawn on', async () => {
+    render(
+      <TrackScreen
+        source={source({
+          ...emptyRecord,
+          puffSessions: [
+            session('today', '2026-08-29T06:00:00.000Z', 2),
+            yesterdaySession('yesterday morning', '2026-08-28T06:00:00.000Z', 7),
+            yesterdaySession('yesterday night', '2026-08-28T22:00:00.000Z', 3),
+          ],
+          resistedUrges: [yesterdayUrge('yesterday urge', '2026-08-28T14:00:00.000Z')],
+        })}
+        clock={morning}
+      />,
+    )
+
+    await screen.findByText('Yesterday')
+    const [morningMark, nightMark] = timelineElements('.yesterday-mark')
+    expect(timelineElements('.yesterday-mark')).toHaveLength(2)
+    expect(timelineElements('.yesterday-ring')).toHaveLength(1)
+
+    // Equal height is equal time of day on both days: the two 06:00 sessions
+    // hang at the same height in different lanes, which is what makes the
+    // comparison literal rather than shape-against-shape.
+    expect(topPercent(morningMark!)).toBeCloseTo(topPercent(timelineElement('.puff-mark')))
+
+    // Whole and full height, never truncated at `now` — 22:00 is drawn even
+    // though today has only reached 07:51.
+    expect(topPercent(nightMark!)).toBeCloseTo(75)
+    expect(topPercent(timelineElement('.now-line'))).toBeCloseTo(16.042, 3)
+
+    // The count is printed inside dim marks too; size is the at-a-glance
+    // channel and the numeral is the exact value.
+    expect(morningMark!.textContent).toBe('7')
+    expect(morningMark!.style.width).toBe('36px')
+    expect(timelineElement('.yesterday-ring').style.width).toBe('14px')
+  })
+
+  it('carries one word of text — `Yesterday`, and never `Today`', async () => {
+    render(
+      <TrackScreen
+        source={source({
+          ...emptyRecord,
+          puffSessions: [yesterdaySession('one', '2026-08-28T10:00:00.000Z', 1)],
+        })}
+        clock={morning}
+      />,
+    )
+
+    const lane = await screen.findByText('Yesterday')
+    expect(lane).toBeInTheDocument()
+    // The live lane is the screen; labelling the default would imply a choice
+    // of lanes where there is none.
+    expect(screen.queryByText('Today')).not.toBeInTheDocument()
+    expect(timelineElements('.yesterday-label')).toHaveLength(1)
+  })
+
+  it('puts the Clear token beneath the label, over an empty lane', async () => {
+    render(
+      <TrackScreen
+        source={source({ ...emptyRecord, clearDays: [yesterdayClearDay()] })}
+        clock={morning}
+      />,
+    )
+
+    await screen.findByText('Yesterday')
+    // Beneath the label rather than merged into `Yesterday: Clear`, which would
+    // read as the value of a field. A Clear Day is a deliberate assertion, and
+    // drawing it as an empty lane is the one thing this lane must not do.
+    const head = timelineElement('.yesterday-head')
+    expect(head.textContent).toBe('YesterdayClear')
+    expect(timelineElements('.yesterday-mark')).toHaveLength(0)
+    expect(timelineElements('.yesterday-ring')).toHaveLength(0)
+  })
+
+  it('draws a day Known only by Resisted Urges as rings, not as a Clear Day', async () => {
+    render(
+      <TrackScreen
+        source={source({
+          ...emptyRecord,
+          resistedUrges: [
+            yesterdayUrge('one', '2026-08-28T14:00:00.000Z'),
+            yesterdayUrge('two', '2026-08-28T18:00:00.000Z'),
+          ],
+        })}
+        clock={morning}
+      />,
+    )
+
+    await screen.findByText('Yesterday')
+    // A day that was fought must not read as one that was quiet.
+    expect(timelineElements('.yesterday-ring')).toHaveLength(2)
+    expect(screen.queryByText('Clear')).not.toBeInTheDocument()
+  })
+
+  it('draws nothing at all when yesterday is Unknown within the history the app has', async () => {
+    render(
+      <TrackScreen
+        source={source({
+          ...emptyRecord,
+          puffSessions: [sessionOn('2026-08-25', 'older', '2026-08-25T10:00:00.000Z', 4)],
+        })}
+        clock={morning}
+      />,
+    )
+
+    // The strip offers the day in this same moment; the lane still asserts
+    // nothing — no lane, no hatched rail, not the word `Unknown`.
+    await screen.findByText('Anything you remember?')
+    expect(timelineElements('.yesterday-lane')).toHaveLength(0)
+    expect(screen.queryByText('Yesterday')).not.toBeInTheDocument()
+  })
+
+  it('draws nothing at all on day one, when yesterday is before any history', async () => {
+    render(
+      <TrackScreen
+        source={source({
+          ...emptyRecord,
+          puffSessions: [session('first', '2026-08-29T06:00:00.000Z', 1)],
+        })}
+        clock={morning}
+      />,
+    )
+
+    await screen.findByLabelText(/Puff Session, 1 puff /)
+    expect(timelineElements('.yesterday-lane')).toHaveLength(0)
+    expect(screen.queryByText('Anything you remember?')).not.toBeInTheDocument()
+  })
+
+  it('is always yesterday, never the most recent Known Logical Day', async () => {
+    render(
+      <TrackScreen
+        source={source({
+          ...emptyRecord,
+          puffSessions: [sessionOn('2026-08-26', 'three back', '2026-08-26T10:00:00.000Z', 12)],
+        })}
+        clock={morning}
+      />,
+    )
+
+    await screen.findByText('Anything you remember?')
+    expect(timelineElements('.yesterday-lane')).toHaveLength(0)
+  })
+
+  it('holds no tap target, no Target hairline and nothing red', async () => {
+    render(
+      <TrackScreen
+        source={source({
+          ...emptyRecord,
+          puffSessions: [
+            yesterdaySession('over', '2026-08-28T10:00:00.000Z', 30),
+            session('today over', '2026-08-29T06:00:00.000Z', 30),
+          ],
+          resistedUrges: [yesterdayUrge('urge', '2026-08-28T14:00:00.000Z')],
+          ratchetSteps: [target(2)],
+        })}
+        clock={morning}
+      />,
+    )
+
+    await screen.findByText('Yesterday')
+    const lane = timelineElement('.yesterday-lane')
+    // A tappable second lane roughly doubles the tap targets on the one screen
+    // whose thesis is that logging costs under a second, and the wrong tap
+    // there is a mis-log on today.
+    expect(within(lane).queryAllByRole('button')).toHaveLength(0)
+    expect(lane.querySelectorAll('button, a, input, [tabindex]')).toHaveLength(0)
+    // Today's hairline stands, and it stands outside the lane. One axis never
+    // carries two Targets.
+    expect(timelineElements('.target-reached')).toHaveLength(1)
+    expect(lane.querySelector('.target-reached')).toBeNull()
+    expect(lane.querySelector('.over-target')).toBeNull()
+  })
+
+  it('keeps the unlived tone to the live lane, because all of yesterday happened', async () => {
+    render(
+      <TrackScreen
+        source={source({
+          ...emptyRecord,
+          puffSessions: [yesterdaySession('one', '2026-08-28T22:00:00.000Z', 1)],
+        })}
+        clock={morning}
+      />,
+    )
+
+    await screen.findByText('Yesterday')
+    expect(timelineElement('.yesterday-lane').querySelector('.timeline-unlived')).toBeNull()
+  })
+
+  it('fans yesterday into the gap between the two spines', async () => {
+    measureTimeline()
+    render(
+      <TrackScreen
+        source={source({
+          ...emptyRecord,
+          puffSessions: [
+            yesterdaySession('ten', '2026-08-28T07:34:00.000Z', 10),
+            yesterdaySession('six', '2026-08-28T07:38:00.000Z', 6),
+          ],
+        })}
+        clock={morning}
+      />,
+    )
+
+    await screen.findByText('Yesterday')
+    const [ten, six] = timelineElements('.yesterday-mark')
+
+    // Four minutes apart is where they stay; the second colours into the next
+    // column right, measured from its own lane's spine.
+    expect(topPercent(six!) - topPercent(ten!)).toBeCloseTo(0.2778, 4)
+    expect(ten!.style.left).toBe('')
+    expect(six!.style.left).toBe('calc(var(--yesterday-spine) + 40px)')
+    expect(timelineElement('.yesterday-spoke').style.width).toBe('40px')
+
+    // Both spines arrive from the geometry module, because the stylesheet keeps
+    // no copy of either number.
+    const timeline = timelineElement('.timeline')
+    expect(timeline.style.getPropertyValue('--yesterday-spine')).toBe('16%')
+    expect(timeline.style.getPropertyValue('--spine')).toBe('46%')
   })
 })

@@ -289,3 +289,111 @@ describe('the Track view', () => {
     expect(view.puffSessions.map((item) => item.id)).toEqual(['late'])
   })
 })
+
+/**
+ * The four states of `screens.md` § The four states of yesterday, as data —
+ * they are what the lane's two Known drawings and its one silence are decided
+ * from, so they are settled here rather than only through the DOM.
+ */
+describe('the previous Logical Day', () => {
+  const now = new Date('2026-08-29T07:51:00.000Z')
+
+  it('carries yesterday alone, in the order it happened', () => {
+    const record = {
+      ...emptyRecord,
+      puffSessions: [
+        session('evening', '2026-08-28', '2026-08-28T19:00:00.000Z', 2),
+        session('morning', '2026-08-28', '2026-08-28T10:00:00.000Z', 7),
+        session('today', '2026-08-29', '2026-08-29T06:00:00.000Z', 1),
+        session('the day before', '2026-08-27', '2026-08-27T10:00:00.000Z', 9),
+      ],
+      resistedUrges: [
+        urge('yesterday', '2026-08-28', '2026-08-28T14:00:00.000Z'),
+        urge('today', '2026-08-29', '2026-08-29T07:00:00.000Z'),
+      ],
+    }
+
+    const view = buildTrackView(record, now, 'UTC')
+
+    expect(view.yesterday?.logicalDay).toBe('2026-08-28')
+    expect(view.yesterday?.puffSessions.map((item) => item.id)).toEqual(['morning', 'evening'])
+    expect(view.yesterday?.resistedUrges.map((item) => item.id)).toEqual(['yesterday'])
+    expect(view.yesterday?.isClear).toBe(false)
+  })
+
+  it('says so when yesterday was declared a Clear Day', () => {
+    const record = { ...emptyRecord, clearDays: [clearDay('2026-08-28')] }
+
+    const view = buildTrackView(record, now, 'UTC')
+
+    expect(view.yesterday?.isClear).toBe(true)
+    expect(view.yesterday?.puffSessions).toEqual([])
+    expect(view.yesterday?.resistedUrges).toEqual([])
+  })
+
+  it('keeps a day Known only by Resisted Urges apart from a Clear Day', () => {
+    // Dropping the urges would draw a day that was fought identically to one
+    // that was quiet.
+    const record = {
+      ...emptyRecord,
+      resistedUrges: [urge('fought', '2026-08-28', '2026-08-28T14:00:00.000Z')],
+    }
+
+    const view = buildTrackView(record, now, 'UTC')
+
+    expect(view.yesterday?.resistedUrges.map((item) => item.id)).toEqual(['fought'])
+    expect(view.yesterday?.isClear).toBe(false)
+  })
+
+  it('is absent when yesterday is Unknown within the history the app has', () => {
+    const record = {
+      ...emptyRecord,
+      puffSessions: [session('older', '2026-08-25', '2026-08-25T10:00:00.000Z', 4)],
+    }
+
+    const view = buildTrackView(record, now, 'UTC')
+
+    // The strip offers the day and the lane still asserts nothing: the two
+    // answer different questions, and only one of them is about evidence.
+    expect(view.yesterday).toBeUndefined()
+    expect(view.catchUpDays).toContain('2026-08-28')
+  })
+
+  it('is absent when yesterday is before the app had any history at all', () => {
+    const record = {
+      ...emptyRecord,
+      puffSessions: [session('first', '2026-08-29', '2026-08-29T06:00:00.000Z', 1)],
+    }
+
+    const view = buildTrackView(record, now, 'UTC')
+
+    // Day one of use: Unknown, and correctly offered nothing at all. The lane
+    // and the strip are silent for different reasons, which is why the lane
+    // cannot be derived from the strip.
+    expect(view.yesterday).toBeUndefined()
+    expect(view.catchUpDays).toEqual([])
+  })
+
+  it('is always yesterday, never the most recent Known Logical Day', () => {
+    const record = {
+      ...emptyRecord,
+      puffSessions: [session('three days back', '2026-08-26', '2026-08-26T10:00:00.000Z', 12)],
+    }
+
+    expect(buildTrackView(record, now, 'UTC').yesterday).toBeUndefined()
+  })
+
+  it('follows the Logical Day boundary rather than the calendar', () => {
+    // 02:00 on the 30th is still the Logical Day that opened on the 29th, so
+    // yesterday is the one that opened on the 28th — two calendar days back.
+    const record = {
+      ...emptyRecord,
+      puffSessions: [session('two dates back', '2026-08-28', '2026-08-28T22:00:00.000Z', 3)],
+    }
+
+    const view = buildTrackView(record, new Date('2026-08-30T02:00:00.000Z'), 'UTC')
+
+    expect(view.today).toBe('2026-08-29')
+    expect(view.yesterday?.logicalDay).toBe('2026-08-28')
+  })
+})

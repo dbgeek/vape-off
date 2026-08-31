@@ -28,15 +28,16 @@ import {
 import { momentum } from '../domain/readouts.ts'
 import { isStandalone } from '../shell/install-state.ts'
 import type { LogicalDayKey, PuffSession, ResistedUrge } from '../store/records.ts'
-import { fanOffsets, type FannedEvent } from './timeline-fan.ts'
+import { laneEvents, puffLabel, urgeLabel } from './lane-events.ts'
+import { fanOffsets } from './timeline-fan.ts'
 import {
   LIVE_LANE_SPINE,
   liveLaneWidth,
-  markSize,
-  RESISTED_URGE_RING_SIZE,
   timelinePosition,
+  YESTERDAY_LANE_SPINE,
 } from './timeline-geometry.ts'
 import { buildTrackView } from './track-view.ts'
+import { YesterdayLane } from './YesterdayLane.tsx'
 
 const emptyRecord: DayLedgerRecord = {
   puffSessions: [],
@@ -72,11 +73,6 @@ const browserClock: TrackClock = {
   timeZone: () => deviceTimeZone(),
 }
 
-function puffLabel(session: PuffSession, timeZone: string): string {
-  const unit = session.count === 1 ? 'puff' : 'puffs'
-  return `Puff Session, ${session.count} ${unit} at ${formatWallTime(session.at, timeZone)}`
-}
-
 function dateAtNoon(logicalDay: LogicalDayKey): Date {
   return new Date(`${logicalDay}T12:00:00`)
 }
@@ -85,17 +81,6 @@ const REFUSAL_MESSAGES: Record<CorrectionRefusal, string> = {
   'count-below-one': 'Enter a whole puff count of at least 1.',
   'in-the-future': 'Choose a time that has already happened.',
 }
-
-/**
- * One thing the live lane has to draw. Puff Sessions and Resisted Urges arrive
- * in separate lists and are drawn as different shapes, but they share a lane, so
- * the fan has to place them against each other — a ring landing on a mark is a
- * collision like any other (`screens.md` § When marks collide — the fan).
- */
-type LaneEvent = FannedEvent & { key: string } & (
-    | { kind: 'puff'; session: PuffSession }
-    | { kind: 'urge'; urge: ResistedUrge }
-  )
 
 /**
  * The timeline's drawn size in px, kept current as the chrome above it comes and
@@ -368,28 +353,8 @@ export function TrackScreen({
 
   const [timeline, timelineSize] = useTimelineSize()
 
-  const laneEvents: LaneEvent[] = useMemo(
-    () =>
-      [
-        ...view.puffSessions.map(
-          (session): LaneEvent => ({
-            kind: 'puff',
-            key: `puff-${session.id}`,
-            session,
-            top: timelinePosition(session.at, timeZone),
-            size: markSize(session.count),
-          }),
-        ),
-        ...view.resistedUrges.map(
-          (urge): LaneEvent => ({
-            kind: 'urge',
-            key: `urge-${urge.id}`,
-            urge,
-            top: timelinePosition(urge.at, timeZone),
-            size: RESISTED_URGE_RING_SIZE,
-          }),
-        ),
-      ].sort((one, other) => one.top - other.top),
+  const liveEvents = useMemo(
+    () => laneEvents(view.puffSessions, view.resistedUrges, timeZone),
     [view.puffSessions, view.resistedUrges, timeZone],
   )
 
@@ -400,11 +365,11 @@ export function TrackScreen({
    */
   const fan = useMemo(
     () =>
-      fanOffsets(laneEvents, {
+      fanOffsets(liveEvents, {
         height: timelineSize.height,
         width: liveLaneWidth(timelineSize.width),
       }),
-    [laneEvents, timelineSize],
+    [liveEvents, timelineSize],
   )
 
   /**
@@ -511,8 +476,23 @@ export function TrackScreen({
         className="timeline"
         aria-label="Logical Day timeline"
         ref={timeline}
-        style={{ '--spine': `${LIVE_LANE_SPINE}%` } as CSSProperties}
+        style={
+          {
+            '--spine': `${LIVE_LANE_SPINE}%`,
+            '--yesterday-spine': `${YESTERDAY_LANE_SPINE}%`,
+          } as CSSProperties
+        }
       >
+        {/* Drawn before everything else so the axis's own labels and the whole
+          * of the live lane paint over it rather than under it. */}
+        {view.yesterday ? (
+          <YesterdayLane
+            yesterday={view.yesterday}
+            timeZone={timeZone}
+            timelineSize={timelineSize}
+          />
+        ) : null}
+
         <span className="track-boundary-start">04:00</span>
         <div className="timeline-axis" aria-hidden="true" />
         <span className="track-boundary-end">04:00</span>
@@ -545,7 +525,7 @@ export function TrackScreen({
           </div>
         ) : null}
 
-        {laneEvents.map((event, index) => {
+        {liveEvents.map((event, index) => {
           const offset = fan[index]!
           // A mark that collides with nothing stays on the spine, and says so by
           // carrying no inline left at all.
@@ -579,7 +559,7 @@ export function TrackScreen({
                   type="button"
                   className="resisted-mark"
                   style={mark}
-                  aria-label={`Resisted Urge at ${formatWallTime(event.urge.at, timeZone)}`}
+                  aria-label={urgeLabel(event.urge, timeZone)}
                   onClick={() => setEditor({ kind: 'urge', urge: event.urge })}
                 />
               )}

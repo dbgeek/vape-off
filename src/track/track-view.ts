@@ -6,13 +6,35 @@ import {
   targetOn,
   type DayLedgerRecord,
 } from '../domain/day-ledger.ts'
-import { logicalDayKeyOf } from '../domain/logical-day.ts'
+import { logicalDayKeyOf, shiftLogicalDay } from '../domain/logical-day.ts'
 import { openSessionAt } from '../domain/merge-window.ts'
 import { pace } from '../domain/readouts.ts'
 import { decideStep } from '../domain/ratchet.ts'
 import type { Instant, LogicalDayKey, PuffSession, ResistedUrge } from '../store/records.ts'
 
 const CATCH_UP_WINDOW_DAYS = 7
+
+/**
+ * A Known previous Logical Day, as the Yesterday lane draws it (`screens.md`
+ * § The four states of yesterday).
+ *
+ * The whole day, never trimmed to `now`: the lane is drawn full height because
+ * all of yesterday happened, and a day still being compared must not draw
+ * identically to one that genuinely ended early.
+ */
+export interface YesterdayView {
+  logicalDay: LogicalDayKey
+  /** Yesterday's Puff Sessions, earliest first. */
+  puffSessions: readonly PuffSession[]
+  /**
+   * Yesterday's Resisted Urges, which the lane draws for honesty rather than
+   * completeness: a day Known only by these has no Puff Sessions, so dropping
+   * them would draw a day that was fought identically to a Clear Day.
+   */
+  resistedUrges: readonly ResistedUrge[]
+  /** Whether yesterday was declared a Clear Day. */
+  isClear: boolean
+}
 
 export interface TrackView {
   today: LogicalDayKey
@@ -31,6 +53,8 @@ export interface TrackView {
   paceSlots: readonly Instant[]
   /** The Unknown Logical Days the catch-up strip offers. */
   catchUpDays: readonly LogicalDayKey[]
+  /** The previous Logical Day, or `undefined` when it is Unknown. */
+  yesterday: YesterdayView | undefined
   todayIsClear: boolean
   /** Whether the Declared Step out of Target 1 has been earned. */
   handoverAvailable: boolean
@@ -65,6 +89,44 @@ function catchUpDays(record: DayLedgerRecord, today: LogicalDayKey): LogicalDayK
   return completedDays(CATCH_UP_WINDOW_DAYS, today).filter(
     (logicalDay) => logicalDay >= earliest && !isKnown(record, logicalDay),
   )
+}
+
+/** A Logical Day's Puff Sessions, earliest first. */
+function sessionsOn(
+  record: DayLedgerRecord,
+  logicalDay: LogicalDayKey,
+): readonly PuffSession[] {
+  return record.puffSessions
+    .filter((session) => session.logicalDay === logicalDay)
+    .sort((left, right) => Date.parse(left.at) - Date.parse(right.at))
+}
+
+/**
+ * The previous Logical Day, or `undefined` when it is Unknown.
+ *
+ * **Always the day before today, never the most recent Known one.** A lane whose
+ * identity depended on where the gaps are would change the comparison silently
+ * underneath the reader.
+ *
+ * One `undefined` answers both Unknown states, because the lane draws the same
+ * nothing for each: it only ever asserts what the app knows, and silence is the
+ * correct drawing of an absence of evidence (ADR 0001). Deliberately not derived
+ * from `catchUpDays` — that list is filtered to days at or after the app's first
+ * evidence, so on day one of use yesterday is Unknown and correctly offered
+ * nothing, and reading the lane off the strip would draw a lane there.
+ */
+function yesterdayOf(
+  record: DayLedgerRecord,
+  today: LogicalDayKey,
+): YesterdayView | undefined {
+  const logicalDay = shiftLogicalDay(today, -1)
+  if (!isKnown(record, logicalDay)) return undefined
+  return {
+    logicalDay,
+    puffSessions: sessionsOn(record, logicalDay),
+    resistedUrges: record.resistedUrges.filter((urge) => urge.logicalDay === logicalDay),
+    isClear: record.clearDays.some((day) => day.logicalDay === logicalDay),
+  }
 }
 
 /** The Puff Session whose count took the running total to the Target. */
@@ -109,9 +171,7 @@ export function buildTrackView(
   timeZone: string,
 ): TrackView {
   const today = logicalDayKeyOf(now, timeZone)
-  const puffSessions = record.puffSessions
-    .filter((session) => session.logicalDay === today)
-    .sort((left, right) => Date.parse(left.at) - Date.parse(right.at))
+  const puffSessions = sessionsOn(record, today)
   const target = targetOn(record, today)
   const reached = targetReachedBy(puffSessions, target)
 
@@ -127,6 +187,7 @@ export function buildTrackView(
     paceSlots:
       pace(record, now, timeZone)?.slots.filter((slot) => Date.parse(slot) > now.getTime()) ?? [],
     catchUpDays: catchUpDays(record, today),
+    yesterday: yesterdayOf(record, today),
     todayIsClear: record.clearDays.some((day) => day.logicalDay === today),
     handoverAvailable: handoverAvailable(record, today),
     hasHistory: hasHistory(record),
