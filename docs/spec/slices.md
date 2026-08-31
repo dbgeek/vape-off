@@ -2,6 +2,8 @@
 
 Eleven slices, each sized for one agent session. Build them in order — every slice depends on the ones above it and none depends on the ones below.
 
+S1–S11 are the v1 build and have shipped. **[The Track timeline rebuild](#the-track-timeline-rebuild) at the end of this file** adds five more, cut afterwards by a second map; start there if Track's timeline is what you are building.
+
 **Every slice:** read [`CONTEXT.md`](../../CONTEXT.md) and [`README.md`](./README.md)'s invariants first, use the glossary's vocabulary in names and tests, and do not invent behaviour this spec does not describe. If you find a genuine gap, say so in the PR rather than filling it silently — the only one known in advance is flagged in the README.
 
 **Slices S3–S5 are pure logic and must be unit-tested.** They are where every rule in the app lives; the screens above them are rendering. Test against [rules.md §15](./rules.md#15-fixtures).
@@ -116,3 +118,57 @@ The install wall with its small honest escape; the permanent bar; the failed-ope
 - **The whole thing runs from the Home Screen icon on a real iPhone**, offline, for a week. Every storage fact this app rests on is a WebKit fact ([#3](https://github.com/dbgeek/vape-off/issues/3), [#12](https://github.com/dbgeek/vape-off/issues/12), [#24](https://github.com/dbgeek/vape-off/issues/24)) and two of the three device trips this map made overturned something.
 - **Take a Backup and restore it on a second device.** Migration survival is the one thing the probes could not test — it was recorded as unknown and treated as loss, which is what *export is the only migration path* already assumed.
 - **`version(1)` freezes** the moment real history exists.
+
+---
+
+# The Track timeline rebuild
+
+Five slices from [the Track timeline's use of space](https://github.com/dbgeek/vape-off/issues/62), cut after S1–S11 shipped. **They rebuild Track's timeline in place** — everything else on the screen stays as S6 and S7 left it.
+
+Build them in order: each depends on the ones above it. **Every slice:** read the rewritten [`screens.md`](./screens.md#track--the-logging-screen) Track section and [ADR 0013](../adr/0013-time-axes-are-never-fitted-to-the-record.md) first. Existing `TrackScreen.test.tsx` assertions about timeline geometry and the catch-up strip's copy **will fail by design** — update them to the new spec rather than preserving them.
+
+## T1 · Track, the axis
+
+[screens.md](./screens.md#the-axis), [ADR 0013](../adr/0013-time-axes-are-never-fitted-to-the-record.md).
+
+Replace `timelinePosition(at, now, timeZone)` with the fixed uniform mapping — **it loses its `now` parameter entirely** and reduces to `logicalMinuteOf(at, timeZone) / 1440`. Delete the two-band structure with it: there is no `livedShare`, no `futureShare`, no clamp and no floor. Draw `now` as a line on the axis. Put both 04:00 boundaries at the edges. Apply the unlived tone to the live lane's region below the now-line, as tone only.
+
+**Do not** add a `now` argument back to any position function, at any depth. That is the whole of ADR 0013 and it is one line to break.
+
+**Done when** a Puff Session at a given wall time lands at the identical height at 07:51, 14:10 and 21:30 and on any two days; a session at 04:01 and one at 04:03 are 0.14% apart rather than 40%; the mapping is a pure function tested without a clock; and the 04:00 labels sit at the top and bottom edges with nothing collapsed behind them.
+
+## T2 · Track, the marks
+
+[screens.md](./screens.md#marks-rings-and-slots).
+
+Replace `markSize(count) = min(44, 12 + √count × 7)` with the four stepped tiers: **20 / 28 / 36 / 44px at 1–2 / 3–5 / 6–10 / 11+ puffs**. Keep the count printed inside every mark. Fix the Resisted Urge ring at 14px. The tap target stays the drawn mark — **do not** add an expanded invisible hit area.
+
+**Done when** the tiers are a pure function of one session's `count` and nothing else, every tier renders its own numeral legibly at phone size in the dark, and a 2-puff and a 3-puff session are visibly different marks.
+
+## T3 · Track, the fan
+
+[screens.md](./screens.md#when-marks-collide--the-fan).
+
+Vertical position stays exactly time; overlapping events are coloured into the **leftmost free column** at their own height, in time order, each keeping a hairline spoke back to its lane's spine. The column step is the widest mark in that group plus 4px. Resisted Urge rings fan with everything else. Both lanes fan right. When a clique is deeper than its lane affords, the outermost column takes the remainder and those marks overlap — never clip a Puff Session out of the picture.
+
+**Done when** the reported `10` / `6` pair four minutes apart sits at two distinct heights with the second one column right; a sixteen-session evening resolves in three columns; a run of four inside fourteen minutes resolves in five; and no mark is ever moved vertically or merged with another.
+
+## T4 · Track, the Yesterday lane
+
+[screens.md](./screens.md#the-yesterday-lane), [ADR 0001](../adr/0001-unlogged-days-are-unknown-not-zero.md).
+
+The previous Logical Day, drawn whole on today's axis, dim, in its own lane at the 16% spine with the live lane moving to 46%. Dim marks on the same tiers plus dim hollow Resisted Urge rings. A single dim `Yesterday` at the lane's head, with the *Clear* token beneath it on a Clear Day. **Read-only — no tap targets in this lane at all.** No Target hairline and no red in it; confine today's hairline to the live lane. Nothing whatsoever when yesterday is Unknown, of either kind.
+
+**Done when** the four states of yesterday each render exactly as the table says; a mark at the same height in both lanes is the same time of day; a day Known only by Resisted Urges draws rings rather than reading as a Clear Day; the label appears if and only if the lane does; and the lane's head does not collide with a fanned early-morning ghost mark at the floor height from T5.
+
+## T5 · Track, the floor and the chrome budget
+
+[screens.md](./screens.md#the-timelines-floor-and-the-chrome-budget), [screens.md](./screens.md#the-catch-up-strip).
+
+Three changes that only make sense together:
+
+- **`min-height: 14rem`** on `.timeline`, replacing `12rem`.
+- **Clip the timeline to its own box.** `.timeline` is `overflow: visible` today, so when the minimum binds the excess is painted down into the 7.5rem the controls reserve — 65px of Logical Day underneath PUFF, untappable. Fixing the number without fixing this makes it worse.
+- **Compact the catch-up strip** from stacked dated rows with two 2.2rem buttons to **one horizontally scrollable row of day chips**, both actions as glyphs on the chip. Target ~74px against today's 149px. Keep both sentences of the strip's line — `Anything you remember?` **and** `It is fine to leave a day unknown.` If they will not fit, the chips shrink, not the sentence.
+
+**Done when** an iPhone SE in a tab with the install bar and the catch-up strip both up gives the timeline exactly 224px, nothing is drawn under PUFF at any height, every fixture's fan fits both lane budgets at 224px, and a returning user after a bad fortnight still meets an offer rather than a debt.
