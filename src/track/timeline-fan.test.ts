@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { fanOffsets, type FannedEvent } from './timeline-fan.ts'
 import {
@@ -94,6 +95,19 @@ const eveningRun: FannedEvent[] = [
   session('21:07', 2),
   session('21:12', 1),
 ]
+
+describe('the floor these fixtures are measured against', () => {
+  it('is the floor the stylesheet actually sets', () => {
+    // The number is derived — the shortest timeline on which the fan still
+    // resolves every collision it is handed — and it is spent in two places: the
+    // lanes below, and `.timeline`'s own minimum. A floor that moved in one of
+    // them would leave the other measuring a screen that no longer exists.
+    const stylesheet = readFileSync('src/index.css', 'utf8')
+    const floor = /\.timeline \{[^}]*min-height: ([\d.]+)rem/.exec(stylesheet)
+
+    expect(Number(floor![1]) * 16).toBe(FLOOR_LANE.height)
+  })
+})
 
 describe('fanOffsets', () => {
   it('steps the reported 10 / 6 pair one column apart, at its own two heights', () => {

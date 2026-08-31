@@ -1,5 +1,6 @@
-import { Fragment, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useMemo } from 'react'
 import { laneEvents, markPlacement, puffLabel, urgeLabel } from './lane-events.ts'
+import { useMeasuredBox } from './measured-box.ts'
 import { fanOffsets } from './timeline-fan.ts'
 import {
   type TimelineSize,
@@ -19,40 +20,6 @@ import type { YesterdayView } from './track-view.ts'
  */
 function inTheLane(label: string): string {
   return `Yesterday, ${label}`
-}
-
-/**
- * How far down the lane its head reaches, in px, kept current as the head
- * changes shape.
- *
- * Measured rather than written down, because the head is a word — with a `Clear`
- * token beneath it when yesterday was declared Clear — and how far it reaches
- * depends on which of the four states yesterday is in and on how large the
- * reader has set their text. A constant here would be a reservation that is too
- * large on three of those states and wrong on all of them the moment the text
- * scales. Before the first measurement it reaches nothing, which is what the
- * lane looked like on every paint before this existed.
- */
-function useHeadHeight() {
-  const head = useRef<HTMLDivElement>(null)
-  const [height, setHeight] = useState(0)
-
-  useLayoutEffect(() => {
-    const element = head.current
-    if (element === null) return
-
-    const measure = () => {
-      const measured = element.getBoundingClientRect().height
-      setHeight((current) => (current === measured ? current : measured))
-    }
-
-    measure()
-    const observer = new ResizeObserver(measure)
-    observer.observe(element)
-    return () => observer.disconnect()
-  }, [])
-
-  return [head, height] as const
 }
 
 /**
@@ -86,25 +53,28 @@ export function YesterdayLane({
     [yesterday.puffSessions, yesterday.resistedUrges, timeZone],
   )
 
-  const [head, headHeight] = useHeadHeight()
+  /**
+   * The head is measured rather than written down, because it is a word — with
+   * the `Clear` token beneath it on a Clear yesterday — so how far it reaches
+   * is which of the four states yesterday is in, at whatever size the reader
+   * has set their text.
+   */
+  const [head, headBox] = useMeasuredBox<HTMLDivElement>()
 
   /**
    * Yesterday fans right, into the gap between the two spines — both lanes fan
-   * the same way, so the reading direction never changes.
-   *
-   * The head is part of the lane's room: it stands left of the spine at the top
-   * of the lane, and a mark on the spine is centred on it, so the small hours
-   * fan one column out rather than being drawn through the one word that says
-   * which day this is.
+   * the same way, so the reading direction never changes — and around its own
+   * head, which is part of the lane's room (`screens.md` § When marks collide —
+   * the fan).
    */
   const fan = useMemo(
     () =>
       fanOffsets(events, {
         height: timelineSize.height,
         width: yesterdayLaneWidth(timelineSize.width),
-        head: headHeight,
+        head: headBox.height,
       }),
-    [events, headHeight, timelineSize],
+    [events, headBox.height, timelineSize],
   )
 
   return (

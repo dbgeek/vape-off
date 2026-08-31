@@ -287,10 +287,12 @@ select:focus-visible {
   white-space: nowrap;
 }
 
-/* The glyphs. 1.7rem square is under the 44px a tap target wants and is the
- * deliberate trade the strip makes for the timeline's floor: the strip exists
- * only while there are Unknown Logical Days behind you, and the timeline is the
- * screen. Both keep the whole sentence as their accessible name. */
+/* The glyphs. 1.7rem square is under the 44px a tap target wants, and it is the
+ * chips shrinking rather than the sentence: 44px chips and the ~74px the strip
+ * is allowed do not both fit above a 224px timeline, and the line is what the
+ * spec protects. The strip is transient — it exists only while there are
+ * Unknown Logical Days behind you — and the timeline is the screen. Both
+ * buttons keep the whole sentence as their accessible name. */
 .catch-up-day button {
   display: grid;
   width: 1.7rem;
@@ -342,7 +344,15 @@ select:focus-visible {
  * timeline whose 04:00-to-04:00 axis no longer maps to what you can see. The
  * cost, named: a mark in the first or last minutes of the Logical Day has the
  * half of its circle that falls outside the box cut off, which is the honest
- * drawing of a mark at the edge of the day. */
+ * drawing of a mark at the edge of the day.
+ *
+ * What the clip does *not* do, also named: the floor is a hard minimum, so on a
+ * viewport shorter than the chrome budget assumes, this box still reaches into
+ * the 7.5rem the controls reserve — clipped to itself, but low. Measured at
+ * 375x597: 15.7px, against the 59.5px the shipped screen spent there. Pinning
+ * the box to the room left over instead would cut the end of the Logical Day
+ * off, which is the worse of the two, and the budget above is what stops it
+ * arising on a supported screen. */
 .timeline {
   position: relative;
   min-height: 14rem;
@@ -407,18 +417,21 @@ select:focus-visible {
  * Sized to sit inside the 16% comfortably rather than to fill it, and it sits
  * inside the box now that `.timeline` is clipped to its own.
  *
- * Fanning right is not the same as never reaching left — a mark is centred on
- * the spine, so the widest tier still reaches ~22px back past it, and a Puff
- * Session in the small hours lands at the very top of the lane. The head is
- * kept clear of one by the fan rather than by painting over it: it is handed to
- * `fanOffsets` as part of the lane's room, and the marks inside its reach start
- * one column out. Its height is measured off this box, so the reservation is
- * whatever the head actually is — one word, or one word and the `Clear` token —
- * at whatever size the reader has set their text.
+ A mark in the small hours is kept off it by the fan rather than by
+ * painting over it — this box is measured and handed to `fanOffsets` as part of
+ * the lane's room (`timeline-fan.ts`, `screens.md` § When marks collide — the
+ * fan) — so nothing here may set a height: the reservation is whatever the head
+ * actually draws at the reader's own text size.
  *
- * `z-index` survives as the backstop for the one lane too narrow to spend a
- * column on the head, where the mark keeps the spine and the head is drawn over
- * it. */
+ * `z-index` survives as the backstop for a lane too narrow to spend a column on
+ * the head, where the mark keeps the spine and is drawn over.
+ *
+ * The head's own cost under the clip: right-aligned against the spine with one
+ * unbreakable word, it grows leftwards, and it has ~45px to grow into on a
+ * 335px timeline — measured at 44.5px, so a reader who scales their text up
+ * loses the front of the word rather than seeing it spill into the margin. The
+ * word is what `screens.md` protects here, so the alternative — moving the head
+ * off the spine — would cost the lane the gap yesterday fans into. */
 .yesterday-head {
   position: absolute;
   top: 0;
