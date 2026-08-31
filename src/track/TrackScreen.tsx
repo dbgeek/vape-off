@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import {
   browserBackupSource,
   type BackupSource,
@@ -20,17 +20,10 @@ import {
 import { momentum } from '../domain/readouts.ts'
 import { isStandalone } from '../shell/install-state.ts'
 import type { LogicalDayKey, PuffSession, ResistedUrge } from '../store/records.ts'
-import { laneEvents, markPlacement, puffLabel, urgeLabel } from './lane-events.ts'
+import { Lane, LANE_AXES, LIVE_LANE } from './Lane.tsx'
+import { puffLabel, urgeLabel } from './lane-events.ts'
 import { useMeasuredBox } from './measured-box.ts'
-import { fanOffsets } from './timeline-fan.ts'
-import {
-  LIVE_LANE_SPINE,
-  LIVE_SPINE_VARIABLE,
-  liveLaneWidth,
-  timelinePosition,
-  YESTERDAY_LANE_SPINE,
-  YESTERDAY_SPINE_VARIABLE,
-} from './timeline-geometry.ts'
+import { timelinePosition } from './timeline-geometry.ts'
 import { buildTrackView } from './track-view.ts'
 import { YesterdayLane } from './YesterdayLane.tsx'
 
@@ -315,25 +308,6 @@ export function TrackScreen({
   /** The room both lanes fan inside, kept current as the chrome above it comes and goes. */
   const [timeline, timelineSize] = useMeasuredBox<HTMLElement>()
 
-  const liveEvents = useMemo(
-    () => laneEvents(view.puffSessions, view.resistedUrges, timeZone),
-    [view.puffSessions, view.resistedUrges, timeZone],
-  )
-
-  /**
-   * How far right of the spine each event is drawn. The live lane owns
-   * everything right of its spine, and both lanes fan right so the reading
-   * direction never changes.
-   */
-  const fan = useMemo(
-    () =>
-      fanOffsets(liveEvents, {
-        height: timelineSize.height,
-        width: liveLaneWidth(timelineSize.width),
-      }),
-    [liveEvents, timelineSize],
-  )
-
   /**
    * One write at a time, in order. An operation that returns no record has
    * already said so for itself — nothing to set, and not a failure.
@@ -458,10 +432,9 @@ export function TrackScreen({
         aria-label="Logical Day timeline"
         ref={timeline}
         style={
-          {
-            [LIVE_SPINE_VARIABLE]: `${LIVE_LANE_SPINE}%`,
-            [YESTERDAY_SPINE_VARIABLE]: `${YESTERDAY_LANE_SPINE}%`,
-          } as CSSProperties
+          Object.fromEntries(
+            LANE_AXES.map((axis) => [axis.variable, `${axis.spine}%`]),
+          ) as CSSProperties
         }
       >
         {/* Drawn before everything else so the axis's own labels and the whole
@@ -506,40 +479,38 @@ export function TrackScreen({
           </div>
         ) : null}
 
-        {liveEvents.map((event, index) => {
-          const offset = fan[index]!
-          const mark = markPlacement(event, offset, LIVE_SPINE_VARIABLE)
-          return (
-            <Fragment key={event.key}>
-              {offset > 0 ? (
-                <span
-                  className="fan-spoke"
-                  aria-hidden="true"
-                  style={{ top: `${event.top}%`, width: `${offset}px` }}
-                />
-              ) : null}
-              {event.kind === 'puff' ? (
-                <button
-                  type="button"
-                  className={`puff-mark${view.overTargetSessionIds.has(event.session.id) ? ' over-target' : ''}${view.openSession?.id === event.session.id ? ' open-mark' : ''}`}
-                  style={mark}
-                  aria-label={puffLabel(event.session, timeZone)}
-                  onClick={() => setEditor({ kind: 'puff', session: event.session })}
-                >
-                  {event.session.count}
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="resisted-mark"
-                  style={mark}
-                  aria-label={urgeLabel(event.urge, timeZone)}
-                  onClick={() => setEditor({ kind: 'urge', urge: event.urge })}
-                />
-              )}
-            </Fragment>
-          )
-        })}
+        {/* The live lane owns everything right of its spine, and both lanes fan
+          * right so the reading direction never changes. Its marks are the
+          * handle for a Correction, which is the whole of what it disagrees
+          * with the Yesterday lane about. */}
+        <Lane
+          axis={LIVE_LANE}
+          puffSessions={view.puffSessions}
+          resistedUrges={view.resistedUrges}
+          timeZone={timeZone}
+          timelineSize={timelineSize}
+          renderMark={(event, mark) =>
+            event.kind === 'puff' ? (
+              <button
+                type="button"
+                className={`puff-mark${view.overTargetSessionIds.has(event.session.id) ? ' over-target' : ''}${view.openSession?.id === event.session.id ? ' open-mark' : ''}`}
+                style={mark}
+                aria-label={puffLabel(event.session, timeZone)}
+                onClick={() => setEditor({ kind: 'puff', session: event.session })}
+              >
+                {event.session.count}
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="resisted-mark"
+                style={mark}
+                aria-label={urgeLabel(event.urge, timeZone)}
+                onClick={() => setEditor({ kind: 'urge', urge: event.urge })}
+              />
+            )
+          }
+        />
       </section>
 
       <div className="track-offers">

@@ -1,13 +1,7 @@
-import type { CSSProperties } from 'react'
 import { formatWallTime } from '../domain/logical-day.ts'
 import type { PuffSession, ResistedUrge } from '../store/records.ts'
 import type { FannedEvent } from './timeline-fan.ts'
-import {
-  markSize,
-  RESISTED_URGE_RING_SIZE,
-  type SpineVariable,
-  timelinePosition,
-} from './timeline-geometry.ts'
+import { markSize, RESISTED_URGE_RING_SIZE, timelinePosition } from './timeline-geometry.ts'
 
 /**
  * What a lane has to draw, in the shape the fan can place.
@@ -70,30 +64,4 @@ export function laneEvents(
       }),
     ),
   ].sort((one, other) => one.top - other.top)
-}
-
-/**
- * Where a lane draws one event: its height on the axis, its column right of its
- * lane's spine, and its own drawn size.
- *
- * Shared by both lanes, because *where* is the one thing they have to agree
- * about — a mark at the same height in either lane is the same time of day, and
- * that is the whole point of drawing yesterday on today's axis. What the lanes
- * disagree about is what the drawing may then *do*, and that stays in the
- * components: today's marks are the handle for a Correction, yesterday's are
- * read-only.
- */
-export function markPlacement(
-  event: LaneEvent,
-  offset: number,
-  spine: SpineVariable,
-): CSSProperties {
-  return {
-    top: `${event.top}%`,
-    // A mark that collides with nothing stays on the spine, and says so by
-    // carrying no inline left at all.
-    left: offset === 0 ? undefined : `calc(var(${spine}) + ${offset}px)`,
-    width: `${event.size}px`,
-    height: `${event.size}px`,
-  }
 }

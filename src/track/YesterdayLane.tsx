@@ -1,12 +1,7 @@
-import { Fragment, useMemo } from 'react'
-import { laneEvents, markPlacement, puffLabel, urgeLabel } from './lane-events.ts'
+import { Lane, YESTERDAY_LANE } from './Lane.tsx'
+import { puffLabel, urgeLabel } from './lane-events.ts'
 import { useMeasuredBox } from './measured-box.ts'
-import { fanOffsets } from './timeline-fan.ts'
-import {
-  type TimelineSize,
-  yesterdayLaneWidth,
-  YESTERDAY_SPINE_VARIABLE,
-} from './timeline-geometry.ts'
+import { type TimelineSize } from './timeline-geometry.ts'
 import type { YesterdayView } from './track-view.ts'
 
 /**
@@ -34,10 +29,11 @@ function inTheLane(label: string): string {
  *
  * **Read-only, hard**, and read-only by construction rather than by discipline:
  * this module is handed a `YesterdayView` and nothing else. It has no source, no
- * editor and no Target, so there is no tap target it *could* draw, no hairline
- * it could hang and nothing it could paint red. A tappable second lane would
- * roughly double the tap targets on the one screen whose thesis is that logging
- * costs under a second, and the wrong tap there is a mis-log on *today*.
+ * editor and no Target, so the marks it hands `Lane` to draw have no tap target
+ * they *could* carry, no hairline they could hang and nothing they could paint
+ * red. A tappable second lane would roughly double the tap targets on the one
+ * screen whose thesis is that logging costs under a second, and the wrong tap
+ * there is a mis-log on *today*.
  */
 export function YesterdayLane({
   yesterday,
@@ -48,11 +44,6 @@ export function YesterdayLane({
   timeZone: string
   timelineSize: TimelineSize
 }) {
-  const events = useMemo(
-    () => laneEvents(yesterday.puffSessions, yesterday.resistedUrges, timeZone),
-    [yesterday.puffSessions, yesterday.resistedUrges, timeZone],
-  )
-
   /**
    * The head is measured rather than written down, because it is a word — with
    * the `Clear` token beneath it on a Clear yesterday — so how far it reaches
@@ -60,22 +51,6 @@ export function YesterdayLane({
    * has set their text.
    */
   const [head, headBox] = useMeasuredBox<HTMLDivElement>()
-
-  /**
-   * Yesterday fans right, into the gap between the two spines — both lanes fan
-   * the same way, so the reading direction never changes — and around its own
-   * head, which is part of the lane's room (`screens.md` § When marks collide —
-   * the fan).
-   */
-  const fan = useMemo(
-    () =>
-      fanOffsets(events, {
-        height: timelineSize.height,
-        width: yesterdayLaneWidth(timelineSize.width),
-        head: headBox.height,
-      }),
-    [events, headBox.height, timelineSize],
-  )
 
   return (
     <div className="yesterday-lane">
@@ -91,38 +66,37 @@ export function YesterdayLane({
         {yesterday.isClear ? <span className="yesterday-clear">Clear</span> : null}
       </div>
 
-      {events.map((event, index) => {
-        const offset = fan[index]!
-        const mark = markPlacement(event, offset, YESTERDAY_SPINE_VARIABLE)
-        return (
-          <Fragment key={event.key}>
-            {offset > 0 ? (
-              <span
-                className="yesterday-spoke"
-                aria-hidden="true"
-                style={{ top: `${event.top}%`, width: `${offset}px` }}
-              />
-            ) : null}
-            {event.kind === 'puff' ? (
-              <span
-                className="yesterday-mark"
-                role="img"
-                style={mark}
-                aria-label={inTheLane(puffLabel(event.session, timeZone))}
-              >
-                {event.session.count}
-              </span>
-            ) : (
-              <span
-                className="yesterday-ring"
-                role="img"
-                style={mark}
-                aria-label={inTheLane(urgeLabel(event.urge, timeZone))}
-              />
-            )}
-          </Fragment>
-        )
-      })}
+      {/* Yesterday fans right, into the gap between the two spines — both lanes
+        * fan the same way, so the reading direction never changes — and around
+        * its own head, which is part of the lane's room (`screens.md` § When
+        * marks collide — the fan). */}
+      <Lane
+        axis={YESTERDAY_LANE}
+        puffSessions={yesterday.puffSessions}
+        resistedUrges={yesterday.resistedUrges}
+        timeZone={timeZone}
+        timelineSize={timelineSize}
+        headHeight={headBox.height}
+        renderMark={(event, mark) =>
+          event.kind === 'puff' ? (
+            <span
+              className="yesterday-mark"
+              role="img"
+              style={mark}
+              aria-label={inTheLane(puffLabel(event.session, timeZone))}
+            >
+              {event.session.count}
+            </span>
+          ) : (
+            <span
+              className="yesterday-ring"
+              role="img"
+              style={mark}
+              aria-label={inTheLane(urgeLabel(event.urge, timeZone))}
+            />
+          )
+        }
+      />
     </div>
   )
 }
