@@ -20,17 +20,11 @@ import {
 import { momentum } from '../domain/readouts.ts'
 import { isStandalone } from '../shell/install-state.ts'
 import type { LogicalDayKey, PuffSession, ResistedUrge } from '../store/records.ts'
+import { LANE_AXES, LIVE_LANE } from './Lane.tsx'
 import { laneEvents, markPlacement, puffLabel, urgeLabel } from './lane-events.ts'
 import { useMeasuredBox } from './measured-box.ts'
 import { fanOffsets } from './timeline-fan.ts'
-import {
-  LIVE_LANE_SPINE,
-  LIVE_SPINE_VARIABLE,
-  liveLaneWidth,
-  timelinePosition,
-  YESTERDAY_LANE_SPINE,
-  YESTERDAY_SPINE_VARIABLE,
-} from './timeline-geometry.ts'
+import { timelinePosition } from './timeline-geometry.ts'
 import { buildTrackView } from './track-view.ts'
 import { YesterdayLane } from './YesterdayLane.tsx'
 
@@ -329,7 +323,7 @@ export function TrackScreen({
     () =>
       fanOffsets(liveEvents, {
         height: timelineSize.height,
-        width: liveLaneWidth(timelineSize.width),
+        width: LIVE_LANE.roomFor(timelineSize.width),
       }),
     [liveEvents, timelineSize],
   )
@@ -458,10 +452,9 @@ export function TrackScreen({
         aria-label="Logical Day timeline"
         ref={timeline}
         style={
-          {
-            [LIVE_SPINE_VARIABLE]: `${LIVE_LANE_SPINE}%`,
-            [YESTERDAY_SPINE_VARIABLE]: `${YESTERDAY_LANE_SPINE}%`,
-          } as CSSProperties
+          Object.fromEntries(
+            LANE_AXES.map((axis) => [axis.variable, `${axis.spine}%`]),
+          ) as CSSProperties
         }
       >
         {/* Drawn before everything else so the axis's own labels and the whole
@@ -508,7 +501,7 @@ export function TrackScreen({
 
         {liveEvents.map((event, index) => {
           const offset = fan[index]!
-          const mark = markPlacement(event, offset, LIVE_SPINE_VARIABLE)
+          const mark = markPlacement(event, offset, LIVE_LANE.variable)
           return (
             <Fragment key={event.key}>
               {offset > 0 ? (

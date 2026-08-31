@@ -1,13 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  liveLaneWidth,
-  LIVE_LANE_SPINE,
-  markSize,
-  RESISTED_URGE_RING_SIZE,
-  timelinePosition,
-  yesterdayLaneWidth,
-  YESTERDAY_LANE_SPINE,
-} from './timeline-geometry.ts'
+import { markSize, RESISTED_URGE_RING_SIZE, timelinePosition } from './timeline-geometry.ts'
 
 const STOCKHOLM = 'Europe/Stockholm'
 
@@ -102,29 +94,5 @@ describe('RESISTED_URGE_RING_SIZE', () => {
   it('is fixed, and smaller than the smallest mark it has to be told apart from', () => {
     expect(RESISTED_URGE_RING_SIZE).toBe(14)
     expect(RESISTED_URGE_RING_SIZE).toBeLessThan(markSize(1))
-  })
-})
-
-describe('the two lanes', () => {
-  it('stands the spines where the two-lane timeline puts them', () => {
-    expect(YESTERDAY_LANE_SPINE).toBe(16)
-    expect(LIVE_LANE_SPINE).toBe(46)
-  })
-
-  it('gives the Yesterday lane the gap between the two spines', () => {
-    expect(yesterdayLaneWidth(1000)).toBeCloseTo(300)
-  })
-
-  it('gives the live lane everything right of its own spine', () => {
-    expect(liveLaneWidth(1000)).toBeCloseTo(540)
-  })
-
-  it('stops the Yesterday lane exactly where the live lane begins', () => {
-    // The lane's budget is the gap itself, so the two numbers cannot drift
-    // apart: yesterday's spine plus its width is the live lane's spine.
-    const timeline = 335
-    expect((YESTERDAY_LANE_SPINE / 100) * timeline + yesterdayLaneWidth(timeline)).toBeCloseTo(
-      (LIVE_LANE_SPINE / 100) * timeline,
-    )
   })
 })

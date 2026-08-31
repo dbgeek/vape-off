@@ -4,67 +4,11 @@ import type { Instant } from '../store/records.ts'
 /**
  * Where the Track timeline draws things: the height an event hangs at, and how
  * big a Puff Session's mark and a Resisted Urge's ring are drawn. Geometry only
- * — it reads the clock and a count, never the record.
+ * — it reads the clock and a count, never the record, and never which lane is
+ * asking. Where the lanes themselves stand is `Lane.tsx`.
  */
 
 const MINUTES_PER_DAY = 24 * 60
-
-/**
- * Where each lane's spine stands, as a percentage of the timeline's width
- * (`screens.md` § The two lanes).
- *
- * Here rather than in the stylesheet because two things need the same numbers
- * and only one of them is CSS: `index.css` draws each axis and hangs every mark
- * on it through `--spine` and `--yesterday-spine`, which `TrackScreen` sets from
- * these constants, and the fan needs them to know how much room each lane has to
- * fan into. A second copy of either number is a lane that silently fans into the
- * wrong width.
- *
- * Yesterday sits left of today and both lanes fan right, so the reading
- * direction never changes and yesterday fans into the gap between the two.
- */
-export const YESTERDAY_LANE_SPINE = 16
-
-/** @see YESTERDAY_LANE_SPINE */
-export const LIVE_LANE_SPINE = 46
-
-/**
- * How much room the Yesterday lane has to fan into, in px, on a timeline this
- * wide.
- *
- * The gap between the two spines, and no wider: yesterday fans right, so its
- * budget runs out exactly where the live lane's spine stands. Derived from the
- * two constants rather than written down as its own ~30% for the same reason the
- * spines are constants — a third number is a third thing that can disagree.
- */
-export function yesterdayLaneWidth(timelineWidth: number): number {
-  return timelineWidth * ((LIVE_LANE_SPINE - YESTERDAY_LANE_SPINE) / 100)
-}
-
-/**
- * How much room the live lane has to fan into, in px, on a timeline this wide.
- *
- * The lane owns everything right of its spine — nothing is drawn beyond it — so
- * this is the whole of its fan's budget.
- */
-export function liveLaneWidth(timelineWidth: number): number {
-  return timelineWidth * (1 - LIVE_LANE_SPINE / 100)
-}
-
-/**
- * The custom properties `index.css` hangs each lane's contents on.
- *
- * Named here, beside the numbers they carry, because they are the same fact
- * wearing a different hat: `TrackScreen` sets both properties from both
- * constants above, and every fanned mark writes its column as an offset from one
- * of them. A property name spelled out at a call site is one more place the two
- * spines can drift apart, which is the thing this module exists to prevent.
- */
-export const LIVE_SPINE_VARIABLE = '--spine'
-export const YESTERDAY_SPINE_VARIABLE = '--yesterday-spine'
-
-/** One lane's spine, named as the stylesheet knows it. */
-export type SpineVariable = typeof LIVE_SPINE_VARIABLE | typeof YESTERDAY_SPINE_VARIABLE
 
 /**
  * The timeline's drawn box in px — what turns a height on the axis into a

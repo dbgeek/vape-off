@@ -1,12 +1,9 @@
 import { Fragment, useMemo } from 'react'
+import { YESTERDAY_LANE } from './Lane.tsx'
 import { laneEvents, markPlacement, puffLabel, urgeLabel } from './lane-events.ts'
 import { useMeasuredBox } from './measured-box.ts'
 import { fanOffsets } from './timeline-fan.ts'
-import {
-  type TimelineSize,
-  yesterdayLaneWidth,
-  YESTERDAY_SPINE_VARIABLE,
-} from './timeline-geometry.ts'
+import { type TimelineSize } from './timeline-geometry.ts'
 import type { YesterdayView } from './track-view.ts'
 
 /**
@@ -71,7 +68,7 @@ export function YesterdayLane({
     () =>
       fanOffsets(events, {
         height: timelineSize.height,
-        width: yesterdayLaneWidth(timelineSize.width),
+        width: YESTERDAY_LANE.roomFor(timelineSize.width),
         head: headBox.height,
       }),
     [events, headBox.height, timelineSize],
@@ -93,7 +90,7 @@ export function YesterdayLane({
 
       {events.map((event, index) => {
         const offset = fan[index]!
-        const mark = markPlacement(event, offset, YESTERDAY_SPINE_VARIABLE)
+        const mark = markPlacement(event, offset, YESTERDAY_LANE.variable)
         return (
           <Fragment key={event.key}>
             {offset > 0 ? (

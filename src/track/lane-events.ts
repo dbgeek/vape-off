@@ -1,13 +1,9 @@
 import type { CSSProperties } from 'react'
 import { formatWallTime } from '../domain/logical-day.ts'
 import type { PuffSession, ResistedUrge } from '../store/records.ts'
+import type { SpineVariable } from './Lane.tsx'
 import type { FannedEvent } from './timeline-fan.ts'
-import {
-  markSize,
-  RESISTED_URGE_RING_SIZE,
-  type SpineVariable,
-  timelinePosition,
-} from './timeline-geometry.ts'
+import { markSize, RESISTED_URGE_RING_SIZE, timelinePosition } from './timeline-geometry.ts'
 
 /**
  * What a lane has to draw, in the shape the fan can place.

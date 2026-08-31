@@ -1,12 +1,8 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
+import { LIVE_LANE, YESTERDAY_LANE } from './Lane.tsx'
 import { fanOffsets, type FannedEvent } from './timeline-fan.ts'
-import {
-  liveLaneWidth,
-  markSize,
-  RESISTED_URGE_RING_SIZE,
-  yesterdayLaneWidth,
-} from './timeline-geometry.ts'
+import { markSize, RESISTED_URGE_RING_SIZE } from './timeline-geometry.ts'
 
 const MINUTES_PER_DAY = 24 * 60
 
@@ -32,10 +28,10 @@ const PHONE_TIMELINE_WIDTH = 335
  * `screens.md` reads its *a 20px mark covers roughly 55 minutes* off — 1440
  * minutes over 520px — and whatever room the live lane has on it.
  */
-const MEASURED_LANE = { height: 520, width: liveLaneWidth(PHONE_TIMELINE_WIDTH) }
+const MEASURED_LANE = { height: 520, width: LIVE_LANE.roomFor(PHONE_TIMELINE_WIDTH) }
 
 /** The same phone once `T5`'s floor binds, which is the tightest lane there is. */
-const FLOOR_LANE = { height: 224, width: liveLaneWidth(PHONE_TIMELINE_WIDTH) }
+const FLOOR_LANE = { height: 224, width: LIVE_LANE.roomFor(PHONE_TIMELINE_WIDTH) }
 
 /**
  * The Yesterday lane on that same floor: half the live lane's room, and the one
@@ -46,7 +42,7 @@ const FLOOR_LANE = { height: 224, width: liveLaneWidth(PHONE_TIMELINE_WIDTH) }
  */
 const YESTERDAY_FLOOR_LANE = {
   height: 224,
-  width: yesterdayLaneWidth(PHONE_TIMELINE_WIDTH),
+  width: YESTERDAY_LANE.roomFor(PHONE_TIMELINE_WIDTH),
   head: 26,
 }
 
