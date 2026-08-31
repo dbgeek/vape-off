@@ -221,21 +221,34 @@ select:focus-visible {
   color: #f2c46d;
 }
 
+/* One of the two things that spend the chrome budget above the timeline, and
+ * the one that gives (`screens.md` § The timeline's floor, and the chrome
+ * budget). Compacted to ~74px from the 149px a stack of dated rows with two
+ * 2.2rem buttons apiece was spending, which is what lands an iPhone SE in a tab
+ * on the timeline's 224px floor. The install bar is the other, and suppressing
+ * it instead was refused: it is a permanent warning to the one person with
+ * history to lose in a tab (ADR 0003). */
 .catch-up-strip {
   z-index: 7;
   margin: 0.8rem -1.25rem 0;
   border-block: 1px solid color-mix(in srgb, var(--color-paper) 14%, transparent);
   background: color-mix(in srgb, var(--color-paper) 4%, var(--color-ink));
-  padding: 0.65rem 1.25rem 0.8rem;
+  padding: 0.5rem 1.25rem 0.55rem;
 }
 
+/* Both sentences, in full. The line is what carries the *offer, never a debt*
+ * framing, and the second sentence is the half that carries it — so the line is
+ * not what gives when the row is tight, the chips are. Wrapping to a second
+ * line is the price of a narrow screen and is paid willingly; truncating the
+ * sentence is not on offer. */
 .catch-up-copy {
   display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 0.55rem;
+  flex-wrap: wrap;
+  gap: 0 0.4rem;
+  margin-bottom: 0.4rem;
   color: var(--color-muted);
-  font-size: 0.68rem;
+  font-size: 0.66rem;
+  line-height: 1.35;
 }
 
 .catch-up-copy strong {
@@ -245,7 +258,7 @@ select:focus-visible {
 
 .catch-up-days {
   display: flex;
-  gap: 0.5rem;
+  gap: 0.4rem;
   overflow-x: auto;
   scrollbar-width: none;
 }
@@ -254,20 +267,50 @@ select:focus-visible {
   display: none;
 }
 
+/* A chip: the day, then both of its actions as glyphs. `flex: none` because the
+ * row scrolls rather than squeezing — a chip that shrank to fit seven days into
+ * 335px would put the glyphs under the thumb's resolution, and the row already
+ * says there is more to the right by having some of the next chip visible. */
 .catch-up-day {
-  display: grid;
-  min-width: 8.8rem;
-  gap: 0.35rem;
-  border-left: 1px solid color-mix(in srgb, var(--color-paper) 18%, transparent);
-  padding-left: 0.6rem;
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 0.3rem;
+  border: 1px solid color-mix(in srgb, var(--color-paper) 16%, transparent);
+  border-radius: 999px;
+  padding: 0.15rem 0.25rem 0.15rem 0.6rem;
 }
 
 .catch-up-day time {
-  font-size: 0.72rem;
-  font-weight: 620;
+  font-size: 0.68rem;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
-.catch-up-day button,
+/* The glyphs. 1.7rem square is under the 44px a tap target wants and is the
+ * deliberate trade the strip makes for the timeline's floor: the strip exists
+ * only while there are Unknown Logical Days behind you, and the timeline is the
+ * screen. Both keep the whole sentence as their accessible name. */
+.catch-up-day button {
+  display: grid;
+  width: 1.7rem;
+  height: 1.7rem;
+  flex: none;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-paper) 8%, transparent);
+  color: var(--color-muted);
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+/* The Clear Day glyph carries the same green the Resisted control does — the
+ * two are the app's only *nothing happened, and that counts* acts. */
+.catch-up-day .catch-up-clear {
+  color: #9fe7d4;
+}
+
 .track-offers button,
 .handover-offer button {
   min-height: 2.2rem;
@@ -280,20 +323,32 @@ select:focus-visible {
   text-align: left;
 }
 
-.catch-up-day button:last-child {
-  color: #9fe7d4;
-}
-
 /* `--spine` and `--yesterday-spine` — where the two lanes' axes stand — are set
  * inline from `timeline-geometry.ts`. They are deliberately not defaulted here:
  * the fan measures each lane from the same numbers, and a stylesheet holding its
  * own copy is a lane that fans into the wrong width without saying so. */
+/* The floor is *derived*, not picked: 14rem (224px) is the shortest timeline on
+ * which the fan still resolves every collision it is handed, measured on the
+ * 335px-wide timeline an iPhone SE produces (`screens.md` § The timeline's
+ * floor, and the chrome budget). Below it, height shortage presents as a
+ * *width* failure — a shorter timeline packs more marks into each collision and
+ * the fan answers with more columns.
+ *
+ * `overflow: clip` is what makes it a floor at all. The screen reserves 7.5rem
+ * of bottom padding for the controls, and while this box was `overflow: visible`
+ * the excess was painted down into it: 65px of timeline — 8h 08m of Logical Day
+ * — drawn underneath PUFF and untappable. `clip` rather than `hidden` because
+ * this box must not become a scroll container: a timeline you can scroll is a
+ * timeline whose 04:00-to-04:00 axis no longer maps to what you can see. The
+ * cost, named: a mark in the first or last minutes of the Logical Day has the
+ * half of its circle that falls outside the box cut off, which is the honest
+ * drawing of a mark at the edge of the day. */
 .timeline {
   position: relative;
-  min-height: 12rem;
+  min-height: 14rem;
   flex: 1;
   margin: 1rem 0 0;
-  overflow: visible;
+  overflow: clip;
 }
 
 /* The axis runs the full box, so 0% is the opening 04:00 and 100% the closing
@@ -349,15 +404,21 @@ select:focus-visible {
  * fans *into*, because both lanes fan right. Exactly one word, and the `Clear`
  * token stacked directly beneath it rather than merged into it.
  *
- * Sized to sit inside the 16% comfortably rather than to fill it: the head has
- * to survive `.timeline` being clipped to its own box, which is #79's to do.
+ * Sized to sit inside the 16% comfortably rather than to fill it, and it sits
+ * inside the box now that `.timeline` is clipped to its own.
  *
- * `z-index` because fanning right is not the same as never reaching left — a
- * mark is centred on the spine, so the widest tier still reaches ~22px back
- * past it, and a Puff Session in the small hours can land at the very top of the
- * lane. The head stays legible over one; keeping it clear of one outright would
- * cost either a row of the chrome budget or the word itself, and the
- * floor-height case belongs with the floor (#79, `slices.md` § T5). */
+ * Fanning right is not the same as never reaching left — a mark is centred on
+ * the spine, so the widest tier still reaches ~22px back past it, and a Puff
+ * Session in the small hours lands at the very top of the lane. The head is
+ * kept clear of one by the fan rather than by painting over it: it is handed to
+ * `fanOffsets` as part of the lane's room, and the marks inside its reach start
+ * one column out. Its height is measured off this box, so the reservation is
+ * whatever the head actually is — one word, or one word and the `Clear` token —
+ * at whatever size the reader has set their text.
+ *
+ * `z-index` survives as the backstop for the one lane too narrow to spend a
+ * column on the head, where the mark keeps the spine and the head is drawn over
+ * it. */
 .yesterday-head {
   position: absolute;
   top: 0;

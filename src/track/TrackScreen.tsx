@@ -459,18 +459,38 @@ export function TrackScreen({
             <strong>Anything you remember?</strong>
             <span>It is fine to leave a day unknown.</span>
           </div>
+          {/* One horizontally scrollable row of day chips, both actions as
+            * glyphs on the chip (`screens.md` § The catch-up strip). The strip
+            * is transient and the timeline is the screen, so it is the strip
+            * that pays for the timeline's floor — but only in drawn width: the
+            * glyph is what shrinks, and each button still says the whole
+            * sentence, naming its day, to anything that reads rather than
+            * looks. */}
           <div className="catch-up-days">
-            {view.catchUpDays.map((logicalDay) => (
-              <article key={logicalDay} className="catch-up-day">
-                <time dateTime={logicalDay}>{formatLogicalDayWithWeekday(logicalDay)}</time>
-                <button type="button" onClick={() => setEditor({ kind: 'new', at: dateAtNoon(logicalDay) })}>
-                  Add what I remember
-                </button>
-                <button type="button" onClick={() => mutate(() => source.declareClearDay(dateAtNoon(logicalDay)))}>
-                  Clear Day
-                </button>
-              </article>
-            ))}
+            {view.catchUpDays.map((logicalDay) => {
+              const day = formatLogicalDayWithWeekday(logicalDay)
+              return (
+                <article key={logicalDay} className="catch-up-day">
+                  <time dateTime={logicalDay}>{day}</time>
+                  <button
+                    type="button"
+                    className="catch-up-add"
+                    aria-label={`Add what I remember for ${day}`}
+                    onClick={() => setEditor({ kind: 'new', at: dateAtNoon(logicalDay) })}
+                  >
+                    <span aria-hidden="true">+</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="catch-up-clear"
+                    aria-label={`Mark ${day} a Clear Day`}
+                    onClick={() => mutate(() => source.declareClearDay(dateAtNoon(logicalDay)))}
+                  >
+                    <span aria-hidden="true">✓</span>
+                  </button>
+                </article>
+              )
+            })}
           </div>
         </section>
       ) : null}

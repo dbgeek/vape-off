@@ -31,6 +31,17 @@ export interface Lane {
   height: number
   /** How far right of the spine the lane may reach before it meets the next one. */
   width: number
+  /**
+   * How far down the top of the lane its head reaches, in px — zero, or absent,
+   * for a lane with no head.
+   *
+   * The Yesterday lane carries one, the live lane carries none (`screens.md` §
+   * The Yesterday lane), and it is the *drawn* height rather than a number
+   * written down twice: the head is a word, and a `Clear` token beneath it when
+   * yesterday was declared Clear, so how far it reaches depends on which of the
+   * four states yesterday is in and on how large the reader has set their text.
+   */
+  head?: number
 }
 
 /**
@@ -86,6 +97,23 @@ function columnsAfforded(lane: Lane, step: number): number {
 }
 
 /**
+ * Whether an event is drawn far enough down the lane to take the spine's own
+ * column, the head standing where it does.
+ *
+ * The head sits *left* of the spine, so it is the spine's column alone it takes
+ * — a fanned column starts a whole step out and never reaches back past the
+ * spine. But a mark on the spine is **centred** on it, so it reaches half its
+ * own width back into the head's strip: 22px at the widest tier, against the
+ * few px of clearance the head leaves itself. The answer is the fan's usual
+ * one — the mark takes the next column out and hangs off the axis on its spoke
+ * — and it costs the lane one column for as long as the head reaches, which at
+ * the timeline's floor is the first hour or two of the Logical Day.
+ */
+function clearsHead(event: Placed, lane: Lane): boolean {
+  return event.y - event.size / 2 >= (lane.head ?? 0) + MARK_GAP
+}
+
+/**
  * How far right of the lane's spine each event is drawn, in px, in the order the
  * events were given.
  *
@@ -123,11 +151,20 @@ export function fanOffsets(events: readonly FannedEvent[], lane: Lane): number[]
     const columns: Placed[][] = []
 
     for (const event of group) {
-      let column = columns.findIndex((occupants) =>
-        occupants.every((placed) => clears(event, placed)),
+      // The head takes the spine's column from the events inside its reach, and
+      // from nothing else: this is a floor on where an event may start, not a
+      // column reserved down the length of the lane. A lane with room for one
+      // column has none to give, and there the mark keeps the spine and the
+      // head is drawn over — the same degradation the outermost column makes,
+      // and for the same reason: a mark is never drawn outside its lane.
+      const first = clearsHead(event, lane) ? 0 : Math.min(1, afforded - 1)
+      let column = columns.findIndex(
+        (occupants, index) =>
+          index >= first && occupants.every((placed) => clears(event, placed)),
       )
       if (column === -1) {
-        column = columns.length < afforded ? columns.push([]) - 1 : afforded - 1
+        column = columns.length < afforded ? Math.max(first, columns.length) : afforded - 1
+        while (columns.length <= column) columns.push([])
       }
       columns[column]!.push(event)
       offsets[event.index] = column * step

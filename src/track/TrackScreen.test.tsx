@@ -497,11 +497,23 @@ describe('Track', () => {
 
     const strip = await screen.findByRole('region', { name: 'Catch up' })
     expect(within(strip).getAllByRole('article')).toHaveLength(7)
+    // Both sentences survive the compaction: the second is the one holding the
+    // *offer, never a debt* framing, and it is not what gives when the row is
+    // tight (`screens.md` § The catch-up strip).
     expect(strip).toHaveTextContent('Anything you remember?')
     expect(strip).toHaveTextContent('It is fine to leave a day unknown.')
     expect(strip).not.toHaveTextContent(/missed|owe|overdue/i)
 
-    fireEvent.click(within(strip).getAllByRole('button', { name: /Clear Day/i })[0]!)
+    // Each day is one chip carrying both actions as glyphs. The glyph is what
+    // is drawn; the whole sentence is still what an assistive technology reads,
+    // and it names the day, because a row of chips has no other context to
+    // borrow one from.
+    const chip = within(strip).getAllByRole('article')[0]!
+    expect(chip).toHaveTextContent('Sat 22 Aug')
+    expect(within(chip).getAllByRole('button')).toHaveLength(2)
+    within(chip).getByRole('button', { name: 'Add what I remember for Sat 22 Aug' })
+
+    fireEvent.click(within(chip).getByRole('button', { name: 'Mark Sat 22 Aug a Clear Day' }))
     await waitFor(() => expect(trackSource.declareClearDay).toHaveBeenCalledOnce())
   })
 
