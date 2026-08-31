@@ -1,12 +1,4 @@
-import {
-  Fragment,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-  type CSSProperties,
-} from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import {
   browserBackupSource,
   type BackupSource,
@@ -29,12 +21,12 @@ import { momentum } from '../domain/readouts.ts'
 import { isStandalone } from '../shell/install-state.ts'
 import type { LogicalDayKey, PuffSession, ResistedUrge } from '../store/records.ts'
 import { laneEvents, markPlacement, puffLabel, urgeLabel } from './lane-events.ts'
+import { useMeasuredBox } from './measured-box.ts'
 import { fanOffsets } from './timeline-fan.ts'
 import {
   LIVE_LANE_SPINE,
   LIVE_SPINE_VARIABLE,
   liveLaneWidth,
-  type TimelineSize,
   timelinePosition,
   YESTERDAY_LANE_SPINE,
   YESTERDAY_SPINE_VARIABLE,
@@ -83,40 +75,6 @@ function dateAtNoon(logicalDay: LogicalDayKey): Date {
 const REFUSAL_MESSAGES: Record<CorrectionRefusal, string> = {
   'count-below-one': 'Enter a whole puff count of at least 1.',
   'in-the-future': 'Choose a time that has already happened.',
-}
-
-/**
- * The timeline's drawn size in px, kept current as the chrome above it comes and
- * goes.
- *
- * The one place the timeline's layout consults the DOM, and it consults it for
- * size alone. A collision is two circles touching, which is a distance in
- * pixels; a percentage cannot answer it. Before the first measurement the size
- * is zero, which the fan reads as a lane with room for one column — every mark
- * on the spine, which is the honest drawing of *not measured yet*.
- */
-function useTimelineSize() {
-  const timeline = useRef<HTMLElement>(null)
-  const [size, setSize] = useState<TimelineSize>({ width: 0, height: 0 })
-
-  useLayoutEffect(() => {
-    const element = timeline.current
-    if (element === null) return
-
-    const measure = () => {
-      const { width, height } = element.getBoundingClientRect()
-      setSize((current) =>
-        current.width === width && current.height === height ? current : { width, height },
-      )
-    }
-
-    measure()
-    const observer = new ResizeObserver(measure)
-    observer.observe(element)
-    return () => observer.disconnect()
-  }, [])
-
-  return [timeline, size] as const
 }
 
 type EditorState =
@@ -354,7 +312,8 @@ export function TrackScreen({
    */
   const nowPosition = timelinePosition(now, timeZone)
 
-  const [timeline, timelineSize] = useTimelineSize()
+  /** The room both lanes fan inside, kept current as the chrome above it comes and goes. */
+  const [timeline, timelineSize] = useMeasuredBox<HTMLElement>()
 
   const liveEvents = useMemo(
     () => laneEvents(view.puffSessions, view.resistedUrges, timeZone),
@@ -459,18 +418,37 @@ export function TrackScreen({
             <strong>Anything you remember?</strong>
             <span>It is fine to leave a day unknown.</span>
           </div>
+          {/* One horizontally scrollable row of day chips, both actions as
+            * glyphs on the chip (`screens.md` § The catch-up strip). The strip
+            * is transient and the timeline is the screen, so it is the strip
+            * that pays for the timeline's floor — but only in drawn width: the
+            * glyph is what shrinks, and each button still says the whole
+            * sentence, naming its day, to anything that reads rather than
+            * looks. */}
           <div className="catch-up-days">
-            {view.catchUpDays.map((logicalDay) => (
-              <article key={logicalDay} className="catch-up-day">
-                <time dateTime={logicalDay}>{formatLogicalDayWithWeekday(logicalDay)}</time>
-                <button type="button" onClick={() => setEditor({ kind: 'new', at: dateAtNoon(logicalDay) })}>
-                  Add what I remember
-                </button>
-                <button type="button" onClick={() => mutate(() => source.declareClearDay(dateAtNoon(logicalDay)))}>
-                  Clear Day
-                </button>
-              </article>
-            ))}
+            {view.catchUpDays.map((logicalDay) => {
+              const day = formatLogicalDayWithWeekday(logicalDay)
+              return (
+                <article key={logicalDay} className="catch-up-day">
+                  <time dateTime={logicalDay}>{day}</time>
+                  <button
+                    type="button"
+                    aria-label={`Add what I remember for ${day}`}
+                    onClick={() => setEditor({ kind: 'new', at: dateAtNoon(logicalDay) })}
+                  >
+                    <span aria-hidden="true">+</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="catch-up-clear"
+                    aria-label={`Mark ${day} a Clear Day`}
+                    onClick={() => mutate(() => source.declareClearDay(dateAtNoon(logicalDay)))}
+                  >
+                    <span aria-hidden="true">✓</span>
+                  </button>
+                </article>
+              )
+            })}
           </div>
         </section>
       ) : null}

@@ -1,5 +1,6 @@
 import { Fragment, useMemo } from 'react'
 import { laneEvents, markPlacement, puffLabel, urgeLabel } from './lane-events.ts'
+import { useMeasuredBox } from './measured-box.ts'
 import { fanOffsets } from './timeline-fan.ts'
 import {
   type TimelineSize,
@@ -53,16 +54,27 @@ export function YesterdayLane({
   )
 
   /**
+   * The head is measured rather than written down, because it is a word — with
+   * the `Clear` token beneath it on a Clear yesterday — so how far it reaches
+   * is which of the four states yesterday is in, at whatever size the reader
+   * has set their text.
+   */
+  const [head, headBox] = useMeasuredBox<HTMLDivElement>()
+
+  /**
    * Yesterday fans right, into the gap between the two spines — both lanes fan
-   * the same way, so the reading direction never changes.
+   * the same way, so the reading direction never changes — and around its own
+   * head, which is part of the lane's room (`screens.md` § When marks collide —
+   * the fan).
    */
   const fan = useMemo(
     () =>
       fanOffsets(events, {
         height: timelineSize.height,
         width: yesterdayLaneWidth(timelineSize.width),
+        head: headBox.height,
       }),
-    [events, timelineSize],
+    [events, headBox.height, timelineSize],
   )
 
   return (
@@ -74,7 +86,7 @@ export function YesterdayLane({
         * which would read as the value of a field; a Clear Day is a deliberate
         * assertion, and drawing the programme's most deliberate act as an empty
         * lane is the one thing this lane must not do. */}
-      <div className="yesterday-head">
+      <div className="yesterday-head" ref={head}>
         <span className="yesterday-label">Yesterday</span>
         {yesterday.isClear ? <span className="yesterday-clear">Clear</span> : null}
       </div>

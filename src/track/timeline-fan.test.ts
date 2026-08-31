@@ -1,6 +1,12 @@
+import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { fanOffsets, type FannedEvent } from './timeline-fan.ts'
-import { liveLaneWidth, markSize, RESISTED_URGE_RING_SIZE } from './timeline-geometry.ts'
+import {
+  liveLaneWidth,
+  markSize,
+  RESISTED_URGE_RING_SIZE,
+  yesterdayLaneWidth,
+} from './timeline-geometry.ts'
 
 const MINUTES_PER_DAY = 24 * 60
 
@@ -30,6 +36,19 @@ const MEASURED_LANE = { height: 520, width: liveLaneWidth(PHONE_TIMELINE_WIDTH) 
 
 /** The same phone once `T5`'s floor binds, which is the tightest lane there is. */
 const FLOOR_LANE = { height: 224, width: liveLaneWidth(PHONE_TIMELINE_WIDTH) }
+
+/**
+ * The Yesterday lane on that same floor: half the live lane's room, and the one
+ * lane with a head standing at the top of its spine.
+ *
+ * The head's height is measured off the DOM rather than assumed, so this is one
+ * plausible reading of it — the dim `Yesterday` with the `Clear` token beneath.
+ */
+const YESTERDAY_FLOOR_LANE = {
+  height: 224,
+  width: yesterdayLaneWidth(PHONE_TIMELINE_WIDTH),
+  head: 26,
+}
 
 /** The reported screen: a 2, a Resisted Urge, then the `10` / `6` blob. */
 const reportedBlob: FannedEvent[] = [
@@ -76,6 +95,19 @@ const eveningRun: FannedEvent[] = [
   session('21:07', 2),
   session('21:12', 1),
 ]
+
+describe('the floor these fixtures are measured against', () => {
+  it('is the floor the stylesheet actually sets', () => {
+    // The number is derived — the shortest timeline on which the fan still
+    // resolves every collision it is handed — and it is spent in two places: the
+    // lanes below, and `.timeline`'s own minimum. A floor that moved in one of
+    // them would leave the other measuring a screen that no longer exists.
+    const stylesheet = readFileSync('src/index.css', 'utf8')
+    const floor = /\.timeline \{[^}]*min-height: ([\d.]+)rem/.exec(stylesheet)
+
+    expect(Number(floor![1]) * 16).toBe(FLOOR_LANE.height)
+  })
+})
 
 describe('fanOffsets', () => {
   it('steps the reported 10 / 6 pair one column apart, at its own two heights', () => {
@@ -187,6 +219,56 @@ describe('fanOffsets', () => {
     // is exactly the height at which those five still fit the lane.
     expect(Math.max(...fanOffsets(sixteenSessionEvening, MEASURED_LANE))).toBe(2 * 32)
     expect(Math.max(...fanOffsets(sixteenSessionEvening, FLOOR_LANE))).toBe(4 * 32)
+  })
+
+  it("keeps an early-morning mark out of the column its lane's head stands in", () => {
+    // At the floor the head's 26px covers the first hour and a half of the
+    // Logical Day, and a mark drawn on the spine reaches back past it — the
+    // widest tier by 22px, against the 8px of clearance the head leaves. So the
+    // mark takes the next column out and hangs off the axis on its spoke, which
+    // is the fan doing what it does everywhere else.
+    const smallHours = [session('04:20', 11), session('12:00', 2)]
+
+    const offsets = fanOffsets(smallHours, YESTERDAY_FLOOR_LANE)
+
+    expect(offsets[0]).toBe(markSize(11) + 4)
+    // Only the head's own band pays: midday is nowhere near it and stays on the
+    // spine, in a column the morning left free.
+    expect(offsets[1]).toBe(0)
+  })
+
+  it('leaves the spine free for a mark that clears the head, in the same group', () => {
+    // The head takes the spine's column from the marks inside its band only —
+    // it is not a column reservation running the length of the lane.
+    const chain = [session('04:20', 1), session('06:30', 1), session('08:40', 1)]
+
+    const offsets = fanOffsets(chain, YESTERDAY_FLOOR_LANE)
+
+    // 08:40 hangs 33px below the lane's top, which is below the head — so it
+    // takes the spine's column, empty behind the two that could not.
+    expect(offsets).toEqual([24, 48, 0])
+  })
+
+  it('gives the head no column at all in a lane with room for one', () => {
+    // A mark is never drawn outside its lane, so the last column standing
+    // belongs to the mark: the head degrades to being drawn over, which is what
+    // it did everywhere before there was a floor.
+    const narrow = { height: 224, width: 20, head: 26 }
+
+    expect(fanOffsets([session('04:20', 1)], narrow)).toEqual([0])
+  })
+
+  it('keeps every fixture inside the Yesterday lane, at the floor, head and all', () => {
+    for (const events of [reportedBlob, sixteenSessionEvening, eveningRun]) {
+      const offsets = fanOffsets(events, YESTERDAY_FLOOR_LANE)
+      const widest = Math.max(
+        ...offsets.map((offset, index) => offset + events[index]!.size / 2),
+      )
+
+      // The lane's budget runs out exactly where the live lane's spine stands,
+      // so this is also the assertion that yesterday never runs into today.
+      expect(widest).toBeLessThanOrEqual(YESTERDAY_FLOOR_LANE.width)
+    }
   })
 
   it('places nothing when there is nothing to place', () => {
