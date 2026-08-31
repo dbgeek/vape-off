@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { markSize, RESISTED_RING_SIZE, timelinePosition } from './timeline-geometry.ts'
+import { markSize, RESISTED_URGE_RING_SIZE, timelinePosition } from './timeline-geometry.ts'
 
 const STOCKHOLM = 'Europe/Stockholm'
 
@@ -90,9 +90,9 @@ describe('markSize', () => {
   })
 })
 
-describe('RESISTED_RING_SIZE', () => {
+describe('RESISTED_URGE_RING_SIZE', () => {
   it('is fixed, and smaller than the smallest mark it has to be told apart from', () => {
-    expect(RESISTED_RING_SIZE).toBe(14)
-    expect(RESISTED_RING_SIZE).toBeLessThan(markSize(1))
+    expect(RESISTED_URGE_RING_SIZE).toBe(14)
+    expect(RESISTED_URGE_RING_SIZE).toBeLessThan(markSize(1))
   })
 })

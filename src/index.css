@@ -850,9 +850,12 @@ select:focus-visible {
   border-radius: 42% 58% 55% 45%;
   background: var(--color-paper);
   color: var(--color-ink);
-  /* The numeral is printed inside every mark, so it has to stay legible at the
-   * smallest tier: 20px less two 2px borders leaves 16px for it. */
-  font-size: 0.72rem;
+  /* The numeral is printed inside every mark, so it has to fit the smallest
+   * tier `markSize` draws — 20px less two 2px borders. In `px` rather than
+   * `rem` for the same reason the ring is: the mark is a fixed-size box, so a
+   * numeral that grew with the reader's text size would overflow the tier it
+   * is printed in rather than scale with it. See `timeline-geometry.ts`. */
+  font-size: 11px;
   line-height: 1;
   font-weight: 700;
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-paper) 25%, transparent);
@@ -869,9 +872,9 @@ select:focus-visible {
   animation: session-pulse 1.6s ease-in-out infinite;
 }
 
-/* Hollow, and carrying no numeral. Its 14px diameter is set inline from
- * `timeline-geometry.ts`, where it is read against the mark tiers it has to
- * stay smaller than. */
+/* A Resisted Urge's ring: hollow, and carrying no numeral. Its diameter is set
+ * inline from `timeline-geometry.ts`, where it is read against the mark tiers
+ * it has to stay smaller than — so it is deliberately not sized here. */
 .resisted-mark {
   border: 2px solid #74d6bc;
   border-radius: 50%;

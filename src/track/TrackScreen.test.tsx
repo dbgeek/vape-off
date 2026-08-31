@@ -35,6 +35,11 @@ function topPercent(element: HTMLElement): number {
   return Number.parseFloat(element.style.top)
 }
 
+/** Every element the timeline draws for `selector`, in the order it drew them. */
+function timelineElements(selector: string): HTMLElement[] {
+  return [...document.querySelectorAll<HTMLElement>(selector)]
+}
+
 /** The one element the timeline draws for `selector` — a readable failure if it draws none. */
 function timelineElement(selector: string): HTMLElement {
   const drawn = document.querySelectorAll<HTMLElement>(selector)
@@ -147,7 +152,7 @@ describe('Track', () => {
   })
 
   it('sizes each mark by its own count alone, and prints that count inside it', async () => {
-    const { container } = render(
+    render(
       <TrackScreen
         source={source({
           ...emptyRecord,
@@ -166,7 +171,7 @@ describe('Track', () => {
     )
 
     await screen.findByLabelText(/Puff Session, 2 puffs/)
-    const marks = [...document.querySelectorAll<HTMLElement>('.puff-mark')]
+    const marks = timelineElements('.puff-mark')
     expect(marks.map((mark) => mark.style.width)).toEqual([
       '20px',
       '28px',
@@ -180,7 +185,6 @@ describe('Track', () => {
     // The numeral is the exact value; size is only the at-a-glance channel, so
     // it is printed inside every mark including the smallest tier's.
     expect(marks.map((mark) => mark.textContent)).toEqual(['2', '3', '5', '6', '10', '11', '40'])
-    expect(container.querySelector('.timeline')).toBeInTheDocument()
   })
 
   it('draws a Puff Session the same size on a quiet day as on a heavy one', async () => {

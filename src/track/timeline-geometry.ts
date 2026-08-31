@@ -26,15 +26,20 @@ export function timelinePosition(at: Date | Instant, timeZone: string): number {
 }
 
 /**
- * The four stepped tiers a Puff Session's mark is drawn at, largest first
- * (`screens.md` § Marks, rings and slots). Each entry is the count at which the
- * tier opens, so 3 puffs step to 28px and 2 stay at 20px.
+ * The size, in pixels, of the tier a Puff Session opens in — the one every
+ * session falls back to when it clears none of the steps above.
+ */
+const SMALLEST_MARK = 20
+
+/**
+ * The steps a Puff Session's mark climbs above `SMALLEST_MARK`, largest first
+ * (`screens.md` § Marks, rings and slots). Each entry is the count at which
+ * that tier opens, so 3 puffs step to 28px and 2 stay at the smallest.
  */
 const MARK_TIERS: ReadonlyArray<{ from: number; size: number }> = [
   { from: 11, size: 44 },
   { from: 6, size: 36 },
   { from: 3, size: 28 },
-  { from: 0, size: 20 },
 ]
 
 /**
@@ -51,7 +56,7 @@ const MARK_TIERS: ReadonlyArray<{ from: number; size: number }> = [
  * it draws a one-puff session as an 8px fleck and evicts the numeral.
  */
 export function markSize(count: number): number {
-  return MARK_TIERS.find((tier) => count >= tier.from)?.size ?? 20
+  return MARK_TIERS.find((tier) => count >= tier.from)?.size ?? SMALLEST_MARK
 }
 
 /**
@@ -63,4 +68,4 @@ export function markSize(count: number): number {
  * different kind of thing by shape as well as size, and a ring sized in `rem`
  * would outgrow that mark whenever the reader scales their text up.
  */
-export const RESISTED_RING_SIZE = 14
+export const RESISTED_URGE_RING_SIZE = 14
