@@ -7,19 +7,22 @@ import type { Instant } from '../store/records.ts'
  * count, never the record.
  */
 
+const MINUTES_PER_DAY = 24 * 60
+
 /**
- * The height, as a percentage of the timeline, that an event hangs at. Now sits
- * at 50% (`screens.md` § The timeline): the lived part of the Logical Day is
- * spread across the top half and the part still ahead across the bottom half.
+ * The height, as a percentage of the timeline, that an event hangs at.
+ *
+ * One fixed mapping over the Logical Day: 04:00 at the top, 04:00 at the
+ * bottom, linear (`screens.md` § The axis). The same scale all day and the same
+ * scale every day, so equal distance is equal time on any two days.
+ *
+ * **It takes no `now`, and it must never take one again.** A position that
+ * consults the clock's current reading — or the record — rescales the day as it
+ * is lived, which is the whole of ADR 0013 and one line to undo. `now` is a line
+ * drawn on this axis; it divides nothing and sizes nothing.
  */
-export function timelinePosition(at: Date | Instant, now: Date, timeZone: string): number {
-  const eventMinute = logicalMinuteOf(at, timeZone)
-  const nowMinute = logicalMinuteOf(now, timeZone)
-  if (eventMinute <= nowMinute) {
-    return nowMinute === 0 ? 0 : (eventMinute / nowMinute) * 50
-  }
-  const futureMinutes = 24 * 60 - nowMinute
-  return 50 + ((eventMinute - nowMinute) / futureMinutes) * 50
+export function timelinePosition(at: Date | Instant, timeZone: string): number {
+  return (logicalMinuteOf(at, timeZone) / MINUTES_PER_DAY) * 100
 }
 
 /** The width and height, in pixels, of the mark a Puff Session is drawn as. */

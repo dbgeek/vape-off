@@ -30,6 +30,11 @@ function target(value: number): RatchetStep {
   }
 }
 
+/** The height an element hangs at, as the percentage the timeline positioned it by. */
+function topPercent(element: HTMLElement | null): number {
+  return Number.parseFloat(element!.style.top)
+}
+
 function source(record: DayLedgerRecord): TrackSource {
   return {
     load: vi.fn().mockResolvedValue(record),
@@ -44,7 +49,7 @@ function source(record: DayLedgerRecord): TrackSource {
 }
 
 describe('Track', () => {
-  it('shows the Logical Day with now centred, its two event forms, and fixed one-tap actions', async () => {
+  it('shows the Logical Day with now on the axis, its two event forms, and fixed one-tap actions', async () => {
     const record = {
       ...emptyRecord,
       puffSessions: [
@@ -71,7 +76,9 @@ describe('Track', () => {
     expect(await screen.findByText('9 / 24')).toBeInTheDocument()
     expect(screen.getByText('04:00', { selector: '.track-boundary-start' })).toBeInTheDocument()
     expect(screen.getByText('04:00', { selector: '.track-boundary-end' })).toBeInTheDocument()
-    expect(screen.getByText('now').parentElement).toHaveStyle({ top: '50%' })
+    // 19:02 is 15h02m into a Logical Day that opened at 04:00 — five sixths of
+    // the way down, not the middle. The line divides nothing and sizes nothing.
+    expect(topPercent(screen.getByText('now').parentElement)).toBeCloseTo(62.639, 3)
     expect(screen.getByLabelText('Puff Session, 7 puffs at 10:00')).toBeInTheDocument()
     expect(screen.getByLabelText('Resisted Urge at 14:00')).toBeInTheDocument()
     expect(screen.getByText('Open session · 2 puffs')).toHaveClass('open-session')
@@ -84,6 +91,65 @@ describe('Track', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Resisted' }))
     await waitFor(() => expect(trackSource.logResistedUrge).toHaveBeenCalledTimes(1))
+  })
+
+  it('hangs a Puff Session at the same height whatever the hour, and whatever the day', async () => {
+    async function heightOf(day: string, nowWallTime: string): Promise<number> {
+      const view = render(
+        <TrackScreen
+          source={source({
+            ...emptyRecord,
+            puffSessions: [{ ...session('fixed', `${day}T19:00:00.000Z`, 1), logicalDay: day }],
+          })}
+          clock={{ now: () => new Date(`${day}T${nowWallTime}:00.000Z`), timeZone: () => 'UTC' }}
+        />,
+      )
+      const mark = await within(view.container).findByLabelText(/Puff Session/)
+      const top = topPercent(mark)
+      view.unmount()
+      return top
+    }
+
+    // 19:00 is 15 hours into the Logical Day: 62.5% down, and it stays there.
+    expect(await heightOf('2026-08-29', '07:51')).toBeCloseTo(62.5)
+    expect(await heightOf('2026-08-29', '14:10')).toBeCloseTo(62.5)
+    expect(await heightOf('2026-08-29', '21:30')).toBeCloseTo(62.5)
+    expect(await heightOf('2026-06-14', '21:30')).toBeCloseTo(62.5)
+  })
+
+  it('puts two Puff Sessions two minutes apart a fraction of a percent apart', async () => {
+    render(
+      <TrackScreen
+        source={source({
+          ...emptyRecord,
+          puffSessions: [
+            session('first', '2026-08-29T04:01:00.000Z', 1),
+            session('second', '2026-08-29T04:03:00.000Z', 1),
+          ],
+        })}
+        clock={{ now: () => new Date('2026-08-29T08:00:00.000Z'), timeZone: () => 'UTC' }}
+      />,
+    )
+
+    const first = await screen.findByLabelText('Puff Session, 1 puff at 04:01')
+    const second = screen.getByLabelText('Puff Session, 1 puff at 04:03')
+    expect(topPercent(second) - topPercent(first)).toBeCloseTo(0.139, 3)
+  })
+
+  it('tones the live lane below the now-line, as one region starting at now', async () => {
+    const { container } = render(
+      <TrackScreen
+        source={source(emptyRecord)}
+        clock={{ now: () => new Date('2026-08-29T10:00:00.000Z'), timeZone: () => 'UTC' }}
+      />,
+    )
+
+    await screen.findByLabelText('Logical Day timeline')
+    const unlived = container.querySelector<HTMLElement>('.timeline-unlived')
+    // It starts where the now-line is and runs to the closing 04:00 — tone over
+    // the hours that have not happened, sizing and displacing nothing.
+    expect(topPercent(unlived)).toBeCloseTo(topPercent(screen.getByText('now').parentElement))
+    expect(container.querySelectorAll('.timeline-unlived')).toHaveLength(1)
   })
 
   it('shows the count alone when the view carries no Target', async () => {

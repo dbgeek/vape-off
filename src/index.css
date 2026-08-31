@@ -292,19 +292,25 @@ select:focus-visible {
   overflow: visible;
 }
 
+/* The axis runs the full box, so 0% is the opening 04:00 and 100% the closing
+ * one, genuinely at the edges. Evenly toned end to end: the old gradient's fade
+ * around the middle drew the two-band structure that no longer exists. */
 .timeline-axis {
   position: absolute;
-  top: 0.6rem;
-  bottom: 0.6rem;
-  left: 42%;
+  inset: 0 auto 0 42%;
   width: 1px;
-  background: linear-gradient(
-    to bottom,
-    color-mix(in srgb, var(--color-paper) 30%, transparent),
-    color-mix(in srgb, var(--color-paper) 10%, transparent) 46%,
-    color-mix(in srgb, var(--color-paper) 10%, transparent) 54%,
-    color-mix(in srgb, var(--color-paper) 30%, transparent)
-  );
+  background: color-mix(in srgb, var(--color-paper) 18%, transparent);
+}
+
+/* Tone, never structure: the live lane's hours below the now-line have not
+ * happened yet. It sizes nothing and displaces nothing. */
+.timeline-unlived {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: calc(42% - 0.25rem);
+  z-index: 0;
+  background: color-mix(in srgb, var(--color-ink) 55%, transparent);
 }
 
 .track-boundary-start,
@@ -337,6 +343,9 @@ select:focus-visible {
   font-variant-numeric: tabular-nums;
 }
 
+/* `now` is a line drawn on the axis — it divides nothing and sizes nothing, and
+ * it travels down the screen through the day (ADR 0013). The rule is a flex
+ * item rather than a border so it lands on the exact minute the dot marks. */
 .now-line {
   z-index: 1;
   gap: 0.55rem;
@@ -350,6 +359,13 @@ select:focus-visible {
   border-radius: 50%;
   background: var(--color-paper);
   box-shadow: 0 0 0 0.28rem color-mix(in srgb, var(--color-paper) 12%, transparent);
+  content: '';
+}
+
+.now-line::after {
+  height: 1px;
+  flex: 1;
+  background: color-mix(in srgb, var(--color-paper) 35%, transparent);
   content: '';
 }
 
