@@ -16,11 +16,11 @@ import {
   formatLogicalDayWithWeekday,
   formatWallTime,
   instantFromDateTimeInput,
-  logicalMinuteOf,
 } from '../domain/logical-day.ts'
 import { momentum } from '../domain/readouts.ts'
 import { isStandalone } from '../shell/install-state.ts'
 import type { LogicalDayKey, PuffSession, ResistedUrge } from '../store/records.ts'
+import { markSize, timelinePosition } from './timeline-geometry.ts'
 import { buildTrackView } from './track-view.ts'
 
 const emptyRecord: DayLedgerRecord = {
@@ -55,20 +55,6 @@ export interface TrackClock {
 const browserClock: TrackClock = {
   now: () => new Date(),
   timeZone: () => deviceTimeZone(),
-}
-
-function timelinePosition(at: string | Date, now: Date, timeZone: string): number {
-  const eventMinute = logicalMinuteOf(at, timeZone)
-  const nowMinute = logicalMinuteOf(now, timeZone)
-  if (eventMinute <= nowMinute) {
-    return nowMinute === 0 ? 0 : (eventMinute / nowMinute) * 50
-  }
-  const futureMinutes = 24 * 60 - nowMinute
-  return 50 + ((eventMinute - nowMinute) / futureMinutes) * 50
-}
-
-function markSize(count: number): number {
-  return Math.min(44, 12 + Math.sqrt(count) * 7)
 }
 
 function puffLabel(session: PuffSession, timeZone: string): string {
