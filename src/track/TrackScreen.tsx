@@ -28,13 +28,16 @@ import {
 import { momentum } from '../domain/readouts.ts'
 import { isStandalone } from '../shell/install-state.ts'
 import type { LogicalDayKey, PuffSession, ResistedUrge } from '../store/records.ts'
-import { laneEvents, puffLabel, urgeLabel } from './lane-events.ts'
+import { laneEvents, markPlacement, puffLabel, urgeLabel } from './lane-events.ts'
 import { fanOffsets } from './timeline-fan.ts'
 import {
   LIVE_LANE_SPINE,
+  LIVE_SPINE_VARIABLE,
   liveLaneWidth,
+  type TimelineSize,
   timelinePosition,
   YESTERDAY_LANE_SPINE,
+  YESTERDAY_SPINE_VARIABLE,
 } from './timeline-geometry.ts'
 import { buildTrackView } from './track-view.ts'
 import { YesterdayLane } from './YesterdayLane.tsx'
@@ -94,7 +97,7 @@ const REFUSAL_MESSAGES: Record<CorrectionRefusal, string> = {
  */
 function useTimelineSize() {
   const timeline = useRef<HTMLElement>(null)
-  const [size, setSize] = useState({ width: 0, height: 0 })
+  const [size, setSize] = useState<TimelineSize>({ width: 0, height: 0 })
 
   useLayoutEffect(() => {
     const element = timeline.current
@@ -478,8 +481,8 @@ export function TrackScreen({
         ref={timeline}
         style={
           {
-            '--spine': `${LIVE_LANE_SPINE}%`,
-            '--yesterday-spine': `${YESTERDAY_LANE_SPINE}%`,
+            [LIVE_SPINE_VARIABLE]: `${LIVE_LANE_SPINE}%`,
+            [YESTERDAY_SPINE_VARIABLE]: `${YESTERDAY_LANE_SPINE}%`,
           } as CSSProperties
         }
       >
@@ -527,14 +530,7 @@ export function TrackScreen({
 
         {liveEvents.map((event, index) => {
           const offset = fan[index]!
-          // A mark that collides with nothing stays on the spine, and says so by
-          // carrying no inline left at all.
-          const mark = {
-            top: `${event.top}%`,
-            left: offset === 0 ? undefined : `calc(var(--spine) + ${offset}px)`,
-            width: `${event.size}px`,
-            height: `${event.size}px`,
-          }
+          const mark = markPlacement(event, offset, LIVE_SPINE_VARIABLE)
           return (
             <Fragment key={event.key}>
               {offset > 0 ? (

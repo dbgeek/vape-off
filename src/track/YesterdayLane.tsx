@@ -1,8 +1,25 @@
 import { Fragment, useMemo } from 'react'
-import { laneEvents, puffLabel, urgeLabel } from './lane-events.ts'
+import { laneEvents, markPlacement, puffLabel, urgeLabel } from './lane-events.ts'
 import { fanOffsets } from './timeline-fan.ts'
-import { yesterdayLaneWidth } from './timeline-geometry.ts'
+import {
+  type TimelineSize,
+  yesterdayLaneWidth,
+  YESTERDAY_SPINE_VARIABLE,
+} from './timeline-geometry.ts'
 import type { YesterdayView } from './track-view.ts'
+
+/**
+ * How yesterday's marks read aloud.
+ *
+ * The lane's one dim word is what tells a sighted reader which day they are
+ * looking at; without this an assistive technology hears two indistinguishable
+ * sets of marks, because a Puff Session describes itself the same way in either
+ * lane. The `one word of text` rule governs what is *drawn*, so paying for the
+ * distinction here costs the timeline nothing.
+ */
+function inTheLane(label: string): string {
+  return `Yesterday, ${label}`
+}
 
 /**
  * The Yesterday lane: the previous Logical Day drawn whole on today's exact
@@ -28,7 +45,7 @@ export function YesterdayLane({
 }: {
   yesterday: YesterdayView
   timeZone: string
-  timelineSize: { width: number; height: number }
+  timelineSize: TimelineSize
 }) {
   const events = useMemo(
     () => laneEvents(yesterday.puffSessions, yesterday.resistedUrges, timeZone),
@@ -64,13 +81,7 @@ export function YesterdayLane({
 
       {events.map((event, index) => {
         const offset = fan[index]!
-        const mark = {
-          top: `${event.top}%`,
-          left:
-            offset === 0 ? undefined : `calc(var(--yesterday-spine) + ${offset}px)`,
-          width: `${event.size}px`,
-          height: `${event.size}px`,
-        }
+        const mark = markPlacement(event, offset, YESTERDAY_SPINE_VARIABLE)
         return (
           <Fragment key={event.key}>
             {offset > 0 ? (
@@ -85,7 +96,7 @@ export function YesterdayLane({
                 className="yesterday-mark"
                 role="img"
                 style={mark}
-                aria-label={puffLabel(event.session, timeZone)}
+                aria-label={inTheLane(puffLabel(event.session, timeZone))}
               >
                 {event.session.count}
               </span>
@@ -94,7 +105,7 @@ export function YesterdayLane({
                 className="yesterday-ring"
                 role="img"
                 style={mark}
-                aria-label={urgeLabel(event.urge, timeZone)}
+                aria-label={inTheLane(urgeLabel(event.urge, timeZone))}
               />
             )}
           </Fragment>

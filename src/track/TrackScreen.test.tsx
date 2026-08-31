@@ -717,6 +717,15 @@ describe('the Yesterday lane', () => {
     expect(morningMark!.textContent).toBe('7')
     expect(morningMark!.style.width).toBe('36px')
     expect(timelineElement('.yesterday-ring').style.width).toBe('14px')
+
+    // A Puff Session describes itself the same way in either lane, and the
+    // lane's one dim word only reaches a reader who can see it — so the marks
+    // say which day they are on where only assistive technology hears it.
+    expect(screen.getByLabelText('Yesterday, Puff Session, 7 puffs at 06:00')).toBe(morningMark)
+    expect(screen.getByLabelText('Yesterday, Resisted Urge at 14:00')).toHaveClass(
+      'yesterday-ring',
+    )
+    expect(screen.getByLabelText('Puff Session, 2 puffs at 06:00')).toHaveClass('puff-mark')
   })
 
   it('carries one word of text — `Yesterday`, and never `Today`', async () => {
@@ -754,6 +763,29 @@ describe('the Yesterday lane', () => {
     expect(head.textContent).toBe('YesterdayClear')
     expect(timelineElements('.yesterday-mark')).toHaveLength(0)
     expect(timelineElements('.yesterday-ring')).toHaveLength(0)
+  })
+
+  it('keeps both the Clear token and the rings when yesterday was fought and won', async () => {
+    // Reachable, and the four-state table does not describe it: only a Puff
+    // Session drops a Clear Day, so resisting an urge and then declaring the
+    // day Clear leaves both on the record. Drawn as both — the table's `empty`
+    // describes the ordinary Clear Day, and suppressing the rings here is the
+    // exact failure the lane draws them to avoid.
+    render(
+      <TrackScreen
+        source={source({
+          ...emptyRecord,
+          clearDays: [yesterdayClearDay()],
+          resistedUrges: [yesterdayUrge('fought', '2026-08-28T14:00:00.000Z')],
+        })}
+        clock={morning}
+      />,
+    )
+
+    await screen.findByText('Yesterday')
+    expect(screen.getByText('Clear')).toBeInTheDocument()
+    expect(timelineElements('.yesterday-ring')).toHaveLength(1)
+    expect(timelineElements('.yesterday-mark')).toHaveLength(0)
   })
 
   it('draws a day Known only by Resisted Urges as rings, not as a Clear Day', async () => {
@@ -867,7 +899,12 @@ describe('the Yesterday lane', () => {
     )
 
     await screen.findByText('Yesterday')
+    // The tone belongs to one lane and is drawn outside the other. Where it
+    // *stops* is the stylesheet's to keep — `.timeline-unlived` starts on the
+    // live spine exactly, since it paints over the Yesterday lane and any
+    // overhang would tint the top of yesterday's fan gap below `now`.
     expect(timelineElement('.yesterday-lane').querySelector('.timeline-unlived')).toBeNull()
+    expect(timelineElement('.timeline-unlived').parentElement).toHaveClass('timeline')
   })
 
   it('fans yesterday into the gap between the two spines', async () => {

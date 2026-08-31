@@ -52,6 +52,35 @@ export function liveLaneWidth(timelineWidth: number): number {
 }
 
 /**
+ * The custom properties `index.css` hangs each lane's contents on.
+ *
+ * Named here, beside the numbers they carry, because they are the same fact
+ * wearing a different hat: `TrackScreen` sets both properties from both
+ * constants above, and every fanned mark writes its column as an offset from one
+ * of them. A property name spelled out at a call site is one more place the two
+ * spines can drift apart, which is the thing this module exists to prevent.
+ */
+export const LIVE_SPINE_VARIABLE = '--spine'
+export const YESTERDAY_SPINE_VARIABLE = '--yesterday-spine'
+
+/** One lane's spine, named as the stylesheet knows it. */
+export type SpineVariable = typeof LIVE_SPINE_VARIABLE | typeof YESTERDAY_SPINE_VARIABLE
+
+/**
+ * The timeline's drawn box in px — what turns a height on the axis into a
+ * distance, and so what makes a collision decidable at all.
+ *
+ * Deliberately not `timeline-fan.ts`'s `Lane`, which carries the same two field
+ * names meaning something else: a `Lane`'s width is the room one lane has to fan
+ * into, this width is the whole timeline's. Sharing the type would let one be
+ * passed where the other is meant.
+ */
+export interface TimelineSize {
+  width: number
+  height: number
+}
+
+/**
  * The height, as a percentage of the timeline, that an event hangs at.
  *
  * One fixed mapping over the Logical Day: 04:00 at the top, 04:00 at the
