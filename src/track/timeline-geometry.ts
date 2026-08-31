@@ -70,10 +70,11 @@ export type SpineVariable = typeof LIVE_SPINE_VARIABLE | typeof YESTERDAY_SPINE_
  * The timeline's drawn box in px — what turns a height on the axis into a
  * distance, and so what makes a collision decidable at all.
  *
- * Deliberately not `timeline-fan.ts`'s `Lane`, which carries the same two field
- * names meaning something else: a `Lane`'s width is the room one lane has to fan
- * into, this width is the whole timeline's. Sharing the type would let one be
- * passed where the other is meant.
+ * Deliberately not `timeline-fan.ts`'s `FanBudget`, which carries the same two
+ * field names meaning something else: a budget's width is the room one lane has
+ * to fan into, this width is the whole timeline's. Sharing the type would let
+ * one be passed where the other is meant — which is why the two are named for
+ * what they are rather than told apart by this paragraph.
  */
 export interface TimelineSize {
   width: number

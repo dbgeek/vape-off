@@ -26,7 +26,7 @@ export interface FannedEvent {
 }
 
 /** The room a lane has to fan into, in px. */
-export interface Lane {
+export interface FanBudget {
   /** The timeline's drawn height, which is what turns a percentage into a distance. */
   height: number
   /** How far right of the spine the lane may reach before it meets the next one. */
@@ -86,9 +86,9 @@ function collisionGroups(events: readonly Placed[]): Placed[][] {
  * widest circle a column can carry is the group's widest mark, which is the
  * step less its margin.
  */
-function columnsAfforded(lane: Lane, step: number): number {
+function columnsAfforded(budget: FanBudget, step: number): number {
   const widest = step - MARK_GAP
-  return Math.max(1, Math.floor((lane.width - widest / 2) / step) + 1)
+  return Math.max(1, Math.floor((budget.width - widest / 2) / step) + 1)
 }
 
 /**
@@ -108,8 +108,8 @@ function columnsAfforded(lane: Lane, step: number): number {
  * length of the lane: an event below the head takes the spine as usual, in a
  * column the small hours left free.
  */
-function clearsHead(event: Placed, lane: Lane): boolean {
-  return event.y - event.size / 2 >= (lane.head ?? 0) + MARK_GAP
+function clearsHead(event: Placed, budget: FanBudget): boolean {
+  return event.y - event.size / 2 >= (budget.head ?? 0) + MARK_GAP
 }
 
 /**
@@ -133,11 +133,11 @@ function clearsHead(event: Placed, lane: Lane): boolean {
  * the picture; overlapping keeps it visible and reachable, and the mark is the
  * handle for correcting a mis-tap.
  */
-export function fanOffsets(events: readonly FannedEvent[], lane: Lane): number[] {
+export function fanOffsets(events: readonly FannedEvent[], budget: FanBudget): number[] {
   const inTimeOrder: Placed[] = events
     .map((event, index) => ({
       index,
-      y: (event.top / 100) * lane.height,
+      y: (event.top / 100) * budget.height,
       size: event.size,
     }))
     .sort((one, other) => one.y - other.y)
@@ -146,7 +146,7 @@ export function fanOffsets(events: readonly FannedEvent[], lane: Lane): number[]
 
   for (const group of collisionGroups(inTimeOrder)) {
     const step = Math.max(...group.map((event) => event.size)) + MARK_GAP
-    const afforded = columnsAfforded(lane, step)
+    const afforded = columnsAfforded(budget, step)
     const columns: Placed[][] = []
 
     for (const event of group) {
@@ -154,7 +154,7 @@ export function fanOffsets(events: readonly FannedEvent[], lane: Lane): number[]
       // the mark keeps the spine and the head is drawn over it — the same
       // degradation the outermost column makes, and for the same reason: a mark
       // is never drawn outside its lane.
-      const leftmostColumn = clearsHead(event, lane) ? 0 : Math.min(1, afforded - 1)
+      const leftmostColumn = clearsHead(event, budget) ? 0 : Math.min(1, afforded - 1)
       let column = columns.findIndex(
         (occupants, index) =>
           index >= leftmostColumn && occupants.every((placed) => clears(event, placed)),
