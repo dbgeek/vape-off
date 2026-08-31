@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { BackupSource, PreparedRestore } from '../backup/browser-backup-source.ts'
 import type { DayLedgerRecord } from '../domain/day-ledger.ts'
 import type { PuffSession, RatchetStep, ResistedUrge } from '../store/records.ts'
@@ -49,6 +49,21 @@ function timelineElement(selector: string): HTMLElement {
   return drawn[0]!
 }
 
+/**
+ * Give the timeline a real box, because the fan is a distance in pixels and
+ * jsdom lays nothing out. The default is the 335px-wide timeline an iPhone SE
+ * produces, at the height `screens.md` reads its *a 20px mark covers roughly 55
+ * minutes* off.
+ */
+function measureTimeline(width = 335, height = 520) {
+  vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (
+    this: Element,
+  ) {
+    const box = this.classList.contains('timeline') ? { width, height } : { width: 0, height: 0 }
+    return { ...box, top: 0, left: 0, right: box.width, bottom: box.height, x: 0, y: 0 } as DOMRect
+  })
+}
+
 function source(record: DayLedgerRecord): TrackSource {
   return {
     load: vi.fn().mockResolvedValue(record),
@@ -63,6 +78,8 @@ function source(record: DayLedgerRecord): TrackSource {
 }
 
 describe('Track', () => {
+  afterEach(() => vi.restoreAllMocks())
+
   it('shows the Logical Day with now on the axis, its two event forms, and fixed one-tap actions', async () => {
     const record = {
       ...emptyRecord,
@@ -228,6 +245,64 @@ describe('Track', () => {
     expect(ring.style.width).toBe('14px')
     expect(ring.style.height).toBe('14px')
     expect(ring.textContent).toBe('')
+  })
+
+  it('fans marks that collide sideways, each keeping its height and a spoke back to the spine', async () => {
+    measureTimeline()
+    render(
+      <TrackScreen
+        source={source({
+          ...emptyRecord,
+          puffSessions: [
+            session('ten', '2026-08-29T07:34:00.000Z', 10),
+            session('six', '2026-08-29T07:38:00.000Z', 6),
+          ],
+        })}
+        clock={{ now: () => new Date('2026-08-29T07:51:00.000Z'), timeZone: () => 'UTC' }}
+      />,
+    )
+
+    await screen.findByLabelText(/Puff Session, 10 puffs/)
+    const [ten, six] = timelineElements('.puff-mark')
+
+    // The reported blob: four minutes apart, and four minutes apart is where
+    // they stay. Nothing is displaced through time and nothing is merged.
+    expect(topPercent(six!)).toBeGreaterThan(topPercent(ten!))
+    expect(topPercent(six!) - topPercent(ten!)).toBeCloseTo(0.2778, 4)
+    // The 10 keeps the spine; the 6 steps one column right — its own 36px mark
+    // plus the 4px the step adds.
+    expect(ten!.style.left).toBe('')
+    expect(six!.style.left).toBe('calc(var(--spine) + 40px)')
+
+    const spoke = timelineElement('.fan-spoke')
+    expect(spoke.style.width).toBe('40px')
+    expect(topPercent(spoke)).toBeCloseTo(topPercent(six!))
+
+    // The column is measured from the spine, and the spine is one number: the
+    // stylesheet keeps no copy of it, so it has to arrive here for anything on
+    // the timeline to be positioned at all.
+    expect(timelineElement('.timeline').style.getPropertyValue('--spine')).toBe('42%')
+  })
+
+  it('fans a Resisted Urge ring with everything else, at its own size', async () => {
+    measureTimeline()
+    render(
+      <TrackScreen
+        source={source({
+          ...emptyRecord,
+          puffSessions: [session('mark', '2026-08-29T15:12:00.000Z', 2)],
+          resistedUrges: [resistedUrge('2026-08-29T15:12:00.000Z')],
+        })}
+        clock={{ now: () => new Date('2026-08-29T16:00:00.000Z'), timeZone: () => 'UTC' }}
+      />,
+    )
+
+    await screen.findByLabelText(/Puff Session, 2 puffs/)
+    // The ring lands on the same minute as the session, so it cannot stay on the
+    // spine — and it keeps its own 14px while stepping by the group's widest.
+    const ring = timelineElement('.resisted-mark')
+    expect(ring.style.left).toBe('calc(var(--spine) + 24px)')
+    expect(ring.style.width).toBe('14px')
   })
 
   it('tones the live lane below the now-line, as one region starting at now', async () => {

@@ -284,6 +284,10 @@ select:focus-visible {
   color: #9fe7d4;
 }
 
+/* `--spine` — where the live lane's axis stands — is set inline from
+ * `timeline-geometry.ts`. It is deliberately not defaulted here: the fan
+ * measures the lane from the same number, and a stylesheet holding its own copy
+ * is a lane that fans into the wrong width without saying so. */
 .timeline {
   position: relative;
   min-height: 12rem;
@@ -297,7 +301,7 @@ select:focus-visible {
  * around the middle drew the two-band structure that no longer exists. */
 .timeline-axis {
   position: absolute;
-  inset: 0 auto 0 42%;
+  inset: 0 auto 0 var(--spine);
   width: 1px;
   background: color-mix(in srgb, var(--color-paper) 18%, transparent);
 }
@@ -309,7 +313,7 @@ select:focus-visible {
   position: absolute;
   right: 0;
   bottom: 0;
-  left: calc(42% - 0.25rem);
+  left: calc(var(--spine) - 0.25rem);
   z-index: 0;
   background: color-mix(in srgb, var(--color-ink) 55%, transparent);
 }
@@ -317,7 +321,7 @@ select:focus-visible {
 .track-boundary-start,
 .track-boundary-end {
   position: absolute;
-  left: calc(42% - 3.7rem);
+  left: calc(var(--spine) - 3.7rem);
   color: var(--color-muted);
   font-size: 0.65rem;
   font-variant-numeric: tabular-nums;
@@ -336,7 +340,7 @@ select:focus-visible {
 .target-reached {
   position: absolute;
   right: 0;
-  left: calc(42% - 0.25rem);
+  left: calc(var(--spine) - 0.25rem);
   display: flex;
   align-items: center;
   transform: translateY(-50%);
@@ -386,14 +390,31 @@ select:focus-visible {
   white-space: nowrap;
 }
 
+/* A fanned mark carries its column as `left: calc(var(--spine) + Npx)`, set
+ * inline from the fan — so the spine is still where every mark is measured
+ * from, and a mark that collides with nothing needs no inline left at all. */
 .puff-mark,
 .resisted-mark,
 .pace-slot {
   position: absolute;
-  left: 42%;
+  left: var(--spine);
   z-index: 4;
   box-sizing: border-box;
   transform: translate(-50%, -50%);
+}
+
+/* The hairline back to the spine. A fanned mark has stepped sideways, so this
+ * is what still points at the moment it happened: it hangs at the mark's own
+ * true height, which the fan never moves (`screens.md` § When marks collide —
+ * the fan). Under the marks, and never in the way of a tap. */
+.fan-spoke {
+  position: absolute;
+  left: var(--spine);
+  z-index: 3;
+  height: 1px;
+  background: color-mix(in srgb, var(--color-paper) 22%, transparent);
+  transform: translateY(-50%);
+  pointer-events: none;
 }
 
 /* Stats keeps the same utilitarian record-book language as Track, but the

@@ -10,6 +10,17 @@ import type { Instant } from '../store/records.ts'
 const MINUTES_PER_DAY = 24 * 60
 
 /**
+ * Where the live lane's spine stands, as a percentage of the timeline's width.
+ *
+ * Here rather than in the stylesheet because two things need the same number and
+ * only one of them is CSS: `index.css` draws the axis and hangs every mark on it
+ * through `--spine`, which `TrackScreen` sets from this constant, and the fan
+ * needs it to know how much room the lane has to fan into. A second copy of the
+ * number is a lane that silently fans into the wrong width.
+ */
+export const LIVE_LANE_SPINE = 42
+
+/**
  * The height, as a percentage of the timeline, that an event hangs at.
  *
  * One fixed mapping over the Logical Day: 04:00 at the top, 04:00 at the
