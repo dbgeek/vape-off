@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { fanOffsets, type FannedEvent } from './timeline-fan.ts'
-import { markSize, RESISTED_URGE_RING_SIZE } from './timeline-geometry.ts'
+import { liveLaneWidth, markSize, RESISTED_URGE_RING_SIZE } from './timeline-geometry.ts'
 
 const MINUTES_PER_DAY = 24 * 60
 
@@ -10,69 +10,71 @@ function heightOf(wallTime: string): number {
   return (((hour! * 60 + minute! - 4 * 60 + MINUTES_PER_DAY) % MINUTES_PER_DAY) / MINUTES_PER_DAY) * 100
 }
 
-function puff(wallTime: string, count: number): FannedEvent {
+function session(wallTime: string, count: number): FannedEvent {
   return { top: heightOf(wallTime), size: markSize(count) }
 }
 
-function urge(wallTime: string): FannedEvent {
+function resistedUrge(wallTime: string): FannedEvent {
   return { top: heightOf(wallTime), size: RESISTED_URGE_RING_SIZE }
 }
 
+/** The timeline an iPhone SE produces, which is what the fan was measured on. */
+const PHONE_TIMELINE_WIDTH = 335
+
 /**
- * The lane the fan was measured against: the 335px-wide timeline an iPhone SE
- * produces, at the height `screens.md` reads its *a 20px mark covers roughly 55
- * minutes* off — 1440 minutes over 520px. The live lane owns everything right
- * of its spine at 42%.
+ * The lane the fan was measured against: that phone's timeline at the height
+ * `screens.md` reads its *a 20px mark covers roughly 55 minutes* off — 1440
+ * minutes over 520px — and whatever room the live lane has on it.
  */
-const MEASURED_LANE = { height: 520, width: 335 * 0.58 }
+const MEASURED_LANE = { height: 520, width: liveLaneWidth(PHONE_TIMELINE_WIDTH) }
 
 /** The same phone once `T5`'s floor binds, which is the tightest lane there is. */
-const FLOOR_LANE = { height: 224, width: 335 * 0.58 }
+const FLOOR_LANE = { height: 224, width: liveLaneWidth(PHONE_TIMELINE_WIDTH) }
 
 /** The reported screen: a 2, a Resisted Urge, then the `10` / `6` blob. */
 const reportedBlob: FannedEvent[] = [
-  puff('06:20', 2),
-  urge('07:05'),
-  puff('07:34', 10),
-  puff('07:38', 6),
+  session('06:20', 2),
+  resistedUrge('07:05'),
+  session('07:34', 10),
+  session('07:38', 6),
 ]
 
 /** `21:30, sixteen sessions` — no pair close in time, and the worst screen there is. */
 const sixteenSessionEvening: FannedEvent[] = [
-  puff('06:05', 1),
-  puff('07:20', 2),
-  puff('08:02', 1),
-  puff('09:15', 3),
-  puff('10:40', 1),
-  puff('11:05', 2),
-  urge('11:50'),
-  puff('12:35', 1),
-  puff('13:50', 2),
-  puff('15:10', 1),
-  puff('16:25', 4),
-  puff('17:40', 1),
-  urge('18:10'),
-  puff('18:30', 2),
-  puff('19:04', 3),
-  puff('19:55', 2),
-  puff('20:40', 5),
-  puff('21:12', 1),
+  session('06:05', 1),
+  session('07:20', 2),
+  session('08:02', 1),
+  session('09:15', 3),
+  session('10:40', 1),
+  session('11:05', 2),
+  resistedUrge('11:50'),
+  session('12:35', 1),
+  session('13:50', 2),
+  session('15:10', 1),
+  session('16:25', 4),
+  session('17:40', 1),
+  resistedUrge('18:10'),
+  session('18:30', 2),
+  session('19:04', 3),
+  session('19:55', 2),
+  session('20:40', 5),
+  session('21:12', 1),
 ]
 
 /** `21:40, a run of four in fourteen minutes` — four sessions and a ring inside one stretch. */
 const eveningRun: FannedEvent[] = [
-  puff('06:05', 1),
-  puff('08:02', 2),
-  puff('10:40', 1),
-  urge('11:50'),
-  puff('13:50', 3),
-  puff('16:25', 4),
-  puff('18:30', 2),
-  puff('20:58', 1),
-  puff('21:03', 4),
-  urge('21:05'),
-  puff('21:07', 2),
-  puff('21:12', 1),
+  session('06:05', 1),
+  session('08:02', 2),
+  session('10:40', 1),
+  resistedUrge('11:50'),
+  session('13:50', 3),
+  session('16:25', 4),
+  session('18:30', 2),
+  session('20:58', 1),
+  session('21:03', 4),
+  resistedUrge('21:05'),
+  session('21:07', 2),
+  session('21:12', 1),
 ]
 
 describe('fanOffsets', () => {
@@ -88,7 +90,7 @@ describe('fanOffsets', () => {
     expect(reportedBlob[3]!.top).toBeGreaterThan(reportedBlob[2]!.top)
   })
 
-  it('resolves a sixteen-session evening in three columns', () => {
+  it('resolves a sixteen-session evening in three columns, on the timeline it was measured on', () => {
     const offsets = fanOffsets(sixteenSessionEvening, MEASURED_LANE)
 
     // No pair here is close in time: it is the evening's scale alone that has
@@ -113,27 +115,27 @@ describe('fanOffsets', () => {
   it('colours into the leftmost free column rather than stepping every member', () => {
     // A chain of five, each touching only its neighbour: 1 and 3 do not touch,
     // so the third mark comes back to the spine instead of walking right.
-    const chain = ['20:00', '20:35', '21:10', '21:45', '22:20'].map((time) => puff(time, 1))
+    const chain = ['20:00', '20:35', '21:10', '21:45', '22:20'].map((time) => session(time, 1))
 
     expect(fanOffsets(chain, MEASURED_LANE)).toEqual([0, 24, 0, 24, 0])
   })
 
   it('leaves an event that collides with nothing on the spine', () => {
-    const sparse = [puff('08:00', 3), puff('12:00', 1), urge('16:00')]
+    const sparse = [session('08:00', 3), session('12:00', 1), resistedUrge('16:00')]
 
     expect(fanOffsets(sparse, MEASURED_LANE)).toEqual([0, 0, 0])
   })
 
   it('steps by the widest mark in that group, not by a global constant', () => {
-    const smallPair = [puff('08:00', 1), puff('08:20', 1)]
-    const largePair = [puff('08:00', 11), puff('08:20', 11)]
+    const smallPair = [session('08:00', 1), session('08:20', 1)]
+    const largePair = [session('08:00', 11), session('08:20', 11)]
 
     expect(fanOffsets(smallPair, MEASURED_LANE)[1]).toBe(markSize(1) + 4)
     expect(fanOffsets(largePair, MEASURED_LANE)[1]).toBe(markSize(11) + 4)
   })
 
   it('fans a Resisted Urge ring with everything else, at its own size', () => {
-    const ringOnMark = [puff('15:12', 2), urge('15:12')]
+    const ringOnMark = [session('15:12', 2), resistedUrge('15:12')]
 
     // Same minute, so the ring cannot stay on the spine — and the group's
     // widest is the 20px mark rather than the 14px ring.
@@ -155,7 +157,7 @@ describe('fanOffsets', () => {
   })
 
   it('gives the outermost column the remainder rather than clipping a session away', () => {
-    const clique = ['21:00', '21:03', '21:06', '21:09', '21:12'].map((time) => puff(time, 1))
+    const clique = ['21:00', '21:03', '21:06', '21:09', '21:12'].map((time) => session(time, 1))
     // Room for two columns only: 24px of step, and the second column's 20px
     // mark has to keep its whole circle inside the lane.
     const narrow = { height: MEASURED_LANE.height, width: 34 }
@@ -175,6 +177,16 @@ describe('fanOffsets', () => {
 
       expect(widest).toBeLessThanOrEqual(FLOOR_LANE.width)
     }
+  })
+
+  it('answers a shorter timeline with more columns, not with a mark it drops', () => {
+    // How many columns a day needs is a reading of its own density against the
+    // height it is drawn at — a shorter timeline packs more marks into each
+    // collision, and the fan pays for it sideways. The evening that resolves in
+    // three columns at 520px wants five once `T5`'s floor binds, and the floor
+    // is exactly the height at which those five still fit the lane.
+    expect(Math.max(...fanOffsets(sixteenSessionEvening, MEASURED_LANE))).toBe(2 * 32)
+    expect(Math.max(...fanOffsets(sixteenSessionEvening, FLOOR_LANE))).toBe(4 * 32)
   })
 
   it('places nothing when there is nothing to place', () => {

@@ -31,6 +31,7 @@ import type { LogicalDayKey, PuffSession, ResistedUrge } from '../store/records.
 import { fanOffsets, type FannedEvent } from './timeline-fan.ts'
 import {
   LIVE_LANE_SPINE,
+  liveLaneWidth,
   markSize,
   RESISTED_URGE_RING_SIZE,
   timelinePosition,
@@ -91,8 +92,10 @@ const REFUSAL_MESSAGES: Record<CorrectionRefusal, string> = {
  * the fan has to place them against each other — a ring landing on a mark is a
  * collision like any other (`screens.md` § When marks collide — the fan).
  */
-type LaneEvent = FannedEvent &
-  ({ kind: 'puff'; session: PuffSession } | { kind: 'urge'; urge: ResistedUrge })
+type LaneEvent = FannedEvent & { key: string } & (
+    | { kind: 'puff'; session: PuffSession }
+    | { kind: 'urge'; urge: ResistedUrge }
+  )
 
 /**
  * The timeline's drawn size in px, kept current as the chrome above it comes and
@@ -371,6 +374,7 @@ export function TrackScreen({
         ...view.puffSessions.map(
           (session): LaneEvent => ({
             kind: 'puff',
+            key: `puff-${session.id}`,
             session,
             top: timelinePosition(session.at, timeZone),
             size: markSize(session.count),
@@ -379,6 +383,7 @@ export function TrackScreen({
         ...view.resistedUrges.map(
           (urge): LaneEvent => ({
             kind: 'urge',
+            key: `urge-${urge.id}`,
             urge,
             top: timelinePosition(urge.at, timeZone),
             size: RESISTED_URGE_RING_SIZE,
@@ -393,10 +398,14 @@ export function TrackScreen({
    * everything right of its spine, and both lanes fan right so the reading
    * direction never changes.
    */
-  const fan = fanOffsets(laneEvents, {
-    height: timelineSize.height,
-    width: timelineSize.width * (1 - LIVE_LANE_SPINE / 100),
-  })
+  const fan = useMemo(
+    () =>
+      fanOffsets(laneEvents, {
+        height: timelineSize.height,
+        width: liveLaneWidth(timelineSize.width),
+      }),
+    [laneEvents, timelineSize],
+  )
 
   /**
    * One write at a time, in order. An operation that returns no record has
@@ -547,7 +556,7 @@ export function TrackScreen({
             height: `${event.size}px`,
           }
           return (
-            <Fragment key={`${event.kind}-${event.kind === 'puff' ? event.session.id : event.urge.id}`}>
+            <Fragment key={event.key}>
               {offset > 0 ? (
                 <span
                   className="fan-spoke"
