@@ -413,7 +413,7 @@ export function TrackScreen({
 
         {/* The hours below `now` have not happened yet, and the reader has to
           * know which content is real. Tone only: it sits behind everything and
-          * moves nothing (`screens.md` § The axis). */}
+          * moves nothing (`screens.md` § The two lanes). */}
         <div className="timeline-unlived" aria-hidden="true" style={{ top: `${nowPosition}%` }} />
 
         <div className="now-line" style={{ top: `${nowPosition}%` }}>

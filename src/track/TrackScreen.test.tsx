@@ -31,8 +31,17 @@ function target(value: number): RatchetStep {
 }
 
 /** The height an element hangs at, as the percentage the timeline positioned it by. */
-function topPercent(element: HTMLElement | null): number {
-  return Number.parseFloat(element!.style.top)
+function topPercent(element: HTMLElement): number {
+  return Number.parseFloat(element.style.top)
+}
+
+/** The one element the timeline draws for `selector` — a readable failure if it draws none. */
+function timelineElement(selector: string): HTMLElement {
+  const drawn = document.querySelectorAll<HTMLElement>(selector)
+  if (drawn.length !== 1) {
+    throw new Error(`Expected one ${selector} on the timeline, found ${drawn.length}`)
+  }
+  return drawn[0]!
 }
 
 function source(record: DayLedgerRecord): TrackSource {
@@ -76,9 +85,10 @@ describe('Track', () => {
     expect(await screen.findByText('9 / 24')).toBeInTheDocument()
     expect(screen.getByText('04:00', { selector: '.track-boundary-start' })).toBeInTheDocument()
     expect(screen.getByText('04:00', { selector: '.track-boundary-end' })).toBeInTheDocument()
-    // 19:02 is 15h02m into a Logical Day that opened at 04:00 — five sixths of
+    // 19:02 is 15h02m into a Logical Day that opened at 04:00 — five eighths of
     // the way down, not the middle. The line divides nothing and sizes nothing.
-    expect(topPercent(screen.getByText('now').parentElement)).toBeCloseTo(62.639, 3)
+    expect(screen.getByText('now')).toBeInTheDocument()
+    expect(topPercent(timelineElement('.now-line'))).toBeCloseTo(62.639, 3)
     expect(screen.getByLabelText('Puff Session, 7 puffs at 10:00')).toBeInTheDocument()
     expect(screen.getByLabelText('Resisted Urge at 14:00')).toBeInTheDocument()
     expect(screen.getByText('Open session · 2 puffs')).toHaveClass('open-session')
@@ -93,15 +103,15 @@ describe('Track', () => {
     await waitFor(() => expect(trackSource.logResistedUrge).toHaveBeenCalledTimes(1))
   })
 
-  it('hangs a Puff Session at the same height whatever the hour, and whatever the day', async () => {
-    async function heightOf(day: string, nowWallTime: string): Promise<number> {
+  it('hangs a Puff Session at the same height whatever the hour, and whatever the Logical Day', async () => {
+    async function heightOf(logicalDay: string, nowWallTime: string): Promise<number> {
       const view = render(
         <TrackScreen
           source={source({
             ...emptyRecord,
-            puffSessions: [{ ...session('fixed', `${day}T19:00:00.000Z`, 1), logicalDay: day }],
+            puffSessions: [{ ...session('fixed', `${logicalDay}T19:00:00.000Z`, 1), logicalDay }],
           })}
-          clock={{ now: () => new Date(`${day}T${nowWallTime}:00.000Z`), timeZone: () => 'UTC' }}
+          clock={{ now: () => new Date(`${logicalDay}T${nowWallTime}:00.000Z`), timeZone: () => 'UTC' }}
         />,
       )
       const mark = await within(view.container).findByLabelText(/Puff Session/)
@@ -145,11 +155,13 @@ describe('Track', () => {
     )
 
     await screen.findByLabelText('Logical Day timeline')
-    const unlived = container.querySelector<HTMLElement>('.timeline-unlived')
-    // It starts where the now-line is and runs to the closing 04:00 — tone over
-    // the hours that have not happened, sizing and displacing nothing.
-    expect(topPercent(unlived)).toBeCloseTo(topPercent(screen.getByText('now').parentElement))
-    expect(container.querySelectorAll('.timeline-unlived')).toHaveLength(1)
+    // One region, starting where the now-line is and running to the closing
+    // 04:00 — tone over the hours that have not happened, sizing and
+    // displacing nothing.
+    expect(topPercent(timelineElement('.timeline-unlived'))).toBeCloseTo(
+      topPercent(timelineElement('.now-line')),
+    )
+    expect(container.querySelector('.timeline-unlived')).toHaveAttribute('aria-hidden', 'true')
   })
 
   it('shows the count alone when the view carries no Target', async () => {

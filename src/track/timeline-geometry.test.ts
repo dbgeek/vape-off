@@ -3,10 +3,13 @@ import { markSize, timelinePosition } from './timeline-geometry.ts'
 
 const STOCKHOLM = 'Europe/Stockholm'
 
-/** A wall time, `HH:MM` or `HH:MM:SS`, on a summer day Stockholm spends at +02:00. */
-function at(wallTime: string, day = '2026-08-29'): Date {
+/**
+ * A wall time, `HH:MM` or `HH:MM:SS`, read on `onDate` — a summer date Stockholm
+ * spends at +02:00, so the offset is the same whichever of them is used.
+ */
+function at(wallTime: string, onDate = '2026-08-29'): Date {
   const [hour, minute, second = '00'] = wallTime.split(':')
-  return new Date(`${day}T${hour}:${minute}:${second}.000+02:00`)
+  return new Date(`${onDate}T${hour}:${minute}:${second}.000+02:00`)
 }
 
 describe('timelinePosition', () => {
@@ -25,19 +28,20 @@ describe('timelinePosition', () => {
     expect(timelinePosition(at('22:00'), STOCKHOLM)).toBeCloseTo(75)
   })
 
-  it('keeps two minutes two minutes apart at the top of the day', () => {
-    // The two-band mapping put these 40% apart. One minute is 1/1440 of the day.
+  it('keeps two minutes two minutes apart at the top of the Logical Day', () => {
+    // The two-band mapping put these 40% apart. One minute is 1/1440 of the
+    // Logical Day.
     const gap = timelinePosition(at('04:03'), STOCKHOLM) - timelinePosition(at('04:01'), STOCKHOLM)
     expect(gap).toBeCloseTo(0.1389, 4)
   })
 
-  it('draws the same wall time at the same height on any two days', () => {
+  it('draws the same wall time at the same height on any two Logical Days', () => {
     expect(timelinePosition(at('19:00', '2026-08-29'), STOCKHOLM)).toBe(
       timelinePosition(at('19:00', '2026-06-14'), STOCKHOLM),
     )
   })
 
-  it('puts the small hours near the bottom, inside the day that began yesterday', () => {
+  it('puts the small hours near the bottom, inside the Logical Day that began yesterday', () => {
     expect(timelinePosition(at('01:00'), STOCKHOLM)).toBeCloseTo(87.5)
   })
 

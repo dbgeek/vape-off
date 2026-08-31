@@ -303,7 +303,8 @@ select:focus-visible {
 }
 
 /* Tone, never structure: the live lane's hours below the now-line have not
- * happened yet. It sizes nothing and displaces nothing. */
+ * happened yet (`screens.md` § The two lanes). It sizes nothing and displaces
+ * nothing. */
 .timeline-unlived {
   position: absolute;
   right: 0;
