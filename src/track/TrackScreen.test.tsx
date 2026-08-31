@@ -35,6 +35,11 @@ function topPercent(element: HTMLElement): number {
   return Number.parseFloat(element.style.top)
 }
 
+/** Every element the timeline draws for `selector`, in the order it drew them. */
+function timelineElements(selector: string): HTMLElement[] {
+  return [...document.querySelectorAll<HTMLElement>(selector)]
+}
+
 /** The one element the timeline draws for `selector` — a readable failure if it draws none. */
 function timelineElement(selector: string): HTMLElement {
   const drawn = document.querySelectorAll<HTMLElement>(selector)
@@ -144,6 +149,85 @@ describe('Track', () => {
     const first = await screen.findByLabelText('Puff Session, 1 puff at 04:01')
     const second = screen.getByLabelText('Puff Session, 1 puff at 04:03')
     expect(topPercent(second) - topPercent(first)).toBeCloseTo(0.139, 3)
+  })
+
+  it('sizes each mark by its own count alone, and prints that count inside it', async () => {
+    render(
+      <TrackScreen
+        source={source({
+          ...emptyRecord,
+          puffSessions: [
+            session('two', '2026-08-29T06:00:00.000Z', 2),
+            session('three', '2026-08-29T08:00:00.000Z', 3),
+            session('five', '2026-08-29T10:00:00.000Z', 5),
+            session('six', '2026-08-29T12:00:00.000Z', 6),
+            session('ten', '2026-08-29T14:00:00.000Z', 10),
+            session('eleven', '2026-08-29T16:00:00.000Z', 11),
+            session('forty', '2026-08-29T18:00:00.000Z', 40),
+          ],
+        })}
+        clock={{ now: () => new Date('2026-08-29T20:00:00.000Z'), timeZone: () => 'UTC' }}
+      />,
+    )
+
+    await screen.findByLabelText(/Puff Session, 2 puffs/)
+    const marks = timelineElements('.puff-mark')
+    expect(marks.map((mark) => mark.style.width)).toEqual([
+      '20px',
+      '28px',
+      '28px',
+      '36px',
+      '36px',
+      '44px',
+      '44px',
+    ])
+    expect(marks.map((mark) => mark.style.height)).toEqual(marks.map((mark) => mark.style.width))
+    // The numeral is the exact value; size is only the at-a-glance channel, so
+    // it is printed inside every mark including the smallest tier's.
+    expect(marks.map((mark) => mark.textContent)).toEqual(['2', '3', '5', '6', '10', '11', '40'])
+  })
+
+  it('draws a Puff Session the same size on a quiet day as on a heavy one', async () => {
+    async function widthOfThreePuffMark(...counts: number[]): Promise<string> {
+      const view = render(
+        <TrackScreen
+          source={source({
+            ...emptyRecord,
+            puffSessions: counts.map((count, index) =>
+              session(`session-${index}`, `2026-08-29T0${index + 6}:00:00.000Z`, count),
+            ),
+          })}
+          clock={{ now: () => new Date('2026-08-29T20:00:00.000Z'), timeZone: () => 'UTC' }}
+        />,
+      )
+      const mark = await within(view.container).findByLabelText(/Puff Session, 3 puffs/)
+      const width = mark.style.width
+      view.unmount()
+      return width
+    }
+
+    // The day's largest is 3, and then 40. Improving cannot inflate your own marks.
+    expect(await widthOfThreePuffMark(3)).toBe('28px')
+    expect(await widthOfThreePuffMark(3, 40)).toBe('28px')
+  })
+
+  it('fixes the Resisted Urge ring at 14px, carrying no numeral', async () => {
+    render(
+      <TrackScreen
+        source={source({
+          ...emptyRecord,
+          puffSessions: [session('one', '2026-08-29T06:00:00.000Z', 1)],
+          resistedUrges: [resistedUrge('2026-08-29T14:00:00.000Z')],
+        })}
+        clock={{ now: () => new Date('2026-08-29T20:00:00.000Z'), timeZone: () => 'UTC' }}
+      />,
+    )
+
+    await screen.findByLabelText(/Puff Session/)
+    const ring = timelineElement('.resisted-mark')
+    expect(ring.style.width).toBe('14px')
+    expect(ring.style.height).toBe('14px')
+    expect(ring.textContent).toBe('')
   })
 
   it('tones the live lane below the now-line, as one region starting at now', async () => {
