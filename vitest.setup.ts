@@ -14,3 +14,15 @@ if (!window.matchMedia) {
     dispatchEvent: () => false,
   })) as typeof window.matchMedia
 }
+
+// jsdom does not implement ResizeObserver either, and it does not lay anything
+// out, so nothing it draws ever changes size. Track watches the timeline's box
+// because the fan needs real pixels; under jsdom the honest answer is that the
+// box never resizes, and the one direct measurement it takes reports zero.
+if (!window.ResizeObserver) {
+  window.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  } as unknown as typeof window.ResizeObserver
+}

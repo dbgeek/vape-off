@@ -1,4 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import {
+  Fragment,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from 'react'
 import {
   browserBackupSource,
   type BackupSource,
@@ -20,7 +28,14 @@ import {
 import { momentum } from '../domain/readouts.ts'
 import { isStandalone } from '../shell/install-state.ts'
 import type { LogicalDayKey, PuffSession, ResistedUrge } from '../store/records.ts'
-import { markSize, RESISTED_URGE_RING_SIZE, timelinePosition } from './timeline-geometry.ts'
+import { fanOffsets, type FannedEvent } from './timeline-fan.ts'
+import {
+  LIVE_LANE_SPINE,
+  liveLaneWidth,
+  markSize,
+  RESISTED_URGE_RING_SIZE,
+  timelinePosition,
+} from './timeline-geometry.ts'
 import { buildTrackView } from './track-view.ts'
 
 const emptyRecord: DayLedgerRecord = {
@@ -69,6 +84,51 @@ function dateAtNoon(logicalDay: LogicalDayKey): Date {
 const REFUSAL_MESSAGES: Record<CorrectionRefusal, string> = {
   'count-below-one': 'Enter a whole puff count of at least 1.',
   'in-the-future': 'Choose a time that has already happened.',
+}
+
+/**
+ * One thing the live lane has to draw. Puff Sessions and Resisted Urges arrive
+ * in separate lists and are drawn as different shapes, but they share a lane, so
+ * the fan has to place them against each other — a ring landing on a mark is a
+ * collision like any other (`screens.md` § When marks collide — the fan).
+ */
+type LaneEvent = FannedEvent & { key: string } & (
+    | { kind: 'puff'; session: PuffSession }
+    | { kind: 'urge'; urge: ResistedUrge }
+  )
+
+/**
+ * The timeline's drawn size in px, kept current as the chrome above it comes and
+ * goes.
+ *
+ * The one place the timeline's layout consults the DOM, and it consults it for
+ * size alone. A collision is two circles touching, which is a distance in
+ * pixels; a percentage cannot answer it. Before the first measurement the size
+ * is zero, which the fan reads as a lane with room for one column — every mark
+ * on the spine, which is the honest drawing of *not measured yet*.
+ */
+function useTimelineSize() {
+  const timeline = useRef<HTMLElement>(null)
+  const [size, setSize] = useState({ width: 0, height: 0 })
+
+  useLayoutEffect(() => {
+    const element = timeline.current
+    if (element === null) return
+
+    const measure = () => {
+      const { width, height } = element.getBoundingClientRect()
+      setSize((current) =>
+        current.width === width && current.height === height ? current : { width, height },
+      )
+    }
+
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [])
+
+  return [timeline, size] as const
 }
 
 type EditorState =
@@ -306,6 +366,47 @@ export function TrackScreen({
    */
   const nowPosition = timelinePosition(now, timeZone)
 
+  const [timeline, timelineSize] = useTimelineSize()
+
+  const laneEvents: LaneEvent[] = useMemo(
+    () =>
+      [
+        ...view.puffSessions.map(
+          (session): LaneEvent => ({
+            kind: 'puff',
+            key: `puff-${session.id}`,
+            session,
+            top: timelinePosition(session.at, timeZone),
+            size: markSize(session.count),
+          }),
+        ),
+        ...view.resistedUrges.map(
+          (urge): LaneEvent => ({
+            kind: 'urge',
+            key: `urge-${urge.id}`,
+            urge,
+            top: timelinePosition(urge.at, timeZone),
+            size: RESISTED_URGE_RING_SIZE,
+          }),
+        ),
+      ].sort((one, other) => one.top - other.top),
+    [view.puffSessions, view.resistedUrges, timeZone],
+  )
+
+  /**
+   * How far right of the spine each event is drawn. The live lane owns
+   * everything right of its spine, and both lanes fan right so the reading
+   * direction never changes.
+   */
+  const fan = useMemo(
+    () =>
+      fanOffsets(laneEvents, {
+        height: timelineSize.height,
+        width: liveLaneWidth(timelineSize.width),
+      }),
+    [laneEvents, timelineSize],
+  )
+
   /**
    * One write at a time, in order. An operation that returns no record has
    * already said so for itself — nothing to set, and not a failure.
@@ -406,7 +507,12 @@ export function TrackScreen({
         </section>
       ) : null}
 
-      <section className="timeline" aria-label="Logical Day timeline">
+      <section
+        className="timeline"
+        aria-label="Logical Day timeline"
+        ref={timeline}
+        style={{ '--spine': `${LIVE_LANE_SPINE}%` } as CSSProperties}
+      >
         <span className="track-boundary-start">04:00</span>
         <div className="timeline-axis" aria-hidden="true" />
         <span className="track-boundary-end">04:00</span>
@@ -439,40 +545,47 @@ export function TrackScreen({
           </div>
         ) : null}
 
-        {view.puffSessions.map((session) => {
-          const size = markSize(session.count)
+        {laneEvents.map((event, index) => {
+          const offset = fan[index]!
+          // A mark that collides with nothing stays on the spine, and says so by
+          // carrying no inline left at all.
+          const mark = {
+            top: `${event.top}%`,
+            left: offset === 0 ? undefined : `calc(var(--spine) + ${offset}px)`,
+            width: `${event.size}px`,
+            height: `${event.size}px`,
+          }
           return (
-            <button
-              type="button"
-              key={session.id}
-              className={`puff-mark${view.overTargetSessionIds.has(session.id) ? ' over-target' : ''}${view.openSession?.id === session.id ? ' open-mark' : ''}`}
-              style={{
-                top: `${timelinePosition(session.at, timeZone)}%`,
-                width: `${size}px`,
-                height: `${size}px`,
-              }}
-              aria-label={puffLabel(session, timeZone)}
-              onClick={() => setEditor({ kind: 'puff', session })}
-            >
-              {session.count}
-            </button>
+            <Fragment key={event.key}>
+              {offset > 0 ? (
+                <span
+                  className="fan-spoke"
+                  aria-hidden="true"
+                  style={{ top: `${event.top}%`, width: `${offset}px` }}
+                />
+              ) : null}
+              {event.kind === 'puff' ? (
+                <button
+                  type="button"
+                  className={`puff-mark${view.overTargetSessionIds.has(event.session.id) ? ' over-target' : ''}${view.openSession?.id === event.session.id ? ' open-mark' : ''}`}
+                  style={mark}
+                  aria-label={puffLabel(event.session, timeZone)}
+                  onClick={() => setEditor({ kind: 'puff', session: event.session })}
+                >
+                  {event.session.count}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="resisted-mark"
+                  style={mark}
+                  aria-label={`Resisted Urge at ${formatWallTime(event.urge.at, timeZone)}`}
+                  onClick={() => setEditor({ kind: 'urge', urge: event.urge })}
+                />
+              )}
+            </Fragment>
           )
         })}
-
-        {view.resistedUrges.map((urge) => (
-          <button
-            type="button"
-            key={urge.id}
-            className="resisted-mark"
-            style={{
-              top: `${timelinePosition(urge.at, timeZone)}%`,
-              width: `${RESISTED_URGE_RING_SIZE}px`,
-              height: `${RESISTED_URGE_RING_SIZE}px`,
-            }}
-            aria-label={`Resisted Urge at ${formatWallTime(urge.at, timeZone)}`}
-            onClick={() => setEditor({ kind: 'urge', urge })}
-          />
-        ))}
       </section>
 
       <div className="track-offers">

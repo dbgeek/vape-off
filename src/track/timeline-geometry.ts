@@ -10,6 +10,37 @@ import type { Instant } from '../store/records.ts'
 const MINUTES_PER_DAY = 24 * 60
 
 /**
+ * Where the live lane's spine stands, as a percentage of the timeline's width.
+ *
+ * Here rather than in the stylesheet because two things need the same number and
+ * only one of them is CSS: `index.css` draws the axis and hangs every mark on it
+ * through `--spine`, which `TrackScreen` sets from this constant, and the fan
+ * needs it to know how much room the lane has to fan into. A second copy of the
+ * number is a lane that silently fans into the wrong width.
+ *
+ * **42, not the 46 `screens.md` § The two lanes tabulates.** That table
+ * describes the timeline once the Yesterday lane exists beside this one; the
+ * live lane moves to 46% to open the gap yesterday fans into, and that move is
+ * the Yesterday lane's to make when it arrives. Until then there is one lane, it
+ * owns everything right of its spine, and moving it early would shift today's
+ * axis for a neighbour that is not there yet.
+ */
+export const LIVE_LANE_SPINE = 42
+
+/**
+ * How much room the live lane has to fan into, in px, on a timeline this wide.
+ *
+ * The lane owns everything right of its spine — there is no second lane yet to
+ * reach — so this is the whole of the fan's budget. Derived here rather than at
+ * the call sites for the same reason the spine is a constant: the width and the
+ * spine are the same fact, and the moment they are computed separately they can
+ * disagree.
+ */
+export function liveLaneWidth(timelineWidth: number): number {
+  return timelineWidth * (1 - LIVE_LANE_SPINE / 100)
+}
+
+/**
  * The height, as a percentage of the timeline, that an event hangs at.
  *
  * One fixed mapping over the Logical Day: 04:00 at the top, 04:00 at the
