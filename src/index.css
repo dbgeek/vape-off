@@ -850,7 +850,10 @@ select:focus-visible {
   border-radius: 42% 58% 55% 45%;
   background: var(--color-paper);
   color: var(--color-ink);
-  font-size: 0.65rem;
+  /* The numeral is printed inside every mark, so it has to stay legible at the
+   * smallest tier: 20px less two 2px borders leaves 16px for it. */
+  font-size: 0.72rem;
+  line-height: 1;
   font-weight: 700;
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-paper) 25%, transparent);
   cursor: pointer;
@@ -866,9 +869,10 @@ select:focus-visible {
   animation: session-pulse 1.6s ease-in-out infinite;
 }
 
+/* Hollow, and carrying no numeral. Its 14px diameter is set inline from
+ * `timeline-geometry.ts`, where it is read against the mark tiers it has to
+ * stay smaller than. */
 .resisted-mark {
-  width: 0.9rem;
-  height: 0.9rem;
   border: 2px solid #74d6bc;
   border-radius: 50%;
   background: var(--color-ink);

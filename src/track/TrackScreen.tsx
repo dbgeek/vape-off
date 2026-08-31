@@ -20,7 +20,7 @@ import {
 import { momentum } from '../domain/readouts.ts'
 import { isStandalone } from '../shell/install-state.ts'
 import type { LogicalDayKey, PuffSession, ResistedUrge } from '../store/records.ts'
-import { markSize, timelinePosition } from './timeline-geometry.ts'
+import { markSize, RESISTED_RING_SIZE, timelinePosition } from './timeline-geometry.ts'
 import { buildTrackView } from './track-view.ts'
 
 const emptyRecord: DayLedgerRecord = {
@@ -464,7 +464,11 @@ export function TrackScreen({
             type="button"
             key={urge.id}
             className="resisted-mark"
-            style={{ top: `${timelinePosition(urge.at, timeZone)}%` }}
+            style={{
+              top: `${timelinePosition(urge.at, timeZone)}%`,
+              width: `${RESISTED_RING_SIZE}px`,
+              height: `${RESISTED_RING_SIZE}px`,
+            }}
             aria-label={`Resisted Urge at ${formatWallTime(urge.at, timeZone)}`}
             onClick={() => setEditor({ kind: 'urge', urge })}
           />

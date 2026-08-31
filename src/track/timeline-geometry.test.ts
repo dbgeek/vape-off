@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { markSize, timelinePosition } from './timeline-geometry.ts'
+import { markSize, RESISTED_RING_SIZE, timelinePosition } from './timeline-geometry.ts'
 
 const STOCKHOLM = 'Europe/Stockholm'
 
@@ -60,22 +60,39 @@ describe('timelinePosition', () => {
 })
 
 describe('markSize', () => {
-  it('grows with the square root of the count', () => {
-    expect(markSize(1)).toBe(19)
-    expect(markSize(4)).toBe(26)
-    expect(markSize(9)).toBe(33)
+  it('draws each of the four tiers at its own size', () => {
+    expect(markSize(1)).toBe(20)
+    expect(markSize(4)).toBe(28)
+    expect(markSize(8)).toBe(36)
+    expect(markSize(20)).toBe(44)
   })
 
-  it('starts from a floor a countless mark would still be drawn at', () => {
-    expect(markSize(0)).toBe(12)
+  it('steps at the exact boundaries', () => {
+    expect(markSize(2)).toBe(20)
+    expect(markSize(3)).toBe(28)
+    expect(markSize(5)).toBe(28)
+    expect(markSize(6)).toBe(36)
+    expect(markSize(10)).toBe(36)
+    expect(markSize(11)).toBe(44)
   })
 
-  it('is still growing just short of the cap', () => {
-    expect(markSize(20)).toBeCloseTo(43.305, 3)
+  it('makes a 2-puff and a 3-puff session visibly different marks', () => {
+    expect(markSize(3) - markSize(2)).toBe(8)
   })
 
-  it('stops growing at 44px', () => {
-    expect(markSize(21)).toBe(44)
-    expect(markSize(100)).toBe(44)
+  it('stops at the top tier, however heavy the session', () => {
+    expect(markSize(40)).toBe(44)
+    expect(markSize(400)).toBe(44)
+  })
+
+  it('draws a countless mark at the smallest tier rather than at nothing', () => {
+    expect(markSize(0)).toBe(20)
+  })
+})
+
+describe('RESISTED_RING_SIZE', () => {
+  it('is fixed, and smaller than the smallest mark it has to be told apart from', () => {
+    expect(RESISTED_RING_SIZE).toBe(14)
+    expect(RESISTED_RING_SIZE).toBeLessThan(markSize(1))
   })
 })
