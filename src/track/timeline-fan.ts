@@ -21,7 +21,19 @@
 export interface FannedEvent {
   /** Its height as a percentage of the timeline — `timelinePosition`'s answer. */
   top: number
-  /** Its drawn diameter in px: `markSize` for a Puff Session, the ring for a Resisted Urge. */
+  /**
+   * Its **box** in px — `markSize` for a Puff Session, the ring for a Resisted
+   * Urge — and never its drawn extent.
+   *
+   * The two were the same number until the Kicked halo, which is drawn
+   * `MARK_GAP` outside the box on every side and which the fan is deliberately
+   * not taught (`screens.md` § When marks collide — the fan). This field is
+   * where the wrong number would be passed: a drawn extent here teaches the fan
+   * the halo by the back door, which at the timeline's floor pushes the live
+   * lane into the marks-overlap degradation it never reaches today, merges two
+   * collision groups into a chain of twelve, and moves 14 of 18 marks sideways
+   * — one of them by 128px — under the thumb that is marking one of them.
+   */
   size: number
 }
 
@@ -43,8 +55,14 @@ export interface FanBudget {
  * The breathing room between two marks sharing a column, and the margin the
  * column step adds to the group's widest mark. One number for both because they
  * are the same question asked on the two axes: how close is touching.
+ *
+ * Exported for one reader, and it is a **reader**: the Kicked halo's band is
+ * exactly this, which is what makes a halo abut an unkicked neighbour instead
+ * of covering it, and what makes two Kicked neighbours share one band and read
+ * as a single merged ring. The stylesheet is checked against this number so the
+ * two cannot drift apart. Nothing adds the halo *to* it.
  */
-const MARK_GAP = 4
+export const MARK_GAP = 4
 
 /** An event with its height resolved to pixels, which is where collision is decided. */
 interface Placed {

@@ -1,5 +1,5 @@
 import { Lane, YESTERDAY_LANE } from './Lane.tsx'
-import { puffLabel, urgeLabel } from './lane-events.ts'
+import { kickedClass, puffLabel, urgeLabel } from './lane-events.ts'
 import { useMeasuredBox } from './measured-box.ts'
 import { type TimelineSize } from './timeline-geometry.ts'
 import type { YesterdayView } from './track-view.ts'
@@ -80,7 +80,7 @@ export function YesterdayLane({
         renderMark={(event, mark) =>
           event.kind === 'puff' ? (
             <span
-              className="yesterday-mark"
+              className={`yesterday-mark${kickedClass(event.session)}`}
               role="img"
               style={mark}
               aria-label={inTheLane(puffLabel(event.session, timeZone))}

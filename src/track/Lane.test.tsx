@@ -63,6 +63,11 @@ function session(id: string, wallTime: string, count: number): PuffSession {
   }
 }
 
+/** The same session, marked as having delivered a Kick. */
+function kicked(session: PuffSession): PuffSession {
+  return { ...session, kickMarkedAt: `${session.at.slice(0, 11)}23:00:00.000Z` }
+}
+
 function urge(id: string, wallTime: string): ResistedUrge {
   return { id, at: `2026-08-29T${wallTime}:00.000Z`, logicalDay: '2026-08-29', tz: 'UTC' }
 }
@@ -165,6 +170,32 @@ describe('Lane', () => {
     drawLane(YESTERDAY_LANE, [session('dawn', '05:00', 1)])
 
     expect(marks()[0]!.style.left).toBe('')
+  })
+
+  it('places a Kicked mark exactly where it placed the unkicked one', () => {
+    // **Marking a mark moves no mark.** The halo is drawn outside the box and
+    // the fan is never taught it (`screens.md` § When marks collide — the fan):
+    // teaching it would tip this very run, because the column step is the
+    // group's widest mark. A day where every mark has to move to answer a
+    // collision, drawn twice.
+    const day = [
+      session('dawn', '05:00', 1),
+      session('ten', '07:34', 10),
+      session('six', '07:38', 6),
+      session('evening', '20:58', 1),
+      session('four', '21:03', 4),
+      session('two', '21:07', 2),
+    ]
+    const placements = () =>
+      marks().map(({ style }) => [style.top, style.left, style.width, style.height])
+
+    drawLane(LIVE_LANE, day, [urge('ring', '21:05')])
+    const unkicked = placements()
+    document.body.replaceChildren()
+    drawLane(LIVE_LANE, day.map(kicked), [urge('ring', '21:05')])
+
+    expect(placements()).toEqual(unkicked)
+    expect(unkicked.some(([, left]) => left !== '')).toBe(true)
   })
 
   it('draws only what the caller returns, inventing no handle of its own', () => {
