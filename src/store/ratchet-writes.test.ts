@@ -173,4 +173,25 @@ describe('Ratchet writes', () => {
     await expect(declare(db, environmentAt(at))).rejects.toThrow(message)
     await expect(db.ratchetSteps.count()).resolves.toBe(1)
   })
+
+  it('decides the same Step whether or not the Puff Sessions are Kicked', async () => {
+    const plain = databaseForTest()
+    const kicked = databaseForTest()
+    await withBaseline(plain)
+    await withBaseline(kicked)
+    // The Kick touches no mechanism, so the Ratchet has to be blind to it.
+    await kicked.puffSessions.toCollection().modify((session) => {
+      session.kickMarkedAt = `${session.logicalDay}T12:05:00.000+02:00`
+    })
+    const environment = environmentAt('2026-08-29T10:00:00.000+02:00', () => 'decided-step')
+
+    const plainResult = await evaluate(plain, environment)
+    const kickedResult = await evaluate(kicked, environment)
+
+    expect(plainResult.status).toBe('step-written')
+    expect(kickedResult).toEqual(plainResult)
+    await expect(kicked.ratchetSteps.toArray()).resolves.toEqual(
+      await plain.ratchetSteps.toArray(),
+    )
+  })
 })

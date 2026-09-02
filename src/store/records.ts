@@ -11,6 +11,13 @@ export interface PuffSession extends EventStamp {
   id: string
   lastTapAt: Instant
   count: number
+  /**
+   * The Kick, whole: presence is the mark and absence is Unknown, so there is no
+   * `false` to hold — the app never asks whether a sitting delivered *nothing*
+   * (ADR 0015). The instant is when you *said* so, which is minutes after the
+   * Kick landed and is not derivable later.
+   */
+  kickMarkedAt?: Instant
 }
 
 export interface ResistedUrge extends EventStamp {

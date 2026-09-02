@@ -5,11 +5,13 @@ import type { ClearDay, PuffSession, ResistedUrge } from './records.ts'
 import type { WriteEnvironment } from './session.ts'
 
 /**
- * The live taps: what the Track screen writes in the moment.
+ * The live writes: what the Track screen puts in the record directly.
  *
  * Distinct from a Correction, which changes what the record already says and is
- * written in `correction-writes.ts`. A tap is neither deliberate about the past
- * nor reversible by naming it, so nothing here is proposed before it is made.
+ * written in `correction-writes.ts`. Nothing here is proposed before it is made,
+ * because none of it is deliberate about the past: a tap is a thing happening
+ * now, and declaring a Clear Day or marking a Kick fills a silence the record
+ * was keeping rather than changing an answer it already gave.
  */
 
 export async function logPuff(
@@ -56,6 +58,38 @@ export async function logResistedUrge(
   }
   await db.resistedUrges.add(record)
   return record
+}
+
+/**
+ * Marking a Kick, and taking it back — one toggle, and a live write.
+ *
+ * Presence of `kickMarkedAt` is the mark, so un-marking deletes the property
+ * rather than writing a `false`: the app never asks whether a sitting delivered
+ * *nothing*, so it has no such answer to store (ADR 0015).
+ *
+ * Not a Correction. Marking fills the record's silence about what a sitting gave
+ * you rather than changing what the record says happened, which is the exemption
+ * `Clear Day` already has — so nothing is proposed, nothing is named, and no
+ * derived figure moves. It leaves `lastTapAt` alone, which is what keeps it from
+ * closing or extending the Merge Window: that window is keyed to taps.
+ */
+export async function toggleKick(
+  db: VapeOffDatabase,
+  id: string,
+  at: Date,
+  environment: WriteEnvironment,
+): Promise<PuffSession | undefined> {
+  return db.transaction('rw', db.puffSessions, async () => {
+    const session = await db.puffSessions.get(id)
+    if (!session) return undefined
+
+    const { kickMarkedAt, ...unmarked } = session
+    const toggled: PuffSession = kickMarkedAt === undefined
+      ? { ...session, kickMarkedAt: instantOf(at, environment.timeZone()) }
+      : unmarked
+    await db.puffSessions.put(toggled)
+    return toggled
+  })
 }
 
 /**

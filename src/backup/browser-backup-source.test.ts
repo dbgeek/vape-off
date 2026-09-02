@@ -277,4 +277,51 @@ describe('browser Backup source', () => {
     await expect(db.clearDays.toArray()).resolves.toEqual(candidate.record.clearDays)
     await expect(getMeta(db, 'installId')).resolves.toBe('new-install')
   })
+
+  it('carries a Kick out through the export read and back in through the restore write', async () => {
+    const kickedSession = {
+      id: 'a-kicked-sitting',
+      at: '2026-08-28T12:00:00.000+00:00',
+      lastTapAt: '2026-08-28T12:02:00.000+00:00',
+      count: 3,
+      logicalDay: '2026-08-28',
+      tz: 'UTC',
+      kickMarkedAt: '2026-08-28T12:05:00.000+00:00',
+    }
+    const exporting = new VapeOffDatabase(`browser-kick-export-${crypto.randomUUID()}`)
+    databases.push(exporting)
+    await exporting.open()
+    await exporting.puffSessions.add(kickedSession)
+    const environment = {
+      now: () => new Date('2026-08-29T12:00:00.000Z'),
+      timeZone: () => 'UTC',
+      randomUUID: () => 'export-record',
+    }
+    let handedOff: File | undefined
+    const exportSource = createBrowserBackupSource(
+      sessionFor(exporting, environment),
+      appBuild,
+      async (file) => {
+        handedOff = file
+        return 'shared'
+      },
+    )
+
+    // The whole path the file takes: the store read, the export mapper, the
+    // guard, and the restore write — none of which the type system watches,
+    // because the field is optional the whole way.
+    await exportSource.backUp(await exportSource.load())
+    expect(handedOff).toBeDefined()
+
+    const importing = new VapeOffDatabase(`browser-kick-import-${crypto.randomUUID()}`)
+    databases.push(importing)
+    const importSource = createBrowserBackupSource(sessionFor(importing, {
+      ...environment,
+      randomUUID: () => 'restore-record',
+    }))
+
+    await importSource.restore(await importSource.prepareRestore(handedOff!))
+
+    await expect(importing.puffSessions.toArray()).resolves.toEqual([kickedSession])
+  })
 })

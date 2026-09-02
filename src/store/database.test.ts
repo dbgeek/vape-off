@@ -1,6 +1,7 @@
 import 'fake-indexeddb/auto'
+import Dexie from 'dexie'
 import { afterEach, describe, expect, it } from 'vitest'
-import { VapeOffDatabase } from './database.ts'
+import { SCHEMA_VERSION, STORE_SCHEMA, VapeOffDatabase } from './database.ts'
 import type {
   ClearDay,
   ExportRecord,
@@ -32,6 +33,7 @@ describe('VapeOffDatabase', () => {
       count: 3,
       logicalDay: '2026-08-29',
       tz: 'Europe/Stockholm',
+      kickMarkedAt: '2026-08-29T21:16:10.004+02:00',
     }
     const resistedUrge: ResistedUrge = {
       id: '79ae9e0b-dd6f-4e54-b3f7-77947eff8a0e',
@@ -74,5 +76,43 @@ describe('VapeOffDatabase', () => {
     await expect(db.ratchetSteps.get(ratchetStep.id)).resolves.toEqual(ratchetStep)
     await expect(db.exports.get(exportRecord.id)).resolves.toEqual(exportRecord)
     await expect(db.meta.get(metaRecord.key)).resolves.toEqual(metaRecord)
+  })
+
+  it('declares the highest version it holds, so an older build can refuse this data', async () => {
+    const db = databaseForTest()
+    await db.open()
+
+    expect(SCHEMA_VERSION).toBe(2)
+    expect(db.verno).toBe(SCHEMA_VERSION)
+  })
+
+  it('opens a version(1) database at version(2) without an upgrade touching its rows', async () => {
+    const db = databaseForTest()
+    const beforeTheKick = new Dexie(db.name)
+    beforeTheKick.version(1).stores(STORE_SCHEMA)
+    await beforeTheKick.open()
+    await beforeTheKick.table('puffSessions').add({
+      id: '4f341b0a-b09a-4ddc-b68c-e570b20c90db',
+      at: '2026-08-29T21:14:03.221+02:00',
+      lastTapAt: '2026-08-29T21:14:47.221+02:00',
+      count: 3,
+      logicalDay: '2026-08-29',
+      tz: 'Europe/Stockholm',
+    })
+    beforeTheKick.close()
+
+    await db.open()
+
+    expect(db.verno).toBe(2)
+    await expect(db.puffSessions.toArray()).resolves.toEqual([
+      {
+        id: '4f341b0a-b09a-4ddc-b68c-e570b20c90db',
+        at: '2026-08-29T21:14:03.221+02:00',
+        lastTapAt: '2026-08-29T21:14:47.221+02:00',
+        count: 3,
+        logicalDay: '2026-08-29',
+        tz: 'Europe/Stockholm',
+      },
+    ])
   })
 })

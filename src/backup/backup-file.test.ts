@@ -232,4 +232,86 @@ describe('Backup file', () => {
       new BackupFileError('This is not a valid vape-off backup.'),
     )
   })
+
+  it('round-trips a Kick byte-identically, last in the session and absent from the summary', () => {
+    const kickedRecord: BackupRecord = {
+      ...record,
+      puffSessions: [{ ...record.puffSessions[0]!, kickMarkedAt: '2026-08-20T10:03:00.000+02:00' }],
+    }
+    const context = {
+      appBuild: { sha: 'abc1234', builtAt: '2026-08-29T08:00:00.000Z' },
+      exportedAt: '2026-08-29T12:34:56.789+02:00',
+      installId: 'install-id',
+      schemaVersion: 2,
+    }
+    const backup = createBackupFile(kickedRecord, context)
+    const envelope = JSON.parse(backup.text)
+
+    // The Kick is additive: the format did not move under it.
+    expect(envelope.formatVersion).toBe(1)
+    expect(Object.keys(envelope.puffSessions[0])).toEqual([
+      'id',
+      'at',
+      'lastTapAt',
+      'count',
+      'logicalDay',
+      'tz',
+      'kickMarkedAt',
+    ])
+    // A floor must not sit in a column of exact totals.
+    expect(envelope.summary).not.toHaveProperty('kicks')
+    expect(envelope.summary).not.toHaveProperty('kicksMarked')
+
+    const restored = parseBackupFile(backup.text)
+    expect(restored).toEqual({ installId: 'install-id', record: kickedRecord })
+    expect(createBackupFile(restored.record, context).text).toBe(backup.text)
+  })
+
+  it('keeps the format migration table empty, so no older format can be read', () => {
+    const backup = createBackupFile(record, {
+      appBuild: { sha: 'abc1234', builtAt: '2026-08-29T08:00:00.000Z' },
+      exportedAt: '2026-08-29T12:34:56.789+02:00',
+      installId: 'install-id',
+      schemaVersion: 2,
+    })
+    const envelope = JSON.parse(backup.text)
+    envelope.formatVersion = FORMAT_VERSION - 1
+
+    // The Kick was additive, so no format below the current one has ever
+    // shipped and there is nothing for a migration to transform.
+    expect(() => parseBackupFile(JSON.stringify(envelope))).toThrow(
+      new BackupFileError('This is not a valid vape-off backup.'),
+    )
+  })
+
+  it('omits the Kick entirely for an unmarked Puff Session', () => {
+    const backup = createBackupFile(record, {
+      appBuild: { sha: 'abc1234', builtAt: '2026-08-29T08:00:00.000Z' },
+      exportedAt: '2026-08-29T12:34:56.789+02:00',
+      installId: 'install-id',
+      schemaVersion: 2,
+    })
+
+    expect(JSON.parse(backup.text).puffSessions[0]).not.toHaveProperty('kickMarkedAt')
+    expect(parseBackupFile(backup.text).record.puffSessions[0]).not.toHaveProperty('kickMarkedAt')
+  })
+
+  it.each([
+    ['a malformed Instant', 'yesterday'],
+    ['a boolean standing in for the mark', true],
+    ['an explicit null', null],
+  ])('refuses a Backup carrying %s as a Kick, whole', (_description, kickMarkedAt) => {
+    const backup = createBackupFile(record, {
+      appBuild: { sha: 'abc1234', builtAt: '2026-08-29T08:00:00.000Z' },
+      exportedAt: '2026-08-29T12:34:56.789+02:00',
+      installId: 'install-id',
+      schemaVersion: 2,
+    })
+    const envelope = JSON.parse(backup.text)
+    envelope.puffSessions[0].kickMarkedAt = kickMarkedAt
+
+    expect(() => parseBackupFile(JSON.stringify(envelope))).toThrow(
+      new BackupFileError('This is not a valid vape-off backup.'),
+    )
+  })
 })
