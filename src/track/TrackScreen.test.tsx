@@ -1,8 +1,9 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { BackupSource, PreparedRestore } from '../backup/browser-backup-source.ts'
 import type { DayLedgerRecord } from '../domain/day-ledger.ts'
 import type { ClearDay, PuffSession, RatchetStep, ResistedUrge } from '../store/records.ts'
+import { LONG_PRESS_MS } from './mark-gesture.ts'
 import { TrackScreen, type TrackSource } from './TrackScreen.tsx'
 
 const emptyRecord: DayLedgerRecord = {
@@ -97,6 +98,7 @@ function source(record: DayLedgerRecord): TrackSource {
     dismissFirstRunCard: vi.fn().mockResolvedValue(undefined),
     declareClearDay: vi.fn().mockResolvedValue(record),
     correct: vi.fn().mockResolvedValue({ status: 'corrected', record }),
+    toggleKick: vi.fn().mockResolvedValue(record),
     declareHandover: vi.fn().mockResolvedValue(record),
   }
 }
@@ -742,6 +744,263 @@ describe('Track', () => {
     expect(alert).toHaveTextContent('Choose a time that has already happened.')
     expect(screen.queryByRole('dialog', { name: 'Add to the record' })).not.toBeInTheDocument()
     expect(screen.queryByText('Track could not read your record.')).not.toBeInTheDocument()
+  })
+})
+
+/**
+ * Marking a Kick: **the mark is the whole surface, two routes and one act**
+ * (`screens.md` § Marking a Kick).
+ *
+ * The gesture's own claims are `mark-gesture.test.ts`'s. What is asked here is
+ * the other half of the question — *which* marks are handed it, what the second
+ * route does, and what the screen does **not** grow to carry either of them.
+ */
+describe('Marking a Kick', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
+
+  /** The same Puff Session with its Kick taken back — the property is deleted, never falsified. */
+  function unmarked({ kickMarkedAt, ...session }: PuffSession): PuffSession {
+    return session
+  }
+
+  /**
+   * A source whose record actually moves under a Kick.
+   *
+   * The toggle's on-state is read off the record rather than off the editor's
+   * own state, so a fake answering with one frozen record could not tell a
+   * toggle that applied from one that did nothing — which is the single claim
+   * this whole surface turns on.
+   */
+  function markingSource(record: DayLedgerRecord): TrackSource {
+    let current = record
+    const trackSource = source(current)
+    trackSource.load = vi.fn(async () => current)
+    trackSource.toggleKick = vi.fn(async (id: string) => {
+      current = {
+        ...current,
+        puffSessions: current.puffSessions.map((session) =>
+          session.id !== id
+            ? session
+            : session.kickMarkedAt === undefined
+              ? marked(session)
+              : unmarked(session),
+        ),
+      }
+      return current
+    })
+    return trackSource
+  }
+
+  const clock = { now: () => new Date('2026-08-29T19:02:00.000Z'), timeZone: () => 'UTC' }
+
+  /** One held press, through to the `click` the browser sends after it. */
+  function heldPress(element: HTMLElement) {
+    fireEvent.pointerDown(element, { clientX: 100, clientY: 100 })
+    act(() => vi.advanceTimersByTime(LONG_PRESS_MS))
+    fireEvent.pointerUp(element)
+    fireEvent.click(element, { detail: 1 })
+  }
+
+  it('marks with one held press and un-marks with the next, opening nothing', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const trackSource = markingSource({
+      ...emptyRecord,
+      puffSessions: [session('morning', '2026-08-29T10:00:00.000Z', 2)],
+    })
+    render(<TrackScreen source={trackSource} clock={clock} />)
+
+    heldPress(await screen.findByRole('button', { name: 'Puff Session, 2 puffs at 10:00' }))
+
+    // The everyday path: one held press, no dialog, no chrome. The halo and the
+    // label are the whole of the answer.
+    const kicked = await screen.findByRole('button', {
+      name: 'Puff Session, 2 puffs at 10:00, Kicked',
+    })
+    expect(kicked).toHaveClass('kicked')
+    expect(trackSource.toggleKick).toHaveBeenCalledWith('morning', clock.now())
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
+    // Taking a mark back is the same gesture that made it.
+    heldPress(kicked)
+    expect(
+      await screen.findByRole('button', { name: 'Puff Session, 2 puffs at 10:00' }),
+    ).not.toHaveClass('kicked')
+    expect(trackSource.toggleKick).toHaveBeenCalledTimes(2)
+  })
+
+  it('carries the same toggle above the editor’s fields, applying before Save changes', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const trackSource = markingSource({
+      ...emptyRecord,
+      puffSessions: [session('morning', '2026-08-29T10:00:00.000Z', 2)],
+    })
+    render(<TrackScreen source={trackSource} clock={clock} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Puff Session, 2 puffs at 10:00' }))
+    const dialog = screen.getByRole('dialog', { name: 'Edit Puff Session' })
+    const toggle = within(dialog).getByRole('switch', { name: 'Kicked' })
+    expect(toggle).toHaveAttribute('aria-checked', 'false')
+
+    // The editor is a Correction surface where nothing commits until `Save
+    // changes`. The Kick is not, so the toggle sits **above** the fields rather
+    // than among them — and says so.
+    expect(toggle.compareDocumentPosition(within(dialog).getByLabelText('Time'))).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    )
+    expect(dialog).toHaveTextContent('Applies straight away. You can also long-press the mark.')
+
+    fireEvent.click(toggle)
+    await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', 'true'))
+    expect(trackSource.toggleKick).toHaveBeenCalledWith('morning', clock.now())
+
+    // Nothing proposed, nothing named, no Momentum impact: a Kick moves no
+    // derived figure, so none of the Correction machinery applies.
+    expect(trackSource.correct).not.toHaveBeenCalled()
+    expect(screen.queryByRole('alertdialog', { name: 'Momentum change' })).not.toBeInTheDocument()
+
+    // It has already applied, so it survives closing the editor without saving.
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Close editor' }))
+    expect(
+      await screen.findByRole('button', { name: 'Puff Session, 2 puffs at 10:00, Kicked' }),
+    ).toHaveClass('kicked')
+    expect(trackSource.correct).not.toHaveBeenCalled()
+  })
+
+  it('is one toggle, so either route takes back what the other made', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const trackSource = markingSource({
+      ...emptyRecord,
+      puffSessions: [session('morning', '2026-08-29T10:00:00.000Z', 2)],
+    })
+    render(<TrackScreen source={trackSource} clock={clock} />)
+
+    heldPress(await screen.findByRole('button', { name: 'Puff Session, 2 puffs at 10:00' }))
+    const kicked = await screen.findByRole('button', {
+      name: 'Puff Session, 2 puffs at 10:00, Kicked',
+    })
+
+    // Made by the fast path, taken back by the findable one. Two routes onto
+    // one target with the same reach and the same semantics — not two
+    // affordances that happen to write the same field.
+    fireEvent.click(kicked)
+    const toggle = within(screen.getByRole('dialog')).getByRole('switch', { name: 'Kicked' })
+    expect(toggle).toHaveAttribute('aria-checked', 'true')
+    fireEvent.click(toggle)
+    await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', 'false'))
+    expect(screen.queryByLabelText(/Kicked/)).not.toBeInTheDocument()
+  })
+
+  it('reaches a sitting inside its open Merge Window without closing or extending it', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const open = session('open', '2026-08-29T19:00:00.000Z', 2, '2026-08-29T19:01:00.000Z')
+    const trackSource = markingSource({ ...emptyRecord, puffSessions: [open] })
+    render(<TrackScreen source={trackSource} clock={clock} />)
+
+    heldPress(await screen.findByRole('button', { name: 'Puff Session, 2 puffs at 19:00' }))
+
+    // The open mark is a mark like any other. The window is keyed to taps, so
+    // marking leaves `lastTapAt` alone and the sitting stays open and open only
+    // for as long as it had left.
+    const kicked = await screen.findByRole('button', {
+      name: 'Puff Session, 2 puffs at 19:00, Kicked',
+    })
+    expect(kicked).toHaveClass('open-mark', 'kicked')
+    expect(screen.getByText(/Open session/)).toBeInTheDocument()
+    expect(trackSource.toggleKick).toHaveBeenCalledWith('open', clock.now())
+    expect(trackSource.logPuff).not.toHaveBeenCalled()
+  })
+
+  it('hands the Yesterday lane no route to the act at all', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const trackSource = markingSource({
+      ...emptyRecord,
+      puffSessions: [
+        yesterdaySession('delivered', '2026-08-28T10:00:00.000Z', 3),
+        session('today', '2026-08-29T10:00:00.000Z', 2),
+      ],
+    })
+    render(<TrackScreen source={trackSource} clock={clock} />)
+
+    const yesterday = await screen.findByLabelText('Yesterday, Puff Session, 3 puffs at 10:00')
+    heldPress(yesterday)
+    fireEvent.click(yesterday)
+
+    // Read-only **structurally**: the lane is handed ids and never a handler, so
+    // there is no gesture to refuse and nothing to remember to guard. Reach is
+    // today's marks, live lane only.
+    act(() => vi.advanceTimersByTime(LONG_PRESS_MS * 2))
+    expect(trackSource.toggleKick).not.toHaveBeenCalled()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(within(timelineElement('.yesterday-lane')).queryAllByRole('button')).toHaveLength(0)
+  })
+
+  it('grows no chrome for either route, and asks nothing after a sitting', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const trackSource = markingSource({
+      ...emptyRecord,
+      puffSessions: [session('open', '2026-08-29T19:00:00.000Z', 2, '2026-08-29T19:01:00.000Z')],
+    })
+    render(<TrackScreen source={trackSource} clock={clock} />)
+
+    heldPress(await screen.findByRole('button', { name: 'Puff Session, 2 puffs at 19:00' }))
+    await screen.findByRole('button', { name: 'Puff Session, 2 puffs at 19:00, Kicked' })
+
+    // A third `Kick` button beside `PUFF` and `Resisted` was refused on the
+    // chrome budget, and a readout lingering past the Merge Window asking
+    // `Kicked?` more sharply still — it is the second decision on every log
+    // that ADR 0010 exists to prevent. Both routes are silent until you go to
+    // them, and marking is not one of them either.
+    expect(
+      within(timelineElement('.track-actions')).getAllByRole('button').map((one) => one.textContent),
+    ).toEqual(['Resisted', '+1 → 3'])
+    expect(screen.queryByRole('button', { name: /^Kick/ })).not.toBeInTheDocument()
+    expect(screen.queryByText(/Kicked\?/)).not.toBeInTheDocument()
+  })
+
+  it('offers the toggle on a Puff Session and on nothing else', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const trackSource = markingSource({
+      ...emptyRecord,
+      resistedUrges: [resistedUrge('2026-08-29T14:00:00.000Z')],
+    })
+    render(<TrackScreen source={trackSource} clock={clock} />)
+
+    // A Kick is a fact about what a *sitting* delivered. A Resisted Urge is not
+    // a sitting, and an event that has not happened yet has nothing to have
+    // delivered.
+    fireEvent.click(await screen.findByRole('button', { name: 'Resisted Urge at 14:00' }))
+    expect(within(screen.getByRole('dialog')).queryByRole('switch')).not.toBeInTheDocument()
+
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Close editor' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add past event' }))
+    expect(within(screen.getByRole('dialog')).queryByRole('switch')).not.toBeInTheDocument()
+  })
+
+  it('is reachable and operable by keyboard and screen reader, which the press is not', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const trackSource = markingSource({
+      ...emptyRecord,
+      puffSessions: [session('morning', '2026-08-29T10:00:00.000Z', 2)],
+    })
+    render(<TrackScreen source={trackSource} clock={clock} />)
+
+    // The toggle is the app's **only** keyboard- and screen-reader-reachable
+    // route to the act. It is not optional polish, so it is a real focusable
+    // control announcing its state rather than a styled div.
+    fireEvent.click(await screen.findByRole('button', { name: 'Puff Session, 2 puffs at 10:00' }))
+    const toggle = within(screen.getByRole('dialog')).getByRole('switch', { name: 'Kicked' })
+    toggle.focus()
+    expect(toggle).toHaveFocus()
+    expect(toggle.tagName).toBe('BUTTON')
+
+    // And the commit rule it does not share with the fields around it is said
+    // aloud with it, rather than only drawn beneath it.
+    expect(toggle).toHaveAccessibleDescription(
+      'Applies straight away. You can also long-press the mark.',
+    )
   })
 })
 

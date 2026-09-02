@@ -1080,6 +1080,15 @@ select:focus-visible {
 
 .puff-mark {
   cursor: pointer;
+  /* The other half of the long-press fix, owed by the mark rather than by the
+   * gesture (`screens.md` § Marking a Kick). `mark-gesture.ts` suppresses the
+   * context menu, and that is not enough on iOS: the selection callout is
+   * raised by the hold itself, over a 20px target with a numeral printed in it
+   * that a held press would otherwise select. Nothing here is owed to the
+   * Yesterday lane, which is handed no handler and so is never held. */
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .puff-mark.over-target {
@@ -1377,6 +1386,87 @@ select:focus-visible {
   font-size: 0.7rem;
 }
 
+/* The `Kicked` toggle, above the fields and outside the Correction they make
+ * (`screens.md` § Inside the editor).
+ *
+ * Drawn as its own block rather than as another `.record-editor label`, because
+ * that is the whole point: everything below it is proposed and commits on `Save
+ * changes`, and this applies on tap. The note under it states that rule and
+ * teaches the long-press, so it is set as copy rather than as a field's caption. */
+.kick-toggle {
+  display: grid;
+  gap: 0.3rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-paper) 12%, transparent);
+  padding-bottom: 0.85rem;
+}
+
+.kick-toggle p {
+  color: var(--color-muted);
+  font-size: 0.7rem;
+}
+
+.kick-switch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  /* The full width of the sheet and 2.75rem tall, like the actions below: the
+   * only keyboard- and screen-reader-reachable route to the act is not a
+   * 20px target, whatever the mark it stands in for is. */
+  min-height: 2.75rem;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: var(--color-paper);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.kick-switch-track {
+  width: 2.6rem;
+  height: 1.5rem;
+  border: 1px solid color-mix(in srgb, var(--color-paper) 22%, transparent);
+  border-radius: 999px;
+  background: #0d0d0f;
+  transition: background 140ms ease;
+}
+
+/* The knob, drawn as the track's own pseudo-element rather than as a second
+ * element beside it, so the switch is one box and the two halves cannot
+ * disagree about which side it is on. */
+.kick-switch-track::before {
+  display: block;
+  transform: translateX(0.15rem);
+  transition: transform 140ms ease;
+  border-radius: 50%;
+  background: var(--color-muted);
+  width: 1.1rem;
+  height: 1.1rem;
+  content: '';
+  margin-top: 0.15rem;
+}
+
+/* The on-state is the halo's lilac, and this is **the only place other than the
+ * halo that lilac appears** — marking the on-state in the accent teaches the
+ * vocabulary at the one moment it is being created.
+ *
+ * Keyed off `aria-checked` rather than a class of its own, so the state a
+ * screen reader announces and the state the eye reads cannot come apart — and
+ * so the halo's modifier class stays where it is, spent on one shared selector
+ * for the two lanes and read by nothing else. */
+.kick-switch[aria-checked='true'] .kick-switch-track {
+  border-color: transparent;
+  background: var(--kick-accent);
+}
+
+.kick-switch[aria-checked='true'] .kick-switch-track::before {
+  transform: translateX(1.35rem);
+  /* Ink rather than a second helping of the accent: lilac is spent on the halo
+   * and on this one on-state, and a knob in it would be a third reader of a
+   * token whose whole discipline is that it has exactly two. */
+  background: var(--color-ink);
+}
+
 .record-editor input,
 .record-editor select {
   width: 100%;
@@ -1479,5 +1569,10 @@ select:focus-visible {
   .puff-mark.open-mark,
   .open-session-pulse {
     animation: none;
+  }
+
+  .kick-switch-track,
+  .kick-switch-track::before {
+    transition: none;
   }
 }

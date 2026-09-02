@@ -21,7 +21,8 @@ import { momentum } from '../domain/readouts.ts'
 import { isStandalone } from '../shell/install-state.ts'
 import type { LogicalDayKey, PuffSession, ResistedUrge } from '../store/records.ts'
 import { Lane, LANE_AXES, LIVE_LANE } from './Lane.tsx'
-import { kickedClass, puffLabel, urgeLabel } from './lane-events.ts'
+import { isKicked, kickedClass, puffLabel, urgeLabel } from './lane-events.ts'
+import { useMarkGesture } from './mark-gesture.ts'
 import { useMeasuredBox } from './measured-box.ts'
 import { timelinePosition } from './timeline-geometry.ts'
 import { buildTrackView } from './track-view.ts'
@@ -48,6 +49,16 @@ export interface TrackSource {
   declareClearDay: (at: Date) => Promise<DayLedgerRecord>
   /** Every Correction, described once and carried whole. */
   correct: (correction: Correction) => Promise<CorrectionResult>
+  /**
+   * Marking a Kick, and taking it back — one toggle, whichever route reached it.
+   *
+   * Beside the Correction rather than inside it: marking fills the record's
+   * silence about what a sitting gave you rather than changing what it says
+   * happened, so nothing is proposed and no derived figure moves. It cannot
+   * refuse, which is why it answers with a record where `correct` answers with
+   * a result.
+   */
+  toggleKick: (id: string, at: Date) => Promise<DayLedgerRecord>
   declareHandover: () => Promise<DayLedgerRecord>
 }
 
@@ -75,6 +86,77 @@ type EditorState =
   | { kind: 'urge'; urge: ResistedUrge }
   | { kind: 'new'; at: Date }
 
+/**
+ * A live-lane mark: one target, two routes, one act (`screens.md` § Marking a
+ * Kick).
+ *
+ * A component of its own because the gesture is per mark and so is its timer —
+ * and because *this* is where the routes are handed out. The Yesterday lane
+ * draws the same session in the same halo and never comes through here, which
+ * is what read-only-structurally means in code.
+ */
+function PuffMark({
+  session,
+  className,
+  style,
+  label,
+  openEditor,
+  toggleKick,
+}: {
+  session: PuffSession
+  className: string
+  style: CSSProperties
+  label: string
+  openEditor: () => void
+  toggleKick: () => void
+}) {
+  const gesture = useMarkGesture({ tap: openEditor, hold: toggleKick })
+
+  return (
+    <button type="button" className={className} style={style} aria-label={label} {...gesture}>
+      {session.count}
+    </button>
+  )
+}
+
+/**
+ * The editor's `Kicked` toggle: the second route to the act, and the only one a
+ * keyboard or a screen reader has (`screens.md` § Inside the editor).
+ *
+ * Everything around it is a Correction, where nothing commits until `Save
+ * changes`. This is not, so it sits **above** the fields rather than among them,
+ * applies on tap, and says so — two commit rules in one dialog is a real cost,
+ * and the dialog carries it rather than hiding it. The second sentence teaches
+ * the long-press: without it the two routes are two affordances rather than one
+ * act with two doors, and the fast path is never found.
+ *
+ * **This copy is a first draft** and the one string in the Kick nobody has
+ * reacted to. If the long-press is still undiscovered after a week of use, this
+ * line is what to change first.
+ */
+function KickToggle({ session, toggle }: { session: PuffSession; toggle: () => void }) {
+  return (
+    <div className="kick-toggle">
+      {/* A `switch` rather than a checkbox: it is on or off and applies as it
+        * says, and the on-state is announced rather than only drawn in lilac.
+        * The rule it does not share with the fields below is `describedby` so
+        * it is heard with the control, not left as text beside it. */}
+      <button
+        type="button"
+        role="switch"
+        className="kick-switch"
+        aria-checked={isKicked(session)}
+        aria-describedby="kick-toggle-note"
+        onClick={toggle}
+      >
+        Kicked
+        <span className="kick-switch-track" aria-hidden="true" />
+      </button>
+      <p id="kick-toggle-note">Applies straight away. You can also long-press the mark.</p>
+    </div>
+  )
+}
+
 function RecordEditor({
   editor,
   record,
@@ -82,6 +164,7 @@ function RecordEditor({
   timeZone,
   now,
   correct,
+  toggleKick,
   close,
 }: {
   editor: EditorState
@@ -90,6 +173,7 @@ function RecordEditor({
   timeZone: string
   now: Date
   correct: (correction: Correction) => void
+  toggleKick: (id: string) => void
   close: () => void
 }) {
   const [eventKind, setEventKind] = useState<'puff' | 'urge'>(
@@ -110,6 +194,20 @@ function RecordEditor({
       : editor.kind === 'urge'
         ? 'Edit Resisted Urge'
         : 'Add to the record'
+
+  /**
+   * The session the toggle is drawn from, read off the **record** rather than
+   * off the state this editor opened with.
+   *
+   * The Kick applies straight away, so the record moves under an editor that is
+   * still open, and a toggle reading its own opening snapshot would go on
+   * saying what was true when you tapped the mark. The snapshot is only a
+   * fallback for the instant between the write and the record arriving back.
+   */
+  const puffSession =
+    editor.kind === 'puff'
+      ? record.puffSessions.find(({ id }) => id === editor.session.id) ?? editor.session
+      : undefined
 
   /**
    * Show what the Correction would do to Momentum before making it, and say so
@@ -180,6 +278,9 @@ function RecordEditor({
         <h2 id="record-editor-title">{title}</h2>
         <button type="button" onClick={close} aria-label="Close editor">×</button>
       </div>
+      {puffSession ? (
+        <KickToggle session={puffSession} toggle={() => toggleKick(puffSession.id)} />
+      ) : null}
       {editor.kind === 'new' ? (
         <label>
           Event
@@ -346,6 +447,19 @@ export function TrackScreen({
     })
   }
 
+  /**
+   * The act itself, reached by a held press on a mark or by the editor's
+   * toggle — the same call from both, because they are one act with two doors.
+   *
+   * Through the same queue as every other write, so a Kick and a `PUFF` landing
+   * together stay in the order they were made. It leaves the Merge Window alone
+   * on the way past: the window is keyed to taps, and this is not one.
+   */
+  function toggleKick(id: string) {
+    const at = clock.now()
+    mutate(() => source.toggleKick(id, at), at)
+  }
+
   async function restoreFrom(file: File) {
     const candidate = await prepareRestore(file)
     if (candidate !== undefined && await completeRestore(candidate)) {
@@ -491,15 +605,14 @@ export function TrackScreen({
           timelineSize={timelineSize}
           renderMark={(event, mark) =>
             event.kind === 'puff' ? (
-              <button
-                type="button"
+              <PuffMark
+                session={event.session}
                 className={`puff-mark${view.overTargetSessionIds.has(event.session.id) ? ' over-target' : ''}${view.openSession?.id === event.session.id ? ' open-mark' : ''}${kickedClass(event.session)}`}
                 style={mark}
-                aria-label={puffLabel(event.session, timeZone)}
-                onClick={() => setEditor({ kind: 'puff', session: event.session })}
-              >
-                {event.session.count}
-              </button>
+                label={puffLabel(event.session, timeZone)}
+                openEditor={() => setEditor({ kind: 'puff', session: event.session })}
+                toggleKick={() => toggleKick(event.session.id)}
+              />
             ) : (
               <button
                 type="button"
@@ -600,6 +713,7 @@ export function TrackScreen({
           timeZone={timeZone}
           now={now}
           correct={correct}
+          toggleKick={toggleKick}
           close={() => setEditor(undefined)}
         />
       ) : null}

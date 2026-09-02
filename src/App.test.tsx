@@ -20,6 +20,7 @@ function emptyTrackSource(): TrackSource {
     dismissFirstRunCard: vi.fn().mockResolvedValue(undefined),
     declareClearDay: vi.fn().mockResolvedValue(record),
     correct: vi.fn().mockResolvedValue({ status: 'corrected', record }),
+    toggleKick: vi.fn().mockResolvedValue(record),
     declareHandover: vi.fn().mockResolvedValue(record),
   }
 }

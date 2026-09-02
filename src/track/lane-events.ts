@@ -28,9 +28,11 @@ export type LaneEvent = FannedEvent & { key: string } & (
  * Presence of `kickMarkedAt` is the mark and absence is Unknown — there is no
  * `false` to read, because the app never asks whether a sitting delivered
  * *nothing* (ADR 0015). Asked here rather than at each drawing so the two lanes
- * cannot disagree about what a Kick is.
+ * cannot disagree about what a Kick is — and the editor's toggle is a third
+ * drawing of the same fact, so it reads it from here too rather than asking the
+ * record its own way.
  */
-function isKicked(session: PuffSession): boolean {
+export function isKicked(session: PuffSession): boolean {
   return session.kickMarkedAt !== undefined
 }
 
