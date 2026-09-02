@@ -267,6 +267,23 @@ describe('Backup file', () => {
     expect(createBackupFile(restored.record, context).text).toBe(backup.text)
   })
 
+  it('keeps the format migration table empty, so no older format can be read', () => {
+    const backup = createBackupFile(record, {
+      appBuild: { sha: 'abc1234', builtAt: '2026-08-29T08:00:00.000Z' },
+      exportedAt: '2026-08-29T12:34:56.789+02:00',
+      installId: 'install-id',
+      schemaVersion: 2,
+    })
+    const envelope = JSON.parse(backup.text)
+    envelope.formatVersion = FORMAT_VERSION - 1
+
+    // The Kick was additive, so no format below the current one has ever
+    // shipped and there is nothing for a migration to transform.
+    expect(() => parseBackupFile(JSON.stringify(envelope))).toThrow(
+      new BackupFileError('This is not a valid vape-off backup.'),
+    )
+  })
+
   it('omits the Kick entirely for an unmarked Puff Session', () => {
     const backup = createBackupFile(record, {
       appBuild: { sha: 'abc1234', builtAt: '2026-08-29T08:00:00.000Z' },

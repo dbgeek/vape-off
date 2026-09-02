@@ -5,11 +5,13 @@ import type { ClearDay, PuffSession, ResistedUrge } from './records.ts'
 import type { WriteEnvironment } from './session.ts'
 
 /**
- * The live taps: what the Track screen writes in the moment.
+ * The live writes: what the Track screen puts in the record directly.
  *
  * Distinct from a Correction, which changes what the record already says and is
- * written in `correction-writes.ts`. A tap is neither deliberate about the past
- * nor reversible by naming it, so nothing here is proposed before it is made.
+ * written in `correction-writes.ts`. Nothing here is proposed before it is made,
+ * because none of it is deliberate about the past: a tap is a thing happening
+ * now, and declaring a Clear Day or marking a Kick fills a silence the record
+ * was keeping rather than changing an answer it already gave.
  */
 
 export async function logPuff(
