@@ -207,16 +207,21 @@ describe('the Kicked halo', () => {
     expect([...stylesheet.matchAll(/\.kicked/g)]).toHaveLength(2)
   })
 
-  it('spends lilac on the halo and nowhere else', () => {
+  it("spends lilac on the halo and the editor's toggle, and nowhere else", () => {
     expect(ACCENT).toBe('#c9a8f0')
     expect([...stylesheet.matchAll(/#c9a8f0/g)]).toHaveLength(1)
 
     // A count rather than an absence, because the accent has exactly one
-    // sanctioned second reader — the editor's `Kicked` toggle in its on-state,
-    // which K3 builds. **This number is a tripwire, not a ceiling**: K3 raises
-    // it to 2 and nothing raises it again. Anything else reaching for lilac is
-    // the dilution amber was refused for, arriving by the other door.
-    expect([...stylesheet.matchAll(/var\(--kick-accent\)/g)]).toHaveLength(1)
+    // sanctioned second reader: the editor's `Kicked` toggle in its on-state,
+    // which is the only place other than the halo that lilac appears, and is
+    // there because marking the on-state teaches the vocabulary at the moment
+    // it is created. **Two is the ceiling now** — K3 raised this from 1 and
+    // nothing raises it again. Anything else reaching for lilac is the dilution
+    // amber was refused for, arriving by the other door.
+    expect([...stylesheet.matchAll(/var\(--kick-accent\)/g)]).toHaveLength(2)
+    expect(ruleFor(".kick-switch[aria-checked='true'] .kick-switch-track")).toContain(
+      'background: var(--kick-accent)',
+    )
   })
 
   it('stays a modifier on a mark rather than an event class beside one', () => {

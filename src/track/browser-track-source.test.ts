@@ -99,4 +99,41 @@ describe('browser Track source', () => {
     ).resolves.toEqual({ status: 'refused', reason: 'in-the-future' })
     await expect(db.puffSessions.toArray()).resolves.toEqual([])
   })
+
+  it('marks and un-marks a Kick without closing the Merge Window it lands inside', async () => {
+    const db = new VapeOffDatabase(`browser-track-source-${crypto.randomUUID()}`)
+    databases.push(db)
+    const source = createBrowserTrackSource(createStoreSession(db, {
+      now: () => new Date('2026-08-29T19:00:00.000Z'),
+      timeZone: () => 'UTC',
+      randomUUID: () => crypto.randomUUID(),
+      badge: {},
+    }))
+
+    const logged = await source.logPuff(new Date('2026-08-29T19:00:00.000Z'))
+    const sitting = logged.puffSessions[0]!
+
+    // The open mark is a mark like any other, and the window is keyed to taps:
+    // marking leaves `lastTapAt` where the tap put it, so the next `PUFF` still
+    // merges into the same sitting rather than starting a second one.
+    const marked = await source.toggleKick(sitting.id, new Date('2026-08-29T19:00:20.000Z'))
+    expect(marked.puffSessions).toEqual([
+      { ...sitting, kickMarkedAt: '2026-08-29T19:00:20.000+00:00' },
+    ])
+
+    const merged = await source.logPuff(new Date('2026-08-29T19:00:40.000Z'))
+    expect(merged.puffSessions).toEqual([
+      {
+        ...sitting,
+        count: 2,
+        lastTapAt: '2026-08-29T19:00:40.000+00:00',
+        kickMarkedAt: '2026-08-29T19:00:20.000+00:00',
+      },
+    ])
+
+    // And taking it back deletes the property rather than writing a `false`:
+    // the app never asks whether a sitting delivered nothing (ADR 0015).
+    const unmarked = await source.toggleKick(sitting.id, new Date('2026-08-29T19:01:00.000Z'))
+    expect(unmarked.puffSessions[0]).not.toHaveProperty('kickMarkedAt')
+  })
 })

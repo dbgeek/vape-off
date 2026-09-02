@@ -4,7 +4,7 @@ import { writeCorrection } from '../store/correction-writes.ts'
 import { getMeta, setMeta } from '../store/meta.ts'
 import { declareHandover } from '../store/ratchet-writes.ts'
 import { browserSession, type StoreSession } from '../store/session.ts'
-import { logPuff, logResistedUrge, writeClearDay } from '../store/track-writes.ts'
+import { logPuff, logResistedUrge, toggleKick, writeClearDay } from '../store/track-writes.ts'
 import type { TrackSource } from './TrackScreen.tsx'
 
 export function createBrowserTrackSource(session: StoreSession): TrackSource {
@@ -59,6 +59,14 @@ export function createBrowserTrackSource(session: StoreSession): TrackSource {
       const written = await writeCorrection(db, correction, environment)
       if (written.status === 'refused') return written
       return { status: 'corrected', record: await refreshAfterWrite(environment.now()) }
+    },
+    // Marking is a live write and not a log: a Kick can only ever land on a
+    // Puff Session, which dismissed the greeting when it was written. So this
+    // refreshes the record without claiming the first write again.
+    async toggleKick(id, at) {
+      await session.ensureOpen()
+      await toggleKick(db, id, at, environment)
+      return refresh(at)
     },
     async declareHandover() {
       await session.ensureOpen()
