@@ -116,6 +116,11 @@ function isPuffSession(value: unknown): value is PuffSession {
     && isInstant(value.lastTapAt)
     && Date.parse(value.lastTapAt) >= Date.parse(value.at as string)
     && isIntegerAtLeast(value.count, 1)
+    // Presence is the mark, so the only two honest shapes are a valid Instant and
+    // nothing at all. A malformed one invalidates the whole Backup: salvaging the
+    // session and dropping the field wants a per-field recovery path this parser
+    // has nowhere else.
+    && (value.kickMarkedAt === undefined || isInstant(value.kickMarkedAt))
 }
 
 function isResistedUrge(value: unknown): value is ResistedUrge {
@@ -269,6 +274,7 @@ export function createBackupFile(
     count: item.count,
     logicalDay: item.logicalDay,
     tz: item.tz,
+    ...(item.kickMarkedAt === undefined ? {} : { kickMarkedAt: item.kickMarkedAt }),
   }))
   const resistedUrges = record.resistedUrges.map((item) => ({
     id: item.id,

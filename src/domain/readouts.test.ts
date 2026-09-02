@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ClearDay, PuffSession, RatchetStep } from '../store/records.ts'
-import type { DayLedgerRecord } from './day-ledger.ts'
+import { dayTotal, isMet, type DayLedgerRecord } from './day-ledger.ts'
 import {
   longestGap,
   momentum,
@@ -347,5 +347,38 @@ describe('readouts', () => {
         disqualifiedByUnknownDay: false,
       })
     })
+  })
+
+  it('reads the same figures whether or not the Puff Sessions are Kicked', () => {
+    const record: DayLedgerRecord = {
+      puffSessions: [
+        puffSession('2026-08-25', 12),
+        puffSession('2026-08-26', 9),
+        puffSession('2026-08-27', 8),
+      ],
+      resistedUrges: [],
+      clearDays: [],
+      ratchetSteps: [ratchetStep('2026-08-24', 12), ratchetStep('2026-08-26', 10)],
+    }
+    // The Kick touches no mechanism, so every reading has to be blind to it.
+    const kicked: DayLedgerRecord = {
+      ...record,
+      puffSessions: record.puffSessions.map((session) => ({
+        ...session,
+        kickMarkedAt: `${session.logicalDay}T12:05:00.000Z`,
+      })),
+    }
+    const today = '2026-08-27'
+    const now = new Date('2026-08-27T18:00:00.000Z')
+
+    expect(pace(record, now, 'UTC')).toBeDefined()
+    expect(pace(kicked, now, 'UTC')).toEqual(pace(record, now, 'UTC'))
+    expect(momentum(kicked, today)).toBe(momentum(record, today))
+    expect(stepsRemaining(kicked, today)).toEqual(stepsRemaining(record, today))
+    expect(stepCadence(kicked)).toBe(stepCadence(record))
+    expect(quitHorizon(kicked, today)).toEqual(quitHorizon(record, today))
+    expect(longestGap(kicked, now, today)).toEqual(longestGap(record, now, today))
+    expect(dayTotal(kicked, today)).toBe(dayTotal(record, today))
+    expect(isMet(kicked, '2026-08-26', today)).toBe(isMet(record, '2026-08-26', today))
   })
 })

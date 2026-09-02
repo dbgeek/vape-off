@@ -1,7 +1,7 @@
 import 'fake-indexeddb/auto'
 import { afterEach, describe, expect, it } from 'vitest'
 import { VapeOffDatabase } from './database.ts'
-import { logPuff, logResistedUrge, writeClearDay } from './track-writes.ts'
+import { logPuff, logResistedUrge, toggleKick, writeClearDay } from './track-writes.ts'
 
 const databaseNames: string[] = []
 
@@ -89,5 +89,93 @@ describe('Track writes', () => {
 
     await expect(writeClearDay(db, at, environment)).resolves.toBeUndefined()
     await expect(db.clearDays.get('2026-08-28')).resolves.toBeUndefined()
+  })
+
+  it('marks a Kick with the instant you said so, and un-marks by deleting the property', async () => {
+    const db = databaseForTest()
+    const environment = {
+      timeZone: () => 'Europe/Stockholm',
+      randomUUID: () => '4f341b0a-b09a-4ddc-b68c-e570b20c90db',
+    }
+    const session = await logPuff(db, new Date('2026-08-29T17:00:00.000Z'), environment)
+
+    const marked = await toggleKick(
+      db,
+      session.id,
+      new Date('2026-08-29T17:02:00.000Z'),
+      environment,
+    )
+
+    expect(marked).toEqual({ ...session, kickMarkedAt: '2026-08-29T19:02:00.000+02:00' })
+    await expect(db.puffSessions.get(session.id)).resolves.toEqual(marked)
+
+    const unmarked = await toggleKick(
+      db,
+      session.id,
+      new Date('2026-08-29T17:03:00.000Z'),
+      environment,
+    )
+
+    expect(unmarked).toEqual(session)
+    expect(unmarked).not.toHaveProperty('kickMarkedAt')
+    const stored = await db.puffSessions.get(session.id)
+    expect(stored).toEqual(session)
+    expect(stored).not.toHaveProperty('kickMarkedAt')
+  })
+
+  it('holds a Kick while the Merge Window grows the sitting around it', async () => {
+    const db = databaseForTest()
+    const environment = {
+      timeZone: () => 'Europe/Stockholm',
+      randomUUID: () => '4f341b0a-b09a-4ddc-b68c-e570b20c90db',
+    }
+    const session = await logPuff(db, new Date('2026-08-29T17:00:00.000Z'), environment)
+    await toggleKick(db, session.id, new Date('2026-08-29T17:00:10.000Z'), environment)
+
+    await logPuff(db, new Date('2026-08-29T17:01:00.000Z'), environment)
+
+    await expect(db.puffSessions.toArray()).resolves.toEqual([
+      {
+        ...session,
+        lastTapAt: '2026-08-29T19:01:00.000+02:00',
+        count: 2,
+        kickMarkedAt: '2026-08-29T19:00:10.000+02:00',
+      },
+    ])
+  })
+
+  it('leaves the Merge Window keyed to taps alone, neither closing nor extending it', async () => {
+    const db = databaseForTest()
+    const ids = ['4f341b0a-b09a-4ddc-b68c-e570b20c90db', '79ae9e0b-dd6f-4e54-b3f7-77947eff8a0e']
+    const environment = {
+      timeZone: () => 'Europe/Stockholm',
+      randomUUID: () => ids.shift()!,
+    }
+    const session = await logPuff(db, new Date('2026-08-29T17:00:00.000Z'), environment)
+
+    // Marking mid-sitting must not close the Window: the next tap still merges.
+    await toggleKick(db, session.id, new Date('2026-08-29T17:00:30.000Z'), environment)
+    await logPuff(db, new Date('2026-08-29T17:01:00.000Z'), environment)
+    // Nor extend it: the Window runs from that tap, not from the mark after it.
+    await toggleKick(db, session.id, new Date('2026-08-29T17:01:10.000Z'), environment)
+    await logPuff(db, new Date('2026-08-29T17:02:40.000Z'), environment)
+
+    await expect(db.puffSessions.orderBy('at').toArray()).resolves.toMatchObject([
+      { id: session.id, count: 2, lastTapAt: '2026-08-29T19:01:00.000+02:00' },
+      { id: '79ae9e0b-dd6f-4e54-b3f7-77947eff8a0e', count: 1 },
+    ])
+  })
+
+  it('says nothing about a Puff Session the record does not hold', async () => {
+    const db = databaseForTest()
+    const environment = {
+      timeZone: () => 'Europe/Stockholm',
+      randomUUID: () => '4f341b0a-b09a-4ddc-b68c-e570b20c90db',
+    }
+
+    await expect(
+      toggleKick(db, 'never-happened', new Date('2026-08-29T17:00:00.000Z'), environment),
+    ).resolves.toBeUndefined()
+    await expect(db.puffSessions.toArray()).resolves.toEqual([])
   })
 })

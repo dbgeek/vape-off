@@ -198,4 +198,50 @@ describe('writing a Correction', () => {
     ).resolves.toEqual({ status: 'refused', reason: 'count-below-one' })
     await expect(db.puffSessions.toArray()).resolves.toEqual([])
   })
+
+  it('carries a Kick through a re-timing Correction and drops it with the Session', async () => {
+    const db = databaseForTest()
+    const environment = environmentAt('2026-08-30T12:00:00.000Z', 'Europe/Stockholm')
+    await db.puffSessions.add({
+      id: 'a-kicked-pickup',
+      at: '2026-08-28T12:00:00.000+02:00',
+      lastTapAt: '2026-08-28T12:02:00.000+02:00',
+      count: 2,
+      logicalDay: '2026-08-28',
+      tz: 'Europe/Stockholm',
+      kickMarkedAt: '2026-08-28T12:05:00.000+02:00',
+    })
+
+    await writeCorrection(
+      db,
+      {
+        kind: 'update-puff-session',
+        id: 'a-kicked-pickup',
+        at: new Date('2026-08-29T10:00:00.000Z'),
+        count: 4,
+      },
+      environment,
+    )
+
+    // The mark travels with the sitting and re-buckets with it; the instant you
+    // said so is not re-stamped, because the Correction did not change when you
+    // said it.
+    await expect(db.puffSessions.get('a-kicked-pickup')).resolves.toEqual({
+      id: 'a-kicked-pickup',
+      at: '2026-08-29T12:00:00.000+02:00',
+      lastTapAt: '2026-08-29T12:02:00.000+02:00',
+      count: 4,
+      logicalDay: '2026-08-29',
+      tz: 'Europe/Stockholm',
+      kickMarkedAt: '2026-08-28T12:05:00.000+02:00',
+    })
+
+    await writeCorrection(
+      db,
+      { kind: 'delete-puff-session', id: 'a-kicked-pickup' },
+      environment,
+    )
+
+    await expect(db.puffSessions.toArray()).resolves.toEqual([])
+  })
 })

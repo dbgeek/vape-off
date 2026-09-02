@@ -59,6 +59,38 @@ export async function logResistedUrge(
 }
 
 /**
+ * Marking a Kick, and taking it back — one toggle, and a live write.
+ *
+ * Presence of `kickMarkedAt` is the mark, so un-marking deletes the property
+ * rather than writing a `false`: the app never asks whether a sitting delivered
+ * *nothing*, so it has no such answer to store (ADR 0015).
+ *
+ * Not a Correction. Marking fills the record's silence about what a sitting gave
+ * you rather than changing what the record says happened, which is the exemption
+ * `Clear Day` already has — so nothing is proposed, nothing is named, and no
+ * derived figure moves. It leaves `lastTapAt` alone, which is what keeps it from
+ * closing or extending the Merge Window: that window is keyed to taps.
+ */
+export async function toggleKick(
+  db: VapeOffDatabase,
+  id: string,
+  at: Date,
+  environment: WriteEnvironment,
+): Promise<PuffSession | undefined> {
+  return db.transaction('rw', db.puffSessions, async () => {
+    const session = await db.puffSessions.get(id)
+    if (!session) return undefined
+
+    const { kickMarkedAt, ...unmarked } = session
+    const toggled: PuffSession = kickMarkedAt === undefined
+      ? { ...session, kickMarkedAt: instantOf(at, environment.timeZone()) }
+      : unmarked
+    await db.puffSessions.put(toggled)
+    return toggled
+  })
+}
+
+/**
  * Declaring a Clear Day. Not a Correction: it asserts something about a day the
  * record has nothing on, so it refuses rather than overwrites when the day
  * turns out to carry a Puff Session after all.

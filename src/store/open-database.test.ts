@@ -17,6 +17,13 @@ afterEach(async () => {
   await Promise.all(databaseNames.splice(0).map((name) => Dexie.delete(name)))
 })
 
+/** The build that froze at `version(1)`: the Kick's own stores, one version behind. */
+function buildBeforeTheKick(name: string): VapeOffDatabase {
+  const database = new Dexie(name)
+  database.version(1).stores(STORE_SCHEMA)
+  return database as VapeOffDatabase
+}
+
 describe('openDatabase', () => {
   it('retries one transient open failure and returns ok', async () => {
     const db = databaseForTest()
@@ -52,6 +59,18 @@ describe('openDatabase', () => {
       status: 'older-than-data',
       databaseVersion: SCHEMA_VERSION + 1,
       schemaVersion: SCHEMA_VERSION,
+    })
+  })
+
+  it('refuses a Kick-carrying database opened by a build that froze at version(1)', async () => {
+    const current = databaseForTest()
+    await current.open()
+    current.close()
+
+    await expect(openDatabase(buildBeforeTheKick(current.name))).resolves.toEqual({
+      status: 'older-than-data',
+      databaseVersion: 2,
+      schemaVersion: 1,
     })
   })
 
