@@ -16,6 +16,18 @@ import {
 } from './logical-day.ts'
 import { nextEarnedTarget } from './ratchet.ts'
 
+/**
+ * The Dial's window, owned here because two readings share it.
+ *
+ * The Dial draws it and `Kicks Marked` counts across it, and §12a states the
+ * figure's window as *the same window as the Dial* rather than as its own 14 —
+ * so one definition, read by both, is what makes "matches exactly and moves
+ * with it" structural instead of a coincidence maintained by hand. The view
+ * imports it rather than declaring it, which is why the constant sits in the
+ * domain despite naming a picture.
+ */
+export const DIAL_WINDOW_DAYS = 14
+
 const PACE_WINDOW_OPEN_HOUR = 7
 const PACE_WINDOW_CLOSE_HOUR = 23
 const MIN_PACE_INTERVAL_MS = 10 * 60 * 1000
@@ -43,6 +55,51 @@ function earnedSteps(record: DayLedgerRecord) {
   return record.ratchetSteps
     .filter((step) => step.kind === 'earned')
     .sort((left, right) => left.effectiveFrom.localeCompare(right.effectiveFrom))
+}
+
+/**
+ * Whether a Logical Day falls in the window the Dial draws: fourteen
+ * calendar-consecutive keys ending at `today`, **today's running day
+ * included**. Keys sort as they read, so the comparison is the containment.
+ */
+export function isInDialWindow(today: LogicalDayKey, logicalDay: LogicalDayKey): boolean {
+  return logicalDay >= shiftLogicalDay(today, -(DIAL_WINDOW_DAYS - 1)) && logicalDay <= today
+}
+
+/**
+ * Kicks Marked: how many Puff Sessions across the Dial's window you marked as
+ * having delivered (rules.md §12a).
+ *
+ * A count of **marks**, not of Kicks — an unmarked sitting means you didn't
+ * say — so the figure is a floor, understated by every Kick you had and never
+ * recorded and understated in the same direction always. The participle carries
+ * that admission and the screen never says it again.
+ *
+ * Three things this deliberately does not do. It never **divides**: the
+ * denominator a rate would need is *sessions you answered about*, and no
+ * control exists to produce one (ADR 0015), so the app never says what fraction
+ * of vaping delivers. It never **disqualifies**: §2 makes a day carrying any
+ * Puff Session Known, so every session this reaches already sits in a Known
+ * day, and the Unknown-day exclusion `longestGap` needs is vacuous here rather
+ * than omitted. And it reads **no mechanism** — no `Target`, `Met`, `Momentum`,
+ * `Ratchet` or `Pace` — which is what makes its window uniform across the
+ * conversion and leaves nothing observable to happen on the day the Baseline
+ * closes.
+ *
+ * `undefined` is the reading's absence, on the `Quit Horizon` pattern: *at
+ * least 0 of your sittings delivered* is content-free and reads as a reproach.
+ * The tile degrades by going absent and in no other way — a footnote here would
+ * fire constantly and teach the reader that a small number is a damaged one.
+ */
+export function kicksMarked(
+  record: DayLedgerRecord,
+  today: LogicalDayKey,
+): number | undefined {
+  const marked = record.puffSessions.filter(
+    (session) =>
+      session.kickMarkedAt !== undefined && isInDialWindow(today, session.logicalDay),
+  ).length
+  return marked === 0 ? undefined : marked
 }
 
 export function momentum(record: DayLedgerRecord, today: LogicalDayKey): number {

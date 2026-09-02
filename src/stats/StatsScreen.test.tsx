@@ -16,6 +16,28 @@ function session(id: string, logicalDay: string, hour: number, count: number): P
   return { id, logicalDay, at, lastTapAt: at, count, tz: 'UTC' }
 }
 
+function kickedSession(id: string, logicalDay: string, hour: number, count = 3): PuffSession {
+  const marked = session(id, logicalDay, hour, count)
+  return { ...marked, kickMarkedAt: marked.at }
+}
+
+function clearDay(logicalDay: string) {
+  return { logicalDay, at: `${logicalDay}T12:00:00.000Z`, tz: 'UTC' }
+}
+
+/**
+ * The screen's stack, top to bottom — one label per direct child of `main`.
+ *
+ * `Kicks Marked` is positioned by what it sits *above*, so the claim under test
+ * is an ordering rather than a presence, and reading the whole column is the
+ * only way to state it.
+ */
+function stack(): string[] {
+  return [...screen.getByRole('main').children].map(
+    (node) => node.getAttribute('aria-label') ?? node.className,
+  )
+}
+
 function step(effectiveFrom: string, target: number): RatchetStep {
   return {
     id: `step-${effectiveFrom}`,
@@ -269,6 +291,175 @@ describe('Stats', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Step back to Target 1' }))
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Set Target to 1' }))
     expect(await screen.findByText('You have already changed your target today')).toBeInTheDocument()
+  })
+
+  it('lands Kicks Marked last before the housekeeping line, in all three programme states', async () => {
+    const puffSessions = [
+      kickedSession('kicked', '2026-08-27', 21),
+      session('unmarked', '2026-08-28', 12, 5),
+    ]
+
+    const ordinary = render(
+      <StatsScreen
+        source={source({
+          record: { ...emptyRecord, puffSessions, ratchetSteps: [step('2026-08-20', 8)] },
+          exports: [],
+          backupCardDismissedAt: 0,
+        })}
+        clock={clock}
+        installed
+      />,
+    )
+    await screen.findByRole('heading', { name: 'Stats' })
+    expect(stack()).toEqual([
+      'stats-header',
+      'Recent hours',
+      'stats-tiles',
+      'stats-section', // the 28-day trend
+      'Longest Gap',
+      'Kicks Marked',
+      'backup-line',
+    ])
+    ordinary.unmount()
+
+    // The Baseline screen: beneath the dial and after the *N of 7* account,
+    // which is the screen's job and must not have a side reading above it.
+    const baseline = render(
+      <StatsScreen
+        source={source({ record: { ...emptyRecord, puffSessions }, exports: [], backupCardDismissedAt: 0 })}
+        clock={clock}
+        installed
+      />,
+    )
+    await screen.findByRole('heading', { name: 'Baseline' })
+    expect(stack()).toEqual(['stats-header', 'Recent hours', 'Kicks Marked', 'backup-line'])
+    expect(screen.getByText('2 of 7 Known Logical Days')).toBeInTheDocument()
+    baseline.unmount()
+
+    // At Target 0 nothing changes and the tile does not move up to chase
+    // `Longest Gap`: it stays the last reading before housekeeping.
+    render(
+      <StatsScreen
+        source={source({
+          record: { ...emptyRecord, puffSessions, ratchetSteps: [step('2026-08-20', 0)] },
+          exports: [],
+          backupCardDismissedAt: 0,
+        })}
+        clock={clock}
+        installed
+      />,
+    )
+    await screen.findByRole('heading', { name: 'Stats' })
+    expect(stack()).toEqual([
+      'stats-header',
+      'Recent hours',
+      'Longest Gap',
+      'stats-momentum',
+      'stats-section', // the 28-day trend
+      'Kicks Marked',
+      'backup-line',
+      'programme-details',
+    ])
+  })
+
+  it('empties the Kicks Marked tile at zero everywhere, by the reading and not by the screen', async () => {
+    // One unmarked sitting, three programme states: no Kick in the window, so
+    // the tile is absent — and absent for the same reason each time, since the
+    // silence is the reading's own rather than a rule any screen keeps.
+    const puffSessions = [session('unmarked', '2026-08-27', 21, 6)]
+    for (const ratchetSteps of [[], [step('2026-08-20', 8)], [step('2026-08-20', 0)]]) {
+      const { unmount } = render(
+        <StatsScreen
+          source={source({
+            record: { ...emptyRecord, puffSessions, ratchetSteps },
+            exports: [],
+            backupCardDismissedAt: 0,
+          })}
+          clock={clock}
+          installed
+        />,
+      )
+      await screen.findByRole('img', { name: /24-hour Dial/i })
+      expect(screen.queryByRole('region', { name: 'Kicks Marked' })).not.toBeInTheDocument()
+      expect(stack()).not.toContain('Kicks Marked')
+      unmount()
+    }
+  })
+
+  it('shows a bare count on an amber tile, with nothing divided and no footnote', async () => {
+    render(
+      <StatsScreen
+        source={source({
+          record: {
+            ...emptyRecord,
+            puffSessions: [
+              kickedSession('morning', '2026-08-27', 9),
+              kickedSession('evening', '2026-08-27', 21),
+              kickedSession('today', '2026-08-29', 17), // today's running day counts today
+              session('unmarked', '2026-08-28', 12, 9),
+            ],
+            ratchetSteps: [step('2026-08-20', 8)],
+          },
+          exports: [],
+          backupCardDismissedAt: 0,
+        })}
+        clock={clock}
+        installed
+      />,
+    )
+
+    const tile = await screen.findByRole('region', { name: 'Kicks Marked' })
+
+    // The label and the number, and not one word more. No denominator to invite
+    // the division the app declined to perform, no on-screen *at least*, no
+    // footnote, and no verb that would carry it into correlation — the floor
+    // rides in the participle alone.
+    expect(tile).toHaveTextContent(/^Kicks Marked3$/)
+    expect(tile.textContent).not.toMatch(/of|%|per|at least|rate|average|cluster|because/i)
+    expect(tile.querySelector('.stats-footnote')).toBeNull()
+    expect(tile.querySelector('svg')).toBeNull()
+
+    // Amber like every other tile: the shared class is what carries the corner
+    // bracket, and lilac stays on Track (`kicked-halo.test.ts` caps the accent
+    // at its two sanctioned readers, both of them there).
+    expect(tile).toHaveClass('stats-tile')
+    expect(screen.getByRole('main').querySelector('.kicked, .kick-switch')).toBeNull()
+  })
+
+  it('leaves the Dial silent about Kicks, spoke by spoke', async () => {
+    render(
+      <StatsScreen
+        source={source({
+          record: {
+            ...emptyRecord,
+            puffSessions: [kickedSession('evening', '2026-08-27', 21, 6)],
+            clearDays: [clearDay('2026-08-28')],
+            ratchetSteps: [step('2026-08-20', 8)],
+          },
+          exports: [],
+          backupCardDismissedAt: 0,
+        })}
+        clock={clock}
+        installed
+      />,
+    )
+
+    const dial = await screen.findByRole('img', { name: /24-hour Dial/i })
+
+    // The channel exists and is declined. The `aria-label` is the back door —
+    // appending `, 1 Kick` costs no pixels and collides with nothing, which is
+    // exactly why it is shut explicitly: it would hand a screen-reader user the
+    // banned distribution spoke by spoke.
+    const spokes = [...dial.querySelectorAll('g')].map((spoke) => spoke.getAttribute('aria-label'))
+    expect(spokes).toHaveLength(24)
+    expect(spokes.join(' ')).not.toMatch(/kick/i)
+    expect(dial.getAttribute('aria-label')).not.toMatch(/kick/i)
+    expect(dial.textContent).not.toMatch(/kick/i)
+
+    // The reading beneath the picture is the peak hour and nothing more: a Kick
+    // sentence in the centre would read a picture that is not on screen.
+    expect(screen.getByText('Your largest hour is 21:00.')).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Kicks Marked' })).toBeInTheDocument()
   })
 
   it('refreshes programme readings when the app returns to view', async () => {

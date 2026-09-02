@@ -12,6 +12,9 @@ import {
   shiftLogicalDay,
 } from '../domain/logical-day.ts'
 import {
+  DIAL_WINDOW_DAYS,
+  isInDialWindow,
+  kicksMarked,
   longestGap,
   momentum,
   quitHorizon,
@@ -22,7 +25,6 @@ import {
 } from '../domain/readouts.ts'
 import type { ExportRecord, LogicalDayKey } from '../store/records.ts'
 
-const DIAL_WINDOW_DAYS = 14
 const TREND_WINDOW_DAYS = 28
 
 export interface DialHour {
@@ -60,12 +62,20 @@ export interface StatsView {
   programme: ProgrammeView
   trend: TrendDay[]
   longestGap: LongestGap
+  /**
+   * The Kicks Marked reading, or `undefined` when the window holds none.
+   *
+   * Beside `programme` rather than inside it: one definition serves the
+   * Baseline screen, ordinary Stats and `Target 0` alike, so the tile's silence
+   * is the reading's own and not a rule any screen keeps. Nothing here
+   * retires.
+   */
+  kicksMarked: number | undefined
   backup: { uncoveredKnownDays: number }
 }
 
 function dial(record: DayLedgerRecord, today: LogicalDayKey): StatsView['dial'] {
-  const firstDay = shiftLogicalDay(today, -(DIAL_WINDOW_DAYS - 1))
-  const inWindow = (logicalDay: LogicalDayKey) => logicalDay >= firstDay && logicalDay <= today
+  const inWindow = (logicalDay: LogicalDayKey) => isInDialWindow(today, logicalDay)
   const knownDays = [...knownLogicalDayKeys(record)].filter(inWindow).length
   const hours = Array.from({ length: 24 }, (_, index) => ({
     hour: (index + LOGICAL_DAY_START_HOUR) % 24,
@@ -164,6 +174,7 @@ export function buildStatsView(
     programme: programme(record, today),
     trend: trend(record, today),
     longestGap: longestGap(record, now, today),
+    kicksMarked: kicksMarked(record, today),
     backup: { uncoveredKnownDays: uncoveredKnownDays(record, exports) },
   }
 }
