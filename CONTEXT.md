@@ -10,6 +10,10 @@ A personal, local-only PWA for reducing and eventually stopping vaping. It estab
 A single pickup of the device: one timestamp plus a puff count. The atomic unit of logging — never an individual puff.
 _Avoid_: Puff (as a record), Hit, Log, Entry
 
+**Kick**:
+The nicotine hit a Puff Session delivered, said of a Puff Session you have marked as having delivered one. **Binary**: you either said so or you did not, and there is no strength, scale or mild-versus-strong — a graded Kick is intensity, which this app records about nothing. A fact about what a sitting delivered, never a judgement of the sitting: it touches no Target, no Met, no Momentum, no Ratchet and no Pace, and nothing in the programme ever reads it. **Only Kicks are marked**, so an unmarked Puff Session means *you didn't say* rather than *no Kick*, and no control exists to say the latter ([ADR 0015](./docs/adr/0015-an-unknown-earns-a-control-only-where-it-costs.md)). A marked Puff Session is **Kicked**. The word collides with *kicking the habit* and is kept anyway: in use — *"I got a Kick"* — it does not misread.
+_Avoid_: Hit, Buzz, Rush, High, Good Session
+
 **Resisted Urge**:
 A wanted-one-didn't moment, recorded as a bare timestamp. Carries no intensity or trigger.
 _Avoid_: Craving, Temptation, Urge (unqualified)
@@ -92,6 +96,10 @@ _Avoid_: Projected Quit Date, Deadline, ETA, Target Date, Finish Line
 **Longest Gap**:
 The longest stretch between consecutive Puff Sessions lying wholly within Known Logical Days, the still-running stretch included. A stretch crossing an Unknown Logical Day is not evidence that you did not vape and is never eligible, so the figure is a floor on your best run rather than a measure of it — and after a long absence it is smaller, not larger, than the calendar suggests.
 _Avoid_: Longest Break, Clean Time, Abstinence, Time Since Last Puff
+
+**Kicks Marked**:
+How many Puff Sessions across the 14 most recent Logical Days you marked as having delivered a Kick. **A count of marks, not of Kicks**: an unmarked session means you didn't say, so the figure is a floor on how many of your sittings delivered rather than a measure of it — understated by every Kick you had and never recorded, and understated in the same direction always. The participle carries that; it is not said again on screen. Never divided by anything: the denominator a rate would need is *sessions you answered about*, and no control exists to produce one ([ADR 0015](./docs/adr/0015-an-unknown-earns-a-control-only-where-it-costs.md)), so the app never says what fraction of vaping delivers.
+_Avoid_: Kick Rate, Hit Rate, Success Rate, Kicks per Session
 
 ### The record
 
