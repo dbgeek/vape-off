@@ -62,6 +62,14 @@ describe('Settings Backup', () => {
     expect(screen.getByText('Restore from a backup')).toBeInTheDocument()
   })
 
+  // The only test in the suite that carries its own timeout. It is not slow by
+  // accident: it writes 14,600 Puff Sessions through fake-indexeddb and
+  // serialises them, because the 2.5 MB figure is the point — a Backup that
+  // size is what a year of real logging weighs, and the share sheet has to take
+  // it inside the click. That work lands near the 5s default, so under a loaded
+  // machine it tips over and reads as a storage regression rather than a busy
+  // CPU. The default stays where it is for every other test, where five seconds
+  // still means something has hung.
   it('builds and starts sharing a 2.5 MB Backup inside the button click', async () => {
     const db = new VapeOffDatabase(`settings-large-backup-${crypto.randomUUID()}`)
     await db.open()
@@ -100,7 +108,7 @@ describe('Settings Backup', () => {
     } finally {
       await db.delete()
     }
-  })
+  }, 20_000)
 
   it('builds and hands off a Backup from one tap, then refreshes the record', async () => {
     const backupSource = source()
