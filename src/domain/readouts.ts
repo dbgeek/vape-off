@@ -61,8 +61,12 @@ function earnedSteps(record: DayLedgerRecord) {
  * Whether a Logical Day falls in the window the Dial draws: fourteen
  * calendar-consecutive keys ending at `today`, **today's running day
  * included**. Keys sort as they read, so the comparison is the containment.
+ *
+ * The day under test comes first and `today` last, as in `isMet` — two keys of
+ * the same type are told apart by position and nothing else, so the order is
+ * worth keeping the one the rest of the domain already uses.
  */
-export function isInDialWindow(today: LogicalDayKey, logicalDay: LogicalDayKey): boolean {
+export function isInDialWindow(logicalDay: LogicalDayKey, today: LogicalDayKey): boolean {
   return logicalDay >= shiftLogicalDay(today, -(DIAL_WINDOW_DAYS - 1)) && logicalDay <= today
 }
 
@@ -97,7 +101,7 @@ export function kicksMarked(
 ): number | undefined {
   const marked = record.puffSessions.filter(
     (session) =>
-      session.kickMarkedAt !== undefined && isInDialWindow(today, session.logicalDay),
+      session.kickMarkedAt !== undefined && isInDialWindow(session.logicalDay, today),
   ).length
   return marked === 0 ? undefined : marked
 }

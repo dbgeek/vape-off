@@ -17,8 +17,8 @@ function session(id: string, logicalDay: string, hour: number, count: number): P
 }
 
 function kickedSession(id: string, logicalDay: string, hour: number, count = 3): PuffSession {
-  const marked = session(id, logicalDay, hour, count)
-  return { ...marked, kickMarkedAt: marked.at }
+  const sitting = session(id, logicalDay, hour, count)
+  return { ...sitting, kickMarkedAt: sitting.at }
 }
 
 function clearDay(logicalDay: string) {

@@ -800,7 +800,6 @@ select:focus-visible {
  * is a `.stats-tile` outside `.stats-tiles` — full width, amber bracket and
  * all — and this rule adds spacing and nothing else. No accent of its own. */
 .stats-kicks-marked {
-  min-height: 5.4rem;
   margin-top: 1.2rem;
   margin-bottom: 1.6rem;
 }

@@ -75,7 +75,7 @@ export interface StatsView {
 }
 
 function dial(record: DayLedgerRecord, today: LogicalDayKey): StatsView['dial'] {
-  const inWindow = (logicalDay: LogicalDayKey) => isInDialWindow(today, logicalDay)
+  const inWindow = (logicalDay: LogicalDayKey) => isInDialWindow(logicalDay, today)
   const knownDays = [...knownLogicalDayKeys(record)].filter(inWindow).length
   const hours = Array.from({ length: 24 }, (_, index) => ({
     hour: (index + LOGICAL_DAY_START_HOUR) % 24,

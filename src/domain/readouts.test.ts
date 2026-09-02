@@ -428,10 +428,10 @@ describe('readouts', () => {
       // rather than each shifting by their own 14. Divergence between the
       // picture and the figure beneath it would otherwise be silent.
       expect(DIAL_WINDOW_DAYS).toBe(14)
-      expect(isInDialWindow('2026-08-29', '2026-08-29')).toBe(true)
-      expect(isInDialWindow('2026-08-29', '2026-08-16')).toBe(true)
-      expect(isInDialWindow('2026-08-29', '2026-08-15')).toBe(false)
-      expect(isInDialWindow('2026-08-29', '2026-08-30')).toBe(false)
+      expect(isInDialWindow('2026-08-29', '2026-08-29')).toBe(true) // today, still running
+      expect(isInDialWindow('2026-08-16', '2026-08-29')).toBe(true) // the oldest day drawn
+      expect(isInDialWindow('2026-08-15', '2026-08-29')).toBe(false) // one day past the edge
+      expect(isInDialWindow('2026-08-30', '2026-08-29')).toBe(false) // ahead of the clock
     })
   })
 
