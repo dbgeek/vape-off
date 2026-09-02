@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest'
 import type { ClearDay, PuffSession, RatchetStep } from '../store/records.ts'
 import { dayTotal, isMet, type DayLedgerRecord } from './day-ledger.ts'
 import {
+  DIAL_WINDOW_DAYS,
+  isInDialWindow,
+  kicksMarked,
   longestGap,
   momentum,
   pace,
@@ -26,6 +29,11 @@ function puffSession(logicalDay: string, count: number): PuffSession {
     logicalDay,
     tz: 'UTC',
   }
+}
+
+/** The same sitting, with the Kick you volunteered on it. */
+function kickedSession(logicalDay: string, count = 3): PuffSession {
+  return { ...puffSession(logicalDay, count), kickMarkedAt: `${logicalDay}T12:05:00.000Z` }
 }
 
 function ratchetStep(
@@ -346,6 +354,84 @@ describe('readouts', () => {
         milliseconds: undefined,
         disqualifiedByUnknownDay: false,
       })
+    })
+  })
+
+  describe('Kicks Marked', () => {
+    it("counts the Kicked sittings across the Dial's own window, today's running day included", () => {
+      const record = {
+        ...emptyRecord,
+        puffSessions: [
+          kickedSession('2026-08-16'), // the window's oldest day
+          puffSession('2026-08-20', 4), // a sitting you never marked
+          kickedSession('2026-08-22'),
+          kickedSession('2026-08-29'), // today, still running
+        ],
+      }
+
+      // Marking reaches only today's sessions, so every Kick is born on today:
+      // a window excluding it would hide the mark for up to 24 hours and read
+      // as the app failing to register the act.
+      expect(kicksMarked(record, '2026-08-29')).toBe(3)
+    })
+
+    it('drops a Kick from the reading the day it leaves the window, and not before', () => {
+      const record = { ...emptyRecord, puffSessions: [kickedSession('2026-08-16')] }
+
+      // Fourteen calendar-consecutive keys ending at today: the 16th is inside
+      // the window on the 29th and outside it on the 30th, with nothing else
+      // about the record changed.
+      expect(kicksMarked(record, '2026-08-29')).toBe(1)
+      expect(kicksMarked(record, '2026-08-30')).toBeUndefined()
+    })
+
+    it('counts Puff Sessions, and never rolls them up to Logical Days', () => {
+      const record = {
+        ...emptyRecord,
+        puffSessions: [
+          { ...kickedSession('2026-08-28'), id: 'morning' },
+          { ...kickedSession('2026-08-28'), id: 'afternoon' },
+          { ...kickedSession('2026-08-28'), id: 'evening' },
+        ],
+      }
+
+      // A day with one Kick and a day with three are different facts, and the
+      // session is the only unit a Kick was ever attached to.
+      expect(kicksMarked(record, '2026-08-29')).toBe(3)
+    })
+
+    it('is absent at zero rather than reporting none, on the Quit Horizon pattern', () => {
+      expect(kicksMarked(emptyRecord, '2026-08-29')).toBeUndefined()
+      expect(
+        kicksMarked({ ...emptyRecord, puffSessions: [puffSession('2026-08-28', 6)] }, '2026-08-29'),
+      ).toBeUndefined()
+    })
+
+    it('disqualifies nothing, and reads no mechanism to decide it', () => {
+      const baseline = { ...emptyRecord, puffSessions: [kickedSession('2026-08-26')] }
+      // §2 makes a Logical Day Known if it carries any Puff Session, so the
+      // Unknown-day exclusion `Longest Gap` needs is vacuous here rather than
+      // omitted. And the window is uniform across the conversion: a Baseline
+      // day counts like any other, so nothing observable happens on the day a
+      // Ratchet Step first gives the record a Target — or on the day it reaches
+      // zero.
+      const underTarget = { ...baseline, ratchetSteps: [ratchetStep('2026-08-27', 10)] }
+      const atZero = { ...baseline, ratchetSteps: [ratchetStep('2026-08-27', 0)] }
+
+      expect(kicksMarked(baseline, '2026-08-29')).toBe(1)
+      expect(kicksMarked(underTarget, '2026-08-29')).toBe(1)
+      expect(kicksMarked(atZero, '2026-08-29')).toBe(1)
+    })
+
+    it('reads its window off the one definition the Dial is drawn from', () => {
+      // "The same window as the Dial" is a rule, so the two share a predicate
+      // rather than each shifting by their own 14. Divergence between the
+      // picture and the figure beneath it would otherwise be silent.
+      expect(DIAL_WINDOW_DAYS).toBe(14)
+      expect(isInDialWindow('2026-08-29', '2026-08-29')).toBe(true) // today, still running
+      expect(isInDialWindow('2026-08-16', '2026-08-29')).toBe(true) // the oldest day drawn
+      expect(isInDialWindow('2026-08-15', '2026-08-29')).toBe(false) // one day past the edge
+      expect(isInDialWindow('2026-08-30', '2026-08-29')).toBe(false) // ahead of the clock
     })
   })
 

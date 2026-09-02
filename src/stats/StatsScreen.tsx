@@ -126,6 +126,35 @@ function formatHorizon(horizon: QuitHorizon): string {
   return `about ${horizon.value} ${horizon.precision}`
 }
 
+/**
+ * Kicks Marked: one tile, one definition, at both ends of the programme.
+ *
+ * Every screen renders this same component immediately above the backup line,
+ * so its position is defined by what it sits *above* — the last reading before
+ * housekeeping, on the Baseline screen, on ordinary Stats and at `Target 0`
+ * alike. Nothing retires it: at `Target 0` a Met day admits no Puff Sessions,
+ * so in the steady state the count reaches zero and the silence below empties
+ * the tile unaided. When you are *not* holding zero it returns, unsuppressed —
+ * the tile is not the app noticing, it is the app repeating back a sentence you
+ * volunteered, and hiding your own mark from you is an under-reporting
+ * incentive arriving through the display.
+ *
+ * The absence is the reading's, not the screen's: one `undefined` here is why
+ * no screen carries a rule of its own about when to draw it.
+ *
+ * `.stats-tile` is the whole of the styling, and deliberately: it carries the
+ * amber corner bracket every other tile wears. Lilac stays on Track.
+ */
+function KicksMarked({ count }: { count: number | undefined }) {
+  if (count === undefined) return null
+  return (
+    <section className="stats-tile stats-kicks-marked" aria-label="Kicks Marked">
+      <span>Kicks Marked</span>
+      <strong>{count}</strong>
+    </section>
+  )
+}
+
 function BackupStatus({
   installed,
   uncoveredKnownDays,
@@ -226,6 +255,7 @@ export function StatsScreen({
           <p>{view.programme.knownDays} of 7 Known Logical Days</p>
         </header>
         <Dial hours={view.dial.hours} peakHour={view.dial.peakHour} />
+        <KicksMarked count={view.kicksMarked} />
         <BackupStatus
           installed={installed}
           uncoveredKnownDays={backupDays}
@@ -297,6 +327,8 @@ export function StatsScreen({
           {view.longestGap.disqualifiedByUnknownDay ? <p className="stats-footnote">Unknown Logical Days excluded longer gaps.</p> : null}
         </section>
       ) : null}
+
+      <KicksMarked count={view.kicksMarked} />
 
       <BackupStatus
         installed={installed}

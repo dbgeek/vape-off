@@ -14,6 +14,10 @@ function session(id: string, logicalDay: string, at: string, count: number): Puf
   return { id, logicalDay, at, lastTapAt: at, count, tz: 'UTC' }
 }
 
+function kickedSession(id: string, logicalDay: string, at: string, count = 3): PuffSession {
+  return { ...session(id, logicalDay, at, count), kickMarkedAt: at }
+}
+
 function urge(id: string, logicalDay: string, at: string): ResistedUrge {
   return { id, logicalDay, at, tz: 'UTC' }
 }
@@ -116,6 +120,53 @@ describe('the Stats view', () => {
     expect(view.programme).not.toHaveProperty('stepsRemaining')
     expect(view.programme).not.toHaveProperty('quitHorizon')
     expect(view.longestGap.milliseconds).toBe(54 * 60 * 60 * 1000)
+  })
+
+  it('carries Kicks Marked beside the Dial it shares a window with, in every programme state', () => {
+    const puffSessions = [
+      kickedSession('oldest', '2026-08-16', '2026-08-16T21:00:00.000Z'),
+      session('unmarked', '2026-08-20', '2026-08-20T21:00:00.000Z', 5),
+      kickedSession('today', '2026-08-29', '2026-08-29T17:00:00.000Z'),
+    ]
+    const now = new Date('2026-08-29T18:00:00.000Z')
+
+    // One figure, one window, three programme states: the Baseline, an active
+    // Target and Target 0 read the same record identically, because the count
+    // touches no mechanism and the view holds it outside `programme`.
+    const baseline = buildStatsView({ ...emptyRecord, puffSessions }, [], now, 'UTC')
+    const active = buildStatsView(
+      { ...emptyRecord, puffSessions, ratchetSteps: [step('2026-08-24', 10)] },
+      [],
+      now,
+      'UTC',
+    )
+    const targetZero = buildStatsView(
+      { ...emptyRecord, puffSessions, ratchetSteps: [step('2026-08-24', 0)] },
+      [],
+      now,
+      'UTC',
+    )
+
+    expect(baseline.programme.status).toBe('baseline')
+    expect(targetZero.programme.status).toBe('target-zero')
+    expect([baseline.kicksMarked, active.kicksMarked, targetZero.kicksMarked]).toEqual([2, 2, 2])
+  })
+
+  it('moves the Kick window with the Dial and empties the reading rather than showing none', () => {
+    const record = {
+      ...emptyRecord,
+      puffSessions: [kickedSession('oldest', '2026-08-16', '2026-08-16T21:00:00.000Z')],
+    }
+
+    // The Dial's oldest drawn day and the Kick's oldest counted day are the
+    // same day, and they leave together.
+    const inside = buildStatsView(record, [], new Date('2026-08-29T18:00:00.000Z'), 'UTC')
+    const outside = buildStatsView(record, [], new Date('2026-08-30T18:00:00.000Z'), 'UTC')
+
+    expect(inside.dial.knownDays).toBe(1)
+    expect(inside.kicksMarked).toBe(1)
+    expect(outside.dial.knownDays).toBe(0)
+    expect(outside.kicksMarked).toBeUndefined()
   })
 
   it('withholds the step-back on a Logical Day that already carries a Step', () => {

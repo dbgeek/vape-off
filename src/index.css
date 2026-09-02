@@ -794,6 +794,16 @@ select:focus-visible {
   font-weight: 560;
 }
 
+/* Kicks Marked stands alone rather than pairing off: the `Steps Remaining` /
+ * `Quit Horizon` grid exists to keep an exact figure and a guess visibly
+ * distinct, and two descriptive floors have no such tension to display. So it
+ * is a `.stats-tile` outside `.stats-tiles` — full width, amber bracket and
+ * all — and this rule adds spacing and nothing else. No accent of its own. */
+.stats-kicks-marked {
+  margin-top: 1.2rem;
+  margin-bottom: 1.6rem;
+}
+
 .stats-section {
   padding: 1.2rem 0;
   border-top: 1px solid color-mix(in srgb, var(--color-paper) 14%, transparent);
@@ -1032,6 +1042,7 @@ select:focus-visible {
   .stats-dial-section,
   .stats-tiles,
   .stats-headline,
+  .stats-kicks-marked,
   .stats-section {
     animation: stats-enter 360ms ease-out both;
   }
@@ -1040,6 +1051,7 @@ select:focus-visible {
   .stats-tiles,
   .stats-headline { animation-delay: 90ms; }
   .stats-section { animation-delay: 135ms; }
+  .stats-kicks-marked { animation-delay: 180ms; }
 }
 
 @keyframes stats-enter {
