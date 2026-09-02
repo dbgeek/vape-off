@@ -21,7 +21,7 @@ import { momentum } from '../domain/readouts.ts'
 import { isStandalone } from '../shell/install-state.ts'
 import type { LogicalDayKey, PuffSession, ResistedUrge } from '../store/records.ts'
 import { Lane, LANE_AXES, LIVE_LANE } from './Lane.tsx'
-import { puffLabel, urgeLabel } from './lane-events.ts'
+import { kickedClass, puffLabel, urgeLabel } from './lane-events.ts'
 import { useMeasuredBox } from './measured-box.ts'
 import { timelinePosition } from './timeline-geometry.ts'
 import { buildTrackView } from './track-view.ts'
@@ -493,7 +493,7 @@ export function TrackScreen({
             event.kind === 'puff' ? (
               <button
                 type="button"
-                className={`puff-mark${view.overTargetSessionIds.has(event.session.id) ? ' over-target' : ''}${view.openSession?.id === event.session.id ? ' open-mark' : ''}`}
+                className={`puff-mark${view.overTargetSessionIds.has(event.session.id) ? ' over-target' : ''}${view.openSession?.id === event.session.id ? ' open-mark' : ''}${kickedClass(event.session)}`}
                 style={mark}
                 aria-label={puffLabel(event.session, timeZone)}
                 onClick={() => setEditor({ kind: 'puff', session: event.session })}

@@ -16,6 +16,11 @@ function session(id: string, at: string, count: number, lastTapAt = at): PuffSes
   return { id, at, lastTapAt, count, logicalDay: '2026-08-29', tz: 'UTC' }
 }
 
+/** The same Puff Session, marked as having delivered a Kick. */
+function marked(session: PuffSession): PuffSession {
+  return { ...session, kickMarkedAt: '2026-08-29T23:00:00.000Z' }
+}
+
 function resistedUrge(at: string): ResistedUrge {
   return { id: 'resisted', at, logicalDay: '2026-08-29', tz: 'UTC' }
 }
@@ -355,6 +360,59 @@ describe('Track', () => {
 
     expect(await screen.findByLabelText('Puffs today')).toHaveTextContent('3')
     expect(screen.getByLabelText('Puffs today')).toHaveClass('track-count')
+  })
+
+  it('draws a Kick as a halo the mark wears, keeping everything the mark already was', async () => {
+    render(
+      <TrackScreen
+        source={source({
+          ...emptyRecord,
+          puffSessions: [
+            marked(session('morning', '2026-08-29T10:00:00.000Z', 2)),
+            marked(session('open', '2026-08-29T19:00:00.000Z', 2, '2026-08-29T19:01:00.000Z')),
+          ],
+          ratchetSteps: [target(2)],
+        })}
+        clock={{ now: () => new Date('2026-08-29T19:02:00.000Z'), timeZone: () => 'UTC' }}
+      />,
+    )
+
+    // The Kick is a ring drawn *outside* the mark, which is nothing at all to a
+    // reader who cannot see it — so the label is where it is said.
+    const morning = await screen.findByLabelText('Puff Session, 2 puffs at 10:00, Kicked')
+    const open = screen.getByLabelText('Puff Session, 2 puffs at 19:00, Kicked')
+    expect(morning).toHaveClass('puff-mark', 'kicked')
+
+    // Every existing signal survives untouched: the tier, the printed numeral,
+    // the over-Target red and the open-session pulse. A Kicked over-Target mark
+    // draws **both** rings — neither has standing to censor the other.
+    expect(open).toHaveClass('puff-mark', 'over-target', 'open-mark', 'kicked')
+    expect([morning, open].map((mark) => mark.style.width)).toEqual(['20px', '20px'])
+    expect([morning, open].map((mark) => mark.style.height)).toEqual(['20px', '20px'])
+    expect([morning, open].map((mark) => mark.textContent)).toEqual(['2', '2'])
+
+    // The halo is a `box-shadow`, which is not hit-tested: a Kicked mark's
+    // handle is exactly the handle it was.
+    fireEvent.click(morning)
+    expect(screen.getByRole('dialog', { name: 'Edit Puff Session' })).toBeInTheDocument()
+  })
+
+  it('says nothing of a Puff Session nobody marked, because an unmarked one is Unknown', async () => {
+    render(
+      <TrackScreen
+        source={source({
+          ...emptyRecord,
+          puffSessions: [session('quiet', '2026-08-29T10:00:00.000Z', 2)],
+        })}
+        clock={{ now: () => new Date('2026-08-29T12:00:00.000Z'), timeZone: () => 'UTC' }}
+      />,
+    )
+
+    // There is no `false` to draw and none to read aloud (ADR 0015): absence is
+    // *you did not say*, never *it delivered nothing*.
+    const quiet = await screen.findByLabelText('Puff Session, 2 puffs at 10:00')
+    expect(quiet).not.toHaveClass('kicked')
+    expect(screen.queryByLabelText(/Kicked/)).not.toBeInTheDocument()
   })
 
   it('states when Target was reached and colors only later Puff Sessions red', async () => {
@@ -897,6 +955,39 @@ describe('the Yesterday lane', () => {
     expect(timelineElements('.target-reached')).toHaveLength(1)
     expect(lane.querySelector('.target-reached')).toBeNull()
     expect(lane.querySelector('.over-target')).toBeNull()
+  })
+
+  it("draws yesterday's Kicks in the same treatment, adding nothing per-mark", async () => {
+    render(
+      <TrackScreen
+        source={source({
+          ...emptyRecord,
+          puffSessions: [
+            marked(yesterdaySession('delivered', '2026-08-28T10:00:00.000Z', 3)),
+            yesterdaySession('quiet', '2026-08-28T22:00:00.000Z', 1),
+          ],
+        })}
+        clock={morning}
+      />,
+    )
+
+    await screen.findByText('Yesterday')
+    const delivered = screen.getByLabelText('Yesterday, Puff Session, 3 puffs at 10:00, Kicked')
+
+    // Withholding yesterday's Kicks would draw a day that delivered identically
+    // to one that did nothing — the same honesty argument the dim rings are
+    // drawn on. It gets the live lane's halo and **nothing beyond the lane's own
+    // `0.42`**: no boosted accent, no per-mark exception (ADR 0014), which is
+    // safe only because the separator is hue rather than luminance.
+    expect(delivered.className).toBe('yesterday-mark kicked')
+    expect(delivered.style.width).toBe('28px')
+    expect(screen.getByLabelText('Yesterday, Puff Session, 1 puff at 22:00').className).toBe(
+      'yesterday-mark',
+    )
+
+    // Drawing the Kick adds a fact to the picture and no gesture, which is
+    // precisely what a read-only lane is for.
+    expect(within(timelineElement('.yesterday-lane')).queryAllByRole('button')).toHaveLength(0)
   })
 
   it('keeps the unlived tone to the live lane, because all of yesterday happened', async () => {

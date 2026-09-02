@@ -22,10 +22,42 @@ export type LaneEvent = FannedEvent & { key: string } & (
     | { kind: 'urge'; urge: ResistedUrge }
   )
 
-/** How a Puff Session's mark reads aloud. */
+/**
+ * Whether a Puff Session carries a Kick.
+ *
+ * Presence of `kickMarkedAt` is the mark and absence is Unknown — there is no
+ * `false` to read, because the app never asks whether a sitting delivered
+ * *nothing* (ADR 0015). Asked here rather than at each drawing so the two lanes
+ * cannot disagree about what a Kick is.
+ */
+function isKicked(session: PuffSession): boolean {
+  return session.kickMarkedAt !== undefined
+}
+
+/**
+ * The modifier a Kicked mark wears, ready to append, or nothing.
+ *
+ * One function rather than the same conditional written once per lane, because
+ * the Yesterday lane draws its Kicks in the live lane's treatment at the lane's
+ * own `0.42` and gets **nothing per-mark** of its own (ADR 0014). Two literals
+ * would be two chances for one lane to grow a halo the other does not have.
+ */
+export function kickedClass(session: PuffSession): string {
+  return isKicked(session) ? ' kicked' : ''
+}
+
+/**
+ * How a Puff Session's mark reads aloud.
+ *
+ * The Kick is drawn as a ring outside the mark, which is nothing at all to a
+ * reader who cannot see it — so the label is where the Kick is *said*, in
+ * either lane. It goes last: the session is what it always was, and the Kick is
+ * a fact appended to it (`screens.md` § The Kicked halo).
+ */
 export function puffLabel(session: PuffSession, timeZone: string): string {
   const unit = session.count === 1 ? 'puff' : 'puffs'
-  return `Puff Session, ${session.count} ${unit} at ${formatWallTime(session.at, timeZone)}`
+  const at = formatWallTime(session.at, timeZone)
+  return `Puff Session, ${session.count} ${unit} at ${at}${isKicked(session) ? ', Kicked' : ''}`
 }
 
 /** How a Resisted Urge's ring reads aloud. */

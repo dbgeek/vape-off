@@ -7,6 +7,28 @@
 }
 
 /*
+ * The Kick's accent: lilac at 267°, the app's fifth hue and its first
+ * (`screens.md` § The Kicked halo). It is spent on the Kicked halo and, when K3
+ * builds it, on the editor's `Kicked` toggle in its on-state — and **nowhere
+ * else**. Those two and no third is the rule, and `kicked-halo.test.ts` counts
+ * the readers so a third cannot arrive unnoticed.
+ *
+ * A plain `:root` declaration rather than a `@theme` token because no utility
+ * is generated from it; it is only ever read by hand, here in this file.
+ *
+ * **Chroma is the mechanism, so this value is not free to be re-toned lower.**
+ * On the Yesterday lane at `0.42` over near-black, compositing preserves hue
+ * and destroys luminance: dim lilac 267°, dim teal 165° and dim paper 30° land
+ * within a small luminance ratio of each other and are told apart by hue alone.
+ * An achromatic ring was refused for a second reason — a bright paper ring
+ * around a paper mark inflates *apparent size*, which is the tier system's
+ * channel for count.
+ */
+:root {
+  --kick-accent: #c9a8f0;
+}
+
+/*
  * The safe-area insets are wired from the start, because the logging control
  * lands on the home indicator. `viewport-fit=cover` in index.html is what makes
  * `env()` report anything other than zero.
@@ -1046,7 +1068,13 @@ select:focus-visible {
   font-size: 11px;
   line-height: 1;
   font-weight: 700;
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-paper) 25%, transparent);
+  /* The mark's own rim, held as a *colour* rather than as a whole shadow, so
+   * the Kicked halo below can nest it instead of replacing it. Written as a
+   * `box-shadow` shorthand there, the halo would silently delete whichever rim
+   * this mark is wearing — the paper one here, or the red one an over-Target
+   * mark swaps in. */
+  --mark-rim: color-mix(in srgb, var(--color-paper) 25%, transparent);
+  box-shadow: 0 0 0 1px var(--mark-rim);
   padding: 0;
 }
 
@@ -1056,11 +1084,40 @@ select:focus-visible {
 
 .puff-mark.over-target {
   background: #ef685f;
-  box-shadow: 0 0 0 1px color-mix(in srgb, #ef685f 40%, transparent);
+  --mark-rim: color-mix(in srgb, #ef685f 40%, transparent);
 }
 
 .puff-mark.open-mark {
   animation: session-pulse 1.6s ease-in-out infinite;
+}
+
+/* The Kicked halo: a detached ring just *outside* the mark, written in the one
+ * channel nothing else on a mark uses (`screens.md` § The Kicked halo).
+ *
+ * Three nested bands, 4px per side — 0–1px the mark's own rim, 1–2px ink for
+ * the detachment, 2–4px the accent — so the mark keeps everything it had. The
+ * tier, the printed numeral, the paper fill, the over-Target red and the
+ * open-session pulse all survive untouched, and a Kicked over-Target mark draws
+ * **both** rings: the red is factual rather than scolding (ADR 0010), so it has
+ * no standing to censor the Kick, and the Kick none to hide the red.
+ *
+ * **It costs no tap area.** A `box-shadow` is not hit-tested, so a Kicked
+ * mark's handle is exactly the handle it was — and the band is exactly the
+ * fan's `MARK_GAP`, so the halo takes the gutter without moving a mark. It
+ * abuts an unkicked neighbour, and two Kicked neighbours share one band and
+ * read as a single merged ring: an accepted degradation, not a bug.
+ *
+ * One selector for both lanes, because yesterday's Kicks are the live lane's
+ * treatment at the lane's own `0.42` and nothing per-mark of their own
+ * (ADR 0014). The band is a static-layout ceiling and not a cap on animation —
+ * a box-shadow scales with its element, so the halo breathes with the open
+ * mark's pulse and is stilled with it under `prefers-reduced-motion`. */
+.puff-mark.kicked,
+.yesterday-mark.kicked {
+  box-shadow:
+    0 0 0 1px var(--mark-rim),
+    0 0 0 2px var(--color-ink),
+    0 0 0 4px var(--kick-accent);
 }
 
 /* A Resisted Urge's ring: hollow, and carrying no numeral. Its diameter is set

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { PuffSession, ResistedUrge } from '../store/records.ts'
 import { Lane, LANE_AXES, LIVE_LANE, YESTERDAY_LANE, type LaneAxis } from './Lane.tsx'
 import { puffLabel } from './lane-events.ts'
+import { MARK_GAP } from './timeline-fan.ts'
 
 describe('the two lanes', () => {
   it('stands the spines where the two-lane timeline puts them', () => {
@@ -61,6 +62,11 @@ function session(id: string, wallTime: string, count: number): PuffSession {
     logicalDay: '2026-08-29',
     tz: 'UTC',
   }
+}
+
+/** The same Puff Session, marked as having delivered a Kick. */
+function marked(session: PuffSession): PuffSession {
+  return { ...session, kickMarkedAt: `${session.at.slice(0, 11)}23:00:00.000Z` }
 }
 
 function urge(id: string, wallTime: string): ResistedUrge {
@@ -165,6 +171,55 @@ describe('Lane', () => {
     drawLane(YESTERDAY_LANE, [session('dawn', '05:00', 1)])
 
     expect(marks()[0]!.style.left).toBe('')
+  })
+
+  it('places a Kicked mark exactly where it placed the unkicked one', () => {
+    // **Marking a mark moves no mark.** The halo is drawn outside the box and
+    // the fan is never taught it (`screens.md` § When marks collide — the fan):
+    // teaching it would tip this very run, because the column step is the
+    // group's widest mark. A day where every mark has to move to answer a
+    // collision, drawn twice.
+    const day = [
+      session('dawn', '05:00', 1),
+      session('ten', '07:34', 10),
+      session('six', '07:38', 6),
+      session('evening', '20:58', 1),
+      session('four', '21:03', 4),
+      session('two', '21:07', 2),
+    ]
+    const placements = () =>
+      marks().map(({ style }) => [style.top, style.left, style.width, style.height])
+
+    drawLane(LIVE_LANE, day, [urge('ring', '21:05')])
+    const unkicked = placements()
+    document.body.replaceChildren()
+    drawLane(LIVE_LANE, day.map(marked), [urge('ring', '21:05')])
+
+    expect(placements()).toEqual(unkicked)
+    expect(unkicked.some(([, left]) => left !== '')).toBe(true)
+  })
+
+  it('leaves two adjacent Kicked marks one band between them, which they share', () => {
+    // Two marks of the same tier, one column apart: the column step is that
+    // tier plus `MARK_GAP`, so the gutter between their boxes is `MARK_GAP`
+    // exactly — and the halo is `MARK_GAP` on every side. Each mark's halo
+    // therefore crosses the whole gutter, and the two read as a single merged
+    // ring. **An accepted degradation, asserted rather than avoided**: unsaid,
+    // whoever meets it first will "fix" it by teaching the fan the halo, which
+    // is the one thing this slice must not do.
+    drawLane(LIVE_LANE, [session('first', '07:34', 10), session('second', '07:38', 10)].map(marked))
+    const [first, second] = marks()
+
+    const size = Number.parseFloat(first!.style.width)
+    const step = Number.parseFloat(/\+ ([\d.]+)px/.exec(second!.style.left)![1]!)
+    expect(second!.style.width).toBe(first!.style.width)
+    expect(step - size).toBe(MARK_GAP)
+
+    // How far each halo reaches from its own mark's centre. The first's outer
+    // edge is at or past the second's, so no part of the gutter belongs to one
+    // of them alone.
+    const reach = size / 2 + MARK_GAP
+    expect(reach).toBeGreaterThanOrEqual(step - reach)
   })
 
   it('draws only what the caller returns, inventing no handle of its own', () => {
