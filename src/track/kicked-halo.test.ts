@@ -15,12 +15,30 @@ import { MARK_GAP } from './timeline-fan.ts'
  */
 const stylesheet = readFileSync('src/index.css', 'utf8')
 
-/** One rule's declarations, addressed by the selector text as the file writes it. */
+/**
+ * One rule's body, addressed by the selector text as the file writes it — whole,
+ * so an at-rule's nested blocks come with it.
+ *
+ * The selector has to be **unique** in the stylesheet: addressing a rule by a
+ * string that matches two of them would read one and silently ignore the other,
+ * which is the failure this whole file exists to catch rather than commit.
+ */
 function ruleFor(selectorText: string): string {
-  const opened = stylesheet.indexOf(`${selectorText} {`)
+  const opening = `${selectorText} {`
+  const opened = stylesheet.indexOf(opening)
   if (opened === -1) throw new Error(`No \`${selectorText}\` rule in the stylesheet`)
-  const body = stylesheet.slice(opened + selectorText.length + 2)
-  return body.slice(0, body.indexOf('}'))
+  if (stylesheet.indexOf(opening, opened + 1) !== -1) {
+    throw new Error(`\`${selectorText}\` opens more than one rule in the stylesheet`)
+  }
+
+  const from = opened + opening.length
+  let depth = 1
+  for (let at = from; at < stylesheet.length; at += 1) {
+    if (stylesheet[at] === '{') depth += 1
+    if (stylesheet[at] === '}') depth -= 1
+    if (depth === 0) return stylesheet.slice(from, at)
+  }
+  throw new Error(`\`${selectorText}\` is never closed`)
 }
 
 /** The one hex colour a declaration names. */
@@ -30,12 +48,24 @@ function colourIn(declarations: string, property: string): string {
   return found[1]!
 }
 
-const HALO = ruleFor('.puff-mark.kicked,\n.yesterday-mark.kicked')
-const TOKENS = ruleFor('@theme')
+/**
+ * A custom property's colour, found by its own name rather than by the rule it
+ * is declared in — the tokens live across two blocks and a `:root`, and which
+ * block holds which is not a fact worth pinning here.
+ */
+function tokenColour(property: string): string {
+  const declarations = [...stylesheet.matchAll(new RegExp(`${property}: (#[0-9a-f]{6});`, 'g'))]
+  if (declarations.length !== 1) {
+    throw new Error(`Expected one \`${property}\` declaration, found ${declarations.length}`)
+  }
+  return declarations[0]![1]!
+}
 
-const INK = colourIn(TOKENS, '--color-ink')
-const PAPER = colourIn(TOKENS, '--color-paper')
-const ACCENT = colourIn(ruleFor(':root'), '--kick-accent')
+const HALO = ruleFor('.puff-mark.kicked,\n.yesterday-mark.kicked')
+
+const INK = tokenColour('--color-ink')
+const PAPER = tokenColour('--color-paper')
+const ACCENT = tokenColour('--kick-accent')
 const RESISTED_TEAL = colourIn(ruleFor('.resisted-mark,\n.yesterday-ring'), 'border')
 const OVER_TARGET_RED = colourIn(ruleFor('.puff-mark.over-target'), 'background')
 
@@ -152,6 +182,23 @@ describe('the Kicked halo', () => {
     expect(outermost).toBe(MARK_GAP)
   })
 
+  it("breathes with the open mark, because the pulse scales rather than resizes", () => {
+    // The 4px is a **static-layout** ceiling and not a cap on animation: a
+    // `box-shadow` scales with its element, so on a 44px open mark the halo
+    // transiently reaches ~2px past its static edge. That is the common case —
+    // you are usually marking while the Merge Window is still open — and it
+    // holds only while the pulse animates `scale`. Rewritten to animate `width`
+    // and `height`, the mark would grow and the halo would stay put, and this
+    // claim would fail with nothing to say so.
+    const pulse = ruleFor('@keyframes session-pulse')
+    expect(pulse).toContain('scale:')
+    expect(pulse).not.toMatch(/\b(width|height|inset|padding):/)
+
+    // Only one session is ever open, and `prefers-reduced-motion` already
+    // stills it — halo and all, because the halo is drawn on the mark itself.
+    expect(ruleFor('@media (prefers-reduced-motion: reduce)')).toContain('.puff-mark.open-mark')
+  })
+
   it('is the same treatment in both lanes, with nothing added per-mark', () => {
     // ADR 0014: a lane is its marks, not its furniture. Yesterday's Kicks are
     // the live lane's halo at the lane's own dimness and nothing else, which one
@@ -163,6 +210,12 @@ describe('the Kicked halo', () => {
   it('spends lilac on the halo and nowhere else', () => {
     expect(ACCENT).toBe('#c9a8f0')
     expect([...stylesheet.matchAll(/#c9a8f0/g)]).toHaveLength(1)
+
+    // A count rather than an absence, because the accent has exactly one
+    // sanctioned second reader — the editor's `Kicked` toggle in its on-state,
+    // which K3 builds. **This number is a tripwire, not a ceiling**: K3 raises
+    // it to 2 and nothing raises it again. Anything else reaching for lilac is
+    // the dilution amber was refused for, arriving by the other door.
     expect([...stylesheet.matchAll(/var\(--kick-accent\)/g)]).toHaveLength(1)
   })
 

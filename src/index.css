@@ -8,11 +8,13 @@
 
 /*
  * The Kick's accent: lilac at 267°, the app's fifth hue and its first
- * (`screens.md` § The Kicked halo). It is spent on the Kicked halo and on the
- * editor's `Kicked` toggle in its on-state, and **nowhere else**.
+ * (`screens.md` § The Kicked halo). It is spent on the Kicked halo and, when K3
+ * builds it, on the editor's `Kicked` toggle in its on-state — and **nowhere
+ * else**. Those two and no third is the rule, and `kicked-halo.test.ts` counts
+ * the readers so a third cannot arrive unnoticed.
  *
- * A plain `:root` declaration rather than a `@theme` token because nothing
- * generates a utility from it — it is read once, by the halo.
+ * A plain `:root` declaration rather than a `@theme` token because no utility
+ * is generated from it; it is only ever read by hand, here in this file.
  *
  * **Chroma is the mechanism, so this value is not free to be re-toned lower.**
  * On the Yesterday lane at `0.42` over near-black, compositing preserves hue
