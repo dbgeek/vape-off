@@ -268,6 +268,26 @@ This makes **Clear Day load-bearing for a stat it was not introduced to serve**:
 
 At Target 0, Longest Gap **takes the headline** as Steps Remaining and the Quit Horizon retire.
 
+## 12a. Kicks Marked
+
+> Numbered `12a` rather than `13` so that `§13`, `§14` and `§15` keep the anchors the rest of the spec links to. It belongs here, beside the other floor.
+
+```
+kicksMarked():
+    firstDay = today() shifted back 13 Logical Days
+    n = count of puffSessions where firstDay <= logicalDay <= today()
+                                and kickMarkedAt is present
+    if n == 0: return ABSENT
+    return n
+```
+
+- **The same window as the Dial**, keyed the same way: 14 calendar-consecutive Logical Day keys ending at `today()`, **today's running day included**. Marking reaches only today's sessions ([screens.md](./screens.md#marking-a-kick)), so **every Kick is born on today** — a window excluding today would hide a mark for up to 24 hours immediately after it was made, which reads as the app failing to register the act. A rolling 14×24h from `now` was refused for putting the figure on a different time axis from the picture directly above it.
+- **Counted in Puff Sessions, never rolled up to Logical Days.** A day with one Kick and a day with six are different facts, and the session is the only unit a Kick was ever attached to.
+- **Absent at zero**, on the `Quit Horizon` pattern. *"At least 0 of your sittings delivered"* is content-free and reads as a reproach.
+- **No Unknown-day exclusion, and it is vacuous rather than omitted.** §2 makes a Logical Day Known if it carries any Puff Session, so every session this reaches already sits in a Known day. Nothing is ever disqualified — unlike `Longest Gap`, whose eligibility rule is load-bearing.
+- **Never a footnote.** A floor can only be *understated* by missing evidence, never falsified by it, so a footnote here would fire constantly and teach the reader the number is damaged when it is only small. The tile degrades by going absent, and in no other way.
+- **Never divided.** The honest denominator — sessions you answered about — does not exist, by construction ([ADR 0015](../adr/0015-an-unknown-earns-a-control-only-where-it-costs.md)).
+
 ## 13. The export nag
 
 ```

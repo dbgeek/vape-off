@@ -1,8 +1,8 @@
 # The build order
 
-Eleven slices, each sized for one agent session. Build them in order — every slice depends on the ones above it and none depends on the ones below.
+Twenty slices, each sized for one agent session. Build them in order — every slice depends on the ones above it and none depends on the ones below.
 
-S1–S11 are the v1 build and have shipped. **[The Track timeline rebuild](#the-track-timeline-rebuild) at the end of this file** adds five more, cut afterwards by a second map; start there if Track's timeline is what you are building.
+S1–S11 are the v1 build and have shipped. Two later maps added slices at the end of this file: **[the Track timeline rebuild](#the-track-timeline-rebuild)** adds five, and **[the Kick](#the-kick)** adds four. Start at whichever of the three you are building — they are strictly ordered among themselves and the later two do not revisit each other.
 
 **Every slice:** read [`CONTEXT.md`](../../CONTEXT.md) and [`README.md`](./README.md)'s invariants first, use the glossary's vocabulary in names and tests, and do not invent behaviour this spec does not describe. If you find a genuine gap, say so in the PR rather than filling it silently — the only one known in advance is flagged in the README.
 
@@ -172,3 +172,65 @@ Three changes that only make sense together:
 - **Compact the catch-up strip** from stacked dated rows with two 2.2rem buttons to **one horizontally scrollable row of day chips**, both actions as glyphs on the chip. Target ~74px against today's 149px. Keep both sentences of the strip's line — `Anything you remember?` **and** `It is fine to leave a day unknown.` If they will not fit, the chips shrink, not the sentence.
 
 **Done when** an iPhone SE in a tab with the install bar and the catch-up strip both up gives the timeline exactly 224px, nothing is drawn under PUFF at any height, every fixture's fan fits both lane budgets at 224px, and a returning user after a bad fortnight still meets an offer rather than a debt.
+
+---
+
+# The Kick
+
+Four slices from [marking a Puff Session that delivers a Kick](https://github.com/dbgeek/vape-off/issues/87), cut after the **T** slices. They add one optional field, one gesture, one mark treatment and one tile, and they change nothing that exists except where each slice says so.
+
+> **These slices block on [#43](https://github.com/dbgeek/vape-off/issues/43).** `version(1)` is not frozen yet, and until it is there is no `version(2)` to declare — you edit `version(1)` in place and churn via `deleteDatabase`. #43's acceptance is a week of real-device running with the Puff Session log intact at the end, and a schema declaration landing mid-run muddies precisely what that run measures, even a no-op one. **Writing the spec was not blocked; building it is.** ([#95](https://github.com/dbgeek/vape-off/issues/95))
+
+Build them in order: each depends on the ones above it. **Every slice:** read [`CONTEXT.md`](../../CONTEXT.md)'s `Kick` and `Kicks Marked` entries, [ADR 0015](../adr/0015-an-unknown-earns-a-control-only-where-it-costs.md), and the eleventh invariant in [`README.md`](./README.md) first. **The Kick touches no mechanism** — if a slice finds itself reading `kickMarkedAt` anywhere near `Target`, `Met`, `Momentum`, the `Ratchet` or `Pace`, it has gone wrong.
+
+## K1 · The Kick in the record
+
+[data-model.md](./data-model.md#why-these-fields), [ADR 0005](../adr/0005-the-schema-only-moves-forward.md), [#88](https://github.com/dbgeek/vape-off/issues/88), [#93](https://github.com/dbgeek/vape-off/issues/93), [#95](https://github.com/dbgeek/vape-off/issues/95). No UI.
+
+- `kickMarkedAt?: Instant` on `PuffSession`. **Presence is the mark**; un-marking deletes the property rather than writing a `false`.
+- The declared chain: `version(1).stores(STORE_SCHEMA)` then `version(2).stores(STORE_SCHEMA)`, **same object, no `.upgrade()`**. `SCHEMA_VERSION` becomes *the highest version declared*.
+- The two write paths, as **live writes in `track-writes.ts`, not `correction-writes.ts`** — marking and un-marking are one toggle and neither is a Correction. Nothing proposed, nothing named, no Momentum impact shown, no `evaluate()` consequence to reason about.
+- **Marking does not close or extend the Merge Window.** The window stays keyed to taps alone.
+- The three Backup lines: the conditional field in `createBackupFile`'s `puffSessions` map **last, after `tz`**; strict validation in the guard; **no `summary` entry**. `formatVersion` stays `1` and `FORMAT_MIGRATIONS` stays empty.
+
+**Done when** a Kick survives the Merge Window growing its sitting and a Correction re-timing it (both for free, via the existing spreads), dies with a hard delete, round-trips byte-identically through export and restore, and a Backup carrying a malformed `kickMarkedAt` is refused whole. Plus: the *older than your data* guard fires against a `version(2)` database opened by a `version(1)` build.
+
+## K2 · Track, the halo
+
+[screens.md](./screens.md#the-kicked-halo), [#90](https://github.com/dbgeek/vape-off/issues/90), [#96](https://github.com/dbgeek/vape-off/issues/96), [#97](https://github.com/dbgeek/vape-off/issues/97). Rendering only — seed Kicks directly for now; the act is K3.
+
+- `--kick-accent: #c9a8f0`, a fifth hue and the app's first. It appears on the halo and (in K3) the editor toggle's on-state, and **nowhere else**.
+- The three nested bands, 4px per side. **Nest the mark's existing rim rather than replacing it** — a `box-shadow` shorthand on `.puff-mark` silently deletes it, and an over-Target mark's red one with it. A Kicked over-Target mark draws **both**.
+- The Yesterday lane draws its Kicks in the same treatment at the lane's own `0.42`, with **nothing added per-mark** ([ADR 0014](../adr/0014-a-lane-is-its-marks-not-its-furniture.md)).
+- `aria-label` gains `, Kicked`, in either lane.
+- **The fan is not taught the halo, and `FannedEvent.size`'s doc comment is wrong today.** It says *"its drawn diameter in px"*; it is the mark's **box**, never its drawn extent. Fix the comment — that field is where the wrong number would be passed from `lane-events.ts`. **Do not** add the halo to `size`, to `MARK_GAP`, or to the collision test.
+
+**Done when** a Kicked mark's tap target is unchanged to the pixel; the tiers, numerals, fills, over-Target red and open-session pulse all render exactly as they did; marking a mark **moves no mark**; two adjacent Kicked marks merge their band and this is asserted rather than avoided; and the dim lane's lilac, teal and paper separate by hue at `0.42`.
+
+## K3 · Track, the act
+
+[screens.md](./screens.md#marking-a-kick), [#89](https://github.com/dbgeek/vape-off/issues/89).
+
+- **Long-press a mark toggles its Kick.** **Tap opens the editor**, which carries the same toggle above the Correction fields, applying on tap, with the copy in the spec.
+- **Reach: today's marks, live lane only**, the open Merge Window session included. The Yesterday lane stays read-only **structurally** — it is handed ids and never a handler, so give it no source, no editor and no handler here either.
+- **iOS:** `-webkit-touch-callout: none` and `user-select: none` on `.puff-mark`, plus suppressing the context menu. Without them a held press raises the selection callout over the mark.
+- The toggle is the app's only keyboard- and screen-reader-reachable route to the act; the long-press has no equivalent. It is not optional polish.
+
+**Done when** one held press marks and one un-marks, by either route interchangeably; the editor's toggle applies before `Save changes` and survives `Cancel`; a session inside its open Merge Window is markable and marking it does not close the window; nothing in the Yesterday lane is tappable; and a held press on a 20px mark does not raise an iOS callout.
+
+## K4 · Stats, Kicks Marked
+
+[rules.md §12a](./rules.md#12a-kicks-marked), [screens.md](./screens.md#beneath-it-in-order), [#91](https://github.com/dbgeek/vape-off/issues/91), [#98](https://github.com/dbgeek/vape-off/issues/98), [#99](https://github.com/dbgeek/vape-off/issues/99).
+
+- `kicksMarked()` — a pure function, the Dial's own 14-day window, **today included**, counted in Puff Sessions. Absent at zero.
+- The tile: **fourth in the ordinary Stats stack**, after `Longest Gap` and before the backup line. On the **Baseline screen**, beneath the dial after the *N of 7* account. At **`Target 0`**, third: `Longest Gap` → `Momentum` → `Kicks Marked` → backup line.
+- **No denominator, no footnote, no sparkline, and nothing on the Dial** — not on the ring, not in the centre, and **not in the spoke's `aria-label`**, which is the back door and is shut on purpose.
+- Amber like every other tile. Lilac stays on Track.
+
+**Done when** the window matches the Dial's exactly and moves with it; the tile is absent at zero on all three screens without a special case per screen; no string on it crosses the verb boundary; nothing is ever divided; and a Kick marked today is counted today.
+
+## Before the Kick is done
+
+- **On a real iPhone, in the dark.** The lilac halo at `0.42` beside a teal ring is the one thing that cannot be checked in a test, and the whole Yesterday-lane decision rests on hue surviving the dim.
+- **The `Kicked` toggle's copy is a first draft** and is the only string here nobody has reacted to ([README](./README.md#where-this-spec-is-thinner-than-the-map-and-why)). If the long-press is still undiscovered after a week of use, that line is what to change first.
+- **Export, restore on a second device, and check the halos are still there.** The field is optional, so nothing in the type system notices if it went missing.
