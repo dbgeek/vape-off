@@ -31,7 +31,13 @@ function backupFile(record: BackupRecord, installId = 'source-install'): File {
   }).file
 }
 
-/** Backup never badges, so the one fact its session does not need is supplied here. */
+/**
+ * A session whose badge is a no-op, for the tests that are not about the badge.
+ *
+ * Backup *does* badge — a read leaves the badge agreeing with the record
+ * (ADR 0016), and a restore is the moment that matters most — so the tests that
+ * care supply a badge of their own rather than coming through here.
+ */
 function sessionFor(db: VapeOffDatabase, environment: Omit<SessionEnvironment, 'badge'>) {
   return createStoreSession(db, { ...environment, badge: {} })
 }
@@ -208,6 +214,55 @@ describe('browser Backup source', () => {
       { key: 'firstRunCardDismissed', value: false },
       { key: 'installId', value: 'destination-install' },
     ])
+  })
+
+  /**
+   * The moment the badge is most likely to be wrong and most likely to be
+   * looked at: the record has just been replaced wholesale, and every derived
+   * figure with it (ADR 0016).
+   */
+  it('leaves the badge agreeing with the record it restored, and with the one it reads', async () => {
+    const db = new VapeOffDatabase(`browser-restore-badge-${crypto.randomUUID()}`)
+    databases.push(db)
+    await db.open()
+    const badge = {
+      setAppBadge: vi.fn().mockResolvedValue(undefined),
+      clearAppBadge: vi.fn().mockResolvedValue(undefined),
+    }
+    const restored: BackupRecord = {
+      ...emptyRecord,
+      puffSessions: [{
+        id: 'restored-session',
+        at: '2026-08-29T09:00:00.000Z',
+        lastTapAt: '2026-08-29T09:00:00.000Z',
+        count: 4,
+        logicalDay: '2026-08-29',
+        tz: 'UTC',
+      }],
+      ratchetSteps: [{
+        id: 'restored-step',
+        effectiveFrom: '2026-08-01',
+        target: 10,
+        kind: 'earned',
+        at: '2026-08-01T04:00:00.000Z',
+      }],
+    }
+    const source = createBrowserBackupSource(createStoreSession(db, {
+      now: () => new Date('2026-08-29T12:00:00.000Z'),
+      timeZone: () => 'UTC',
+      randomUUID: () => 'restore-record',
+      badge,
+    }))
+
+    await source.restore(await source.prepareRestore(backupFile(restored)))
+
+    // Target 10, four puffs on the restored day: six left, on the icon, without
+    // waiting for a visit to Track or Stats.
+    expect(badge.setAppBadge).toHaveBeenLastCalledWith(6)
+
+    badge.setAppBadge.mockClear()
+    await source.load()
+    expect(badge.setAppBadge).toHaveBeenCalledWith(6)
   })
 
   it('rolls back the cleared stores when any restore insert fails', async () => {

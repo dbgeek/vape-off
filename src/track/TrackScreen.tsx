@@ -420,6 +420,12 @@ export function TrackScreen({
         const written = await operation()
         if (written === undefined) return
         setRecord(written)
+        // Optimistic, and unconditional on purpose. The greeting's own flag
+        // lives in `meta` rather than in the record, so a write cannot answer
+        // for it without a second read — and it never needs to. Every Track
+        // write claims the greeting in the store except `toggleKick`, which can
+        // only reach a Puff Session that claimed it when it was written. So the
+        // flag set here always agrees with the one the store holds.
         setFirstRunCardDismissed(true)
         setNow(at)
       } catch {

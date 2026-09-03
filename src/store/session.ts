@@ -10,12 +10,19 @@ import { evaluate, type EvaluationResult } from './ratchet-writes.ts'
 /**
  * The connection's owner: one session sits behind Track, Stats and Backup, and
  * owns the lifecycle none of them owns alone — when the database opens, how the
- * whole record is read, when the Ratchet is evaluated, that the badge follows a
- * read, and that a deleted database is reopened here and nowhere else. The
+ * whole record is read, that the badge follows a read, what always follows a
+ * write, and that a deleted database is reopened here and nowhere else. The
  * adapters keep only the operations their screen calls.
  *
- * The badge sits on its environment because refreshing it is the session's job.
- * A slice's own extras stay with the slice.
+ * **Opening is nobody's to remember.** Every member below opens the connection
+ * first, so there is no order to get right and no `ensureOpen` to forget. An
+ * ordering constraint a caller has to know is part of the interface, and that
+ * one restated a guarantee the session was already making.
+ *
+ * **A read leaves the badge agreeing with the record** (ADR 0016), which is why
+ * `readRecord` refreshes it rather than offering a separate refresh a caller
+ * could skip. The badge sits on the environment because keeping it in step is
+ * the session's job. A slice's own extras stay with the slice.
  */
 
 /** The browser facts every store operation draws on. */
@@ -40,18 +47,62 @@ const browserEnvironment: SessionEnvironment = {
   badge: navigator,
 }
 
+/**
+ * What a write produced, and the record it produced it in.
+ *
+ * The operation's own answer travels back beside the record because one caller
+ * needs it — a Correction the record refused has to say so — and the rest read
+ * `record` and ignore it. A write answering only with the record would send that
+ * one caller round the outside to ask again.
+ */
+export interface WriteResult<Produced> {
+  result: Produced
+  record: DayLedgerRecord
+}
+
 export interface StoreSession {
-  /** The connection the session keeps open. Adapters write through it; only the session opens it. */
-  readonly db: VapeOffDatabase
+  /**
+   * The open connection, for the extras a slice keeps of its own — its `meta`
+   * keys, its `exports` rows.
+   *
+   * A function rather than a property so that the database cannot be reached
+   * without being open. Handing out a closed connection and asking callers to
+   * open it first is the ordering constraint this module exists to remove: it
+   * compiles either way, and the one caller that forgets is found by a user.
+   */
+  database: () => Promise<VapeOffDatabase>
   readonly environment: SessionEnvironment
-  /** Opens the connection, once, however many callers ask. */
-  ensureOpen: () => Promise<void>
+  /**
+   * The whole record, with the badge left agreeing with it.
+   *
+   * It does not evaluate the Ratchet. Reading is not deciding, and the one read
+   * that must not decide is the Backup's: evaluating mid-export could write a
+   * Ratchet Step into the very file being handed off.
+   */
   readRecord: () => Promise<DayLedgerRecord>
   /** Runs the Ratchet's evaluation, as of `at` when a screen is working in a past moment. */
   evaluate: (at?: Date) => Promise<EvaluationResult>
-  /** Best-effort: a badge that refuses never fails the read or the write behind it. */
-  refreshBadge: (record: DayLedgerRecord, at: Date) => Promise<void>
-  /** Discards the database and reopens it — the recovery path, and a lifecycle fact, not a secret. */
+  /**
+   * A write, and everything that always follows one: the Ratchet evaluated, the
+   * record read back, the badge left agreeing with it.
+   *
+   * Evaluated and read as of **now**, never as of the instant written. A
+   * Correction and a catch-up Clear Day carry a past `at`, and judging the
+   * programme as of a Logical Day that has already finished is a different
+   * question from the one a write asks.
+   */
+  write: <Produced>(
+    operation: (db: VapeOffDatabase) => Promise<Produced>,
+  ) => Promise<WriteResult<Produced>>
+  /**
+   * Discards the database and reopens it — the recovery path, and a lifecycle
+   * fact, not a secret.
+   *
+   * The one member that opens **eagerly**, because its caller is recovering from
+   * a database that would not open and wants to know the rebuild worked before
+   * it navigates away. Left lazy, that failure would surface on a later read, on
+   * another screen.
+   */
   reset: () => Promise<void>
 }
 
@@ -69,22 +120,41 @@ export function createStoreSession(
     await opening
   }
 
-  return {
-    db,
-    environment,
-    ensureOpen,
-    readRecord: () => readRecord(db),
+  /** Best-effort: a badge that refuses never fails the read or the write behind it. */
+  async function refreshBadge(record: DayLedgerRecord, at: Date): Promise<void> {
+    try {
+      await updateBadge(record, at, environment.timeZone(), environment.badge)
+    } catch {
+      // Badging is a best-effort browser affordance; the record is already safe.
+    }
+  }
 
-    evaluate(at) {
+  async function read(): Promise<DayLedgerRecord> {
+    await ensureOpen()
+    const record = await readRecord(db)
+    await refreshBadge(record, environment.now())
+    return record
+  }
+
+  return {
+    environment,
+    readRecord: read,
+
+    async database() {
+      await ensureOpen()
+      return db
+    },
+
+    async evaluate(at) {
+      await ensureOpen()
       return evaluate(db, at === undefined ? environment : { ...environment, now: () => at })
     },
 
-    async refreshBadge(record, at) {
-      try {
-        await updateBadge(record, at, environment.timeZone(), environment.badge)
-      } catch {
-        // Badging is a best-effort browser affordance; the record is already safe.
-      }
+    async write(operation) {
+      await ensureOpen()
+      const result = await operation(db)
+      await evaluate(db, environment)
+      return { result, record: await read() }
     },
 
     async reset() {
