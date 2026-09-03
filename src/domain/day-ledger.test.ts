@@ -8,6 +8,7 @@ import {
   isCompleted,
   isKnown,
   isMet,
+  knownLogicalDayKeys,
   type DayLedgerRecord,
 } from './day-ledger.ts'
 
@@ -151,5 +152,36 @@ describe('day ledger', () => {
 
     expect(isMet(record, '2026-08-25', '2026-08-29')).toBe(false)
     expect(isMet(record, '2026-08-28', '2026-08-29')).toBe(true)
+  })
+})
+
+/**
+ * The index behind the ledger (see `day-ledger.ts`).
+ *
+ * Timing is not the assertion — a budget in milliseconds passes or fails on
+ * whatever else the machine happens to be doing. What is asserted is the
+ * property that makes the cost linear: one index per record, shared by every
+ * question, and never carried across to a different record.
+ */
+describe('the day ledger index', () => {
+  it('answers every question about one record from a single shared index', () => {
+    const record = { ...emptyRecord, puffSessions: [puffSession('2026-08-28', 2)] }
+
+    // The same instance, not merely an equal one: a fresh Set per call is the
+    // walk of the whole record this index exists to stop repeating.
+    expect(knownLogicalDayKeys(record)).toBe(knownLogicalDayKeys(record))
+  })
+
+  it('never carries one record’s index onto another', () => {
+    const before = { ...emptyRecord, puffSessions: [puffSession('2026-08-28', 2)] }
+    const after = {
+      ...emptyRecord,
+      puffSessions: [puffSession('2026-08-28', 2), puffSession('2026-08-29', 5)],
+    }
+
+    expect(dayTotal(before, '2026-08-29')).toBe(0)
+    expect(isKnown(before, '2026-08-29')).toBe(false)
+    expect(dayTotal(after, '2026-08-29')).toBe(5)
+    expect(isKnown(after, '2026-08-29')).toBe(true)
   })
 })

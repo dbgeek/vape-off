@@ -210,6 +210,11 @@ export function intervalIsKnown(
   end: LogicalDayKey,
 ): boolean {
   if (start > end) return false
+  // Consecutive Puff Sessions overwhelmingly sit on the same Logical Day, and
+  // the walk below pays a date parse and a re-format to discover that the one
+  // day it just checked was also the last. Answering the single-day interval
+  // outright is the same question with none of that.
+  if (start === end) return knownDays.has(start)
   for (let day = start; day <= end; day = shiftLogicalDay(day, 1)) {
     if (!knownDays.has(day)) return false
   }
