@@ -2,6 +2,18 @@
 
 A personal, local-only iPhone PWA for reducing and eventually stopping vaping.
 
+**Live:** [vape-off.ba78.me](https://vape-off.ba78.me/)
+
+## What it does
+
+You log a Puff Session with a tap each time you pick up the device — no
+account, no server, nothing leaves your phone. After a seven-day Baseline, the
+app sets a daily Target below what you actually vape and shows Pace, a
+rolling read-out of how long you can wait before the next Puff Session, spread
+across the rest of the day. Hold the Target for enough days and a Ratchet
+lowers it automatically; miss it and the Target holds until you do. The loop
+repeats, Target after Target, down toward zero.
+
 Read [`CONTEXT.md`](./CONTEXT.md) first — it says what the app is, and every
 capitalised term in this repo is defined there and nowhere else. The build order
 lives in
