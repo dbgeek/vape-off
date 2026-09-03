@@ -1,6 +1,6 @@
 import { instantOf, logicalDayKeyOf } from '../domain/logical-day.ts'
 import { buildIdentity, type BuildIdentity } from '../shell/build-identity.ts'
-import { SCHEMA_VERSION } from '../store/database.ts'
+import { SCHEMA_VERSION, type VapeOffDatabase } from '../store/database.ts'
 import { getOrCreateInstallId, setMeta } from '../store/meta.ts'
 import { browserSession, type StoreSession } from '../store/session.ts'
 import type { BackupRecord } from './backup-file.ts'
@@ -60,9 +60,14 @@ export function createBrowserBackupSource(
   appBuild: BuildIdentity = buildIdentity,
   handOff: (file: File) => Promise<BackupHandoff> = handOffBackup,
 ): BackupSource {
-  const { db, environment } = session
+  const { environment } = session
 
-  async function replaceRecord(candidate: PreparedRestore): Promise<void> {
+  /**
+   * The restore itself, as the session's write runs it — so the Ratchet's
+   * evaluation and the badge follow it the way they follow any other write,
+   * rather than being remembered here.
+   */
+  async function replaceRecord(db: VapeOffDatabase, candidate: PreparedRestore): Promise<void> {
     const now = environment.now()
     const timeZone = environment.timeZone()
     await db.transaction(
@@ -95,14 +100,13 @@ export function createBrowserBackupSource(
         })
       },
     )
-    await session.evaluate()
   }
 
   return {
     async load() {
-      await session.ensureOpen()
-      const [record, exports, installId] = await Promise.all([
-        session.readRecord(),
+      const record = await session.readRecord()
+      const db = await session.database()
+      const [exports, installId] = await Promise.all([
         db.exports.toArray(),
         getOrCreateInstallId(db, environment.randomUUID),
       ])
@@ -120,10 +124,13 @@ export function createBrowserBackupSource(
         installId: record.installId,
       })
 
-      // Calling handOff before the first await preserves the tap's user activation.
+      // Calling handOff before the first await preserves the tap's user
+      // activation — which is why the connection is asked for *after* it, and
+      // not hoisted to the top of the method with the other setup.
       const handingOff = handOff(backup.file)
       const handoff = await handingOff
 
+      const db = await session.database()
       await db.transaction('rw', db.exports, db.meta, async () => {
         await db.exports.add({
           id: environment.randomUUID(),
@@ -145,13 +152,12 @@ export function createBrowserBackupSource(
     },
 
     async restore(candidate) {
-      await session.ensureOpen()
-      await replaceRecord(candidate)
+      await session.write((db) => replaceRecord(db, candidate))
     },
 
     async recover(candidate) {
       await session.reset()
-      await replaceRecord(candidate)
+      await session.write((db) => replaceRecord(db, candidate))
     },
   }
 }

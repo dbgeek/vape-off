@@ -1,14 +1,16 @@
+import type { DayLedgerRecord } from '../domain/day-ledger.ts'
 import { getMeta, setMeta } from '../store/meta.ts'
 import { declareStepBack } from '../store/ratchet-writes.ts'
 import { browserSession, type StoreSession } from '../store/session.ts'
 import type { StatsSnapshot, StatsSource } from './StatsScreen.tsx'
 
 export function createBrowserStatsSource(session: StoreSession): StatsSource {
-  const { db, environment } = session
+  const { environment } = session
 
-  async function readSnapshot(): Promise<StatsSnapshot> {
-    const [record, exports, dismissedAt] = await Promise.all([
-      session.readRecord(),
+  /** Stats' own extras, hung on a record the session has already read. */
+  async function snapshotOf(record: DayLedgerRecord): Promise<StatsSnapshot> {
+    const db = await session.database()
+    const [exports, dismissedAt] = await Promise.all([
       db.exports.toArray(),
       getMeta(db, 'lastBackupNagDismissedAt'),
     ])
@@ -19,26 +21,19 @@ export function createBrowserStatsSource(session: StoreSession): StatsSource {
     }
   }
 
-  async function readFreshSnapshot(): Promise<StatsSnapshot> {
-    const snapshot = await readSnapshot()
-    await session.refreshBadge(snapshot.record, environment.now())
-    return snapshot
-  }
-
   return {
     async load() {
-      await session.ensureOpen()
       await session.evaluate()
-      return readFreshSnapshot()
+      return snapshotOf(await session.readRecord())
     },
     async dismissBackupCard(uncoveredKnownDays) {
-      await session.ensureOpen()
-      await setMeta(db, 'lastBackupNagDismissedAt', uncoveredKnownDays)
+      await setMeta(await session.database(), 'lastBackupNagDismissedAt', uncoveredKnownDays)
     },
+    // A Declared Step is the one write that sets the Target by hand, so it is
+    // the last one that should leave the Ratchet's other decisions a beat behind.
     async declareStepBack() {
-      await session.ensureOpen()
-      await declareStepBack(db, environment)
-      return readFreshSnapshot()
+      const { record } = await session.write((db) => declareStepBack(db, environment))
+      return snapshotOf(record)
     },
   }
 }
