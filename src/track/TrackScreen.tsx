@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { useState, type CSSProperties } from 'react'
 import {
   browserBackupSource,
   type BackupSource,
@@ -22,18 +22,11 @@ import { isStandalone } from '../shell/install-state.ts'
 import type { LogicalDayKey, PuffSession, ResistedUrge } from '../store/records.ts'
 import { Lane, LANE_AXES, LIVE_LANE } from './Lane.tsx'
 import { isKicked, kickedClass, puffLabel, urgeLabel } from './lane-events.ts'
+import { useLiveRecord } from './live-record.ts'
 import { useMarkGesture } from './mark-gesture.ts'
 import { useMeasuredBox } from './measured-box.ts'
 import { timelinePosition } from './timeline-geometry.ts'
-import { buildTrackView } from './track-view.ts'
 import { YesterdayLane } from './YesterdayLane.tsx'
-
-const emptyRecord: DayLedgerRecord = {
-  puffSessions: [],
-  resistedUrges: [],
-  clearDays: [],
-  ratchetSteps: [],
-}
 
 /** A Correction the record accepted, or the reason it could not hold it. */
 export type CorrectionResult =
@@ -336,16 +329,10 @@ export function TrackScreen({
   installed?: boolean
   forceInstallBar?: boolean
 }) {
-  const [record, setRecord] = useState<DayLedgerRecord>(emptyRecord)
-  const [now, setNow] = useState(clock.now)
-  const [pendingWrites, setPendingWrites] = useState(0)
-  const [loadFailed, setLoadFailed] = useState(false)
-  const [correctionError, setCorrectionError] = useState<string>()
-  const [loaded, setLoaded] = useState(false)
-  const [firstRunCardDismissed, setFirstRunCardDismissed] = useState(true)
+  const live = useLiveRecord(source, clock)
+  const { record, view, now, loaded } = live
   const [restoreDoorOpen, setRestoreDoorOpen] = useState(false)
   const [editor, setEditor] = useState<EditorState>()
-  const writeQueue = useRef<Promise<void>>(Promise.resolve())
   const timeZone = clock.timeZone()
   const {
     completeRestore,
@@ -354,50 +341,6 @@ export function TrackScreen({
     restoreError,
     restoreMessage,
   } = useRestore(backupSource, source.dismissFirstRunCard)
-
-  useEffect(() => {
-    let live = true
-    Promise.all([source.load(), source.loadFirstRunCardDismissed()]).then(
-      ([loadedRecord, cardDismissed]) => {
-        if (live) {
-          setRecord(loadedRecord)
-          setFirstRunCardDismissed(cardDismissed)
-          setLoaded(true)
-        }
-      },
-      () => {
-        if (live) setLoadFailed(true)
-      },
-    )
-    // The Ratchet evaluates on every cold start and on every return to view: an
-    // app parked in the switcher for days wakes with a stale Target and a stale
-    // badge until something is written. The reload queues behind any in-flight
-    // write so it cannot overwrite a record a tap is still producing.
-    function refreshWhenVisible() {
-      if (document.visibilityState !== 'visible') return
-      setNow(clock.now())
-      writeQueue.current = writeQueue.current.then(async () => {
-        try {
-          const refreshed = await source.load()
-          if (live) setRecord(refreshed)
-        } catch {
-          if (live) setLoadFailed(true)
-        }
-      })
-    }
-    const timer = window.setInterval(() => setNow(clock.now()), 60_000)
-    document.addEventListener('visibilitychange', refreshWhenVisible)
-    return () => {
-      live = false
-      window.clearInterval(timer)
-      document.removeEventListener('visibilitychange', refreshWhenVisible)
-    }
-  }, [clock, source])
-
-  const view = useMemo(
-    () => buildTrackView(record, now, timeZone),
-    [record, now, timeZone],
-  )
 
   /**
    * Where the now-line is drawn — read off the same fixed axis as everything
@@ -410,82 +353,18 @@ export function TrackScreen({
   const [timeline, timelineSize] = useMeasuredBox<HTMLElement>()
 
   /**
-   * One write at a time, in order. An operation that returns no record has
-   * already said so for itself — nothing to set, and not a failure.
+   * A restore, arranged rather than performed: the Backup module decides
+   * whether the file is one, and the live record decides when the replacement
+   * lands — behind whatever is still settling (ADR 0017).
    */
-  function mutate(operation: () => Promise<DayLedgerRecord | undefined>, at = clock.now()) {
-    setPendingWrites((count) => count + 1)
-    writeQueue.current = writeQueue.current.then(async () => {
-      try {
-        const written = await operation()
-        if (written === undefined) return
-        setRecord(written)
-        // Optimistic, and unconditional on purpose. The greeting's own flag
-        // lives in `meta` rather than in the record, so a write cannot answer
-        // for it without a second read — and it never needs to. Every Track
-        // write claims the greeting in the store except `toggleKick`, which can
-        // only reach a Puff Session that claimed it when it was written. So the
-        // flag set here always agrees with the one the store holds.
-        setFirstRunCardDismissed(true)
-        setNow(at)
-      } catch {
-        setLoadFailed(true)
-      } finally {
-        setPendingWrites((count) => count - 1)
-      }
-    })
-  }
-
-  /**
-   * A Correction the reader confirmed. `propose` has already refused anything
-   * the record cannot hold, so a refusal here is a backstop — but a silent one
-   * would read as a tap that did nothing, and the editor has already closed.
-   */
-  function correct(correction: Correction) {
-    mutate(async () => {
-      const written = await source.correct(correction)
-      if (written.status === 'refused') {
-        setCorrectionError(REFUSAL_MESSAGES[written.reason])
-        return undefined
-      }
-      setCorrectionError(undefined)
-      return written.record
-    })
-  }
-
-  /**
-   * The act itself, reached by a held press on a mark or by the editor's
-   * toggle — the same call from both, because they are one act with two doors.
-   *
-   * Through the same queue as every other write, so a Kick and a `PUFF` landing
-   * together stay in the order they were made. It leaves the Merge Window alone
-   * on the way past: the window is keyed to taps, and this is not one.
-   */
-  function toggleKick(id: string) {
-    const at = clock.now()
-    mutate(() => source.toggleKick(id, at), at)
-  }
-
   async function restoreFrom(file: File) {
     const candidate = await prepareRestore(file)
-    if (candidate !== undefined && await completeRestore(candidate)) {
-      setRecord(await source.load())
-      setFirstRunCardDismissed(true)
-    }
-  }
-
-  function write(operation: (at: Date) => Promise<DayLedgerRecord>) {
-    const at = clock.now()
-    mutate(() => operation(at), at)
-  }
-
-  function dismissFirstRunCard() {
-    setFirstRunCardDismissed(true)
-    void source.dismissFirstRunCard().catch(() => setLoadFailed(true))
+    if (candidate === undefined) return
+    await live.restore(() => completeRestore(candidate))
   }
 
   return (
-    <main className="track-screen" aria-busy={pendingWrites > 0 || undefined}>
+    <main className="track-screen" aria-busy={live.pending > 0 || undefined}>
       <header className="track-header">
         <div>
           <p className="track-kicker">Logical Day</p>
@@ -496,8 +375,11 @@ export function TrackScreen({
         </output>
       </header>
 
-      {loadFailed ? <p className="track-load-error">Track could not read your record.</p> : null}
-      {correctionError ? <p className="track-load-error" role="alert">{correctionError}</p> : null}
+      {live.loadFailed ? <p className="track-load-error">Track could not read your record.</p> : null}
+      {live.writeFailed ? <p className="track-load-error" role="alert">Track could not save that.</p> : null}
+      {live.correctionRefusal ? (
+        <p className="track-load-error" role="alert">{REFUSAL_MESSAGES[live.correctionRefusal]}</p>
+      ) : null}
 
       {!installed && (forceInstallBar || view.hasHistory || restoreDoorOpen) ? (
         <aside className="install-bar" aria-label="Install vape-off">
@@ -536,7 +418,7 @@ export function TrackScreen({
                     type="button"
                     className="catch-up-clear"
                     aria-label={`Mark ${day} a Clear Day`}
-                    onClick={() => mutate(() => source.declareClearDay(dateAtNoon(logicalDay)))}
+                    onClick={() => live.declareClearDay(dateAtNoon(logicalDay))}
                   >
                     <span aria-hidden="true">✓</span>
                   </button>
@@ -617,7 +499,7 @@ export function TrackScreen({
                 style={mark}
                 label={puffLabel(event.session, timeZone)}
                 openEditor={() => setEditor({ kind: 'puff', session: event.session })}
-                toggleKick={() => toggleKick(event.session.id)}
+                toggleKick={() => live.toggleKick(event.session.id)}
               />
             ) : (
               <button
@@ -634,7 +516,7 @@ export function TrackScreen({
 
       <div className="track-offers">
         {!view.todayIsClear && view.puffSessions.length === 0 ? (
-          <button type="button" onClick={() => mutate(() => source.declareClearDay(clock.now()))}>
+          <button type="button" onClick={() => live.declareClearDay()}>
             Declare today a Clear Day
           </button>
         ) : null}
@@ -646,7 +528,7 @@ export function TrackScreen({
       {view.handoverAvailable ? (
         <aside className="handover-offer">
           <div><strong>You have held Target 1.</strong><span>The final step is yours.</span></div>
-          <button type="button" onClick={() => mutate(source.declareHandover)}>Set Target to 0</button>
+          <button type="button" onClick={() => live.declareHandover()}>Set Target to 0</button>
         </aside>
       ) : null}
 
@@ -661,22 +543,22 @@ export function TrackScreen({
         <button
           type="button"
           className="resisted-button"
-          onClick={() => write(source.logResistedUrge)}
+          onClick={() => live.logResistedUrge()}
         >
           Resisted
         </button>
         <button
           type="button"
           className="puff-button"
-          onClick={() => write(source.logPuff)}
+          onClick={() => live.logPuff()}
         >
           {view.openSession ? `+1 → ${view.openSession.count + 1}` : 'PUFF'}
         </button>
       </div>
 
-      {loaded && !view.hasHistory && !firstRunCardDismissed ? (
+      {loaded && !view.hasHistory && !live.greetingDismissed ? (
         <aside className="first-run-card">
-          <button type="button" className="dismiss-card" aria-label="Dismiss welcome" onClick={dismissFirstRunCard}>×</button>
+          <button type="button" className="dismiss-card" aria-label="Dismiss welcome" onClick={live.dismissGreeting}>×</button>
           <p>The first week just measures. Log every time you pick it up. After seven days of logging, vape-off sets your first daily target and starts bringing it down.</p>
           <div className="restore-door">
             <span>Used vape-off before?</span>
@@ -718,8 +600,8 @@ export function TrackScreen({
           today={view.today}
           timeZone={timeZone}
           now={now}
-          correct={correct}
-          toggleKick={toggleKick}
+          correct={live.correct}
+          toggleKick={live.toggleKick}
           close={() => setEditor(undefined)}
         />
       ) : null}

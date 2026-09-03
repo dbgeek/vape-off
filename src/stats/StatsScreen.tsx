@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { DayLedgerRecord } from '../domain/day-ledger.ts'
 import { deviceTimeZone, formatLogicalDay } from '../domain/logical-day.ts'
 import type { QuitHorizon } from '../domain/readouts.ts'
 import { isStandalone } from '../shell/install-state.ts'
+import { useReturnToView } from '../shell/return-to-view.ts'
 import type { ExportRecord } from '../store/records.ts'
 import { buildStatsView, type DialHour, type TrendDay } from './stats-view.ts'
 
@@ -198,31 +199,35 @@ export function StatsScreen({
   const [stepBackOpen, setStepBackOpen] = useState(false)
   const [stepBackError, setStepBackError] = useState<string>()
 
+  const alive = useRef(true)
+
+  function refresh() {
+    source.load().then(
+      (loaded) => {
+        if (alive.current) {
+          setSnapshot(loaded)
+          setError(undefined)
+        }
+      },
+      () => {
+        if (alive.current) setError('Stats are unavailable.')
+      },
+    )
+  }
+
+  // The first read. `refresh` closes over `source` and the setters, so this runs
+  // once per source and never on a re-render.
   useEffect(() => {
-    let alive = true
-    function refresh() {
-      source.load().then(
-        (loaded) => {
-          if (alive) {
-            setSnapshot(loaded)
-            setError(undefined)
-          }
-        },
-        () => {
-          if (alive) setError('Stats are unavailable.')
-        },
-      )
-    }
-    function refreshWhenVisible() {
-      if (document.visibilityState === 'visible') refresh()
-    }
+    alive.current = true
     refresh()
-    document.addEventListener('visibilitychange', refreshWhenVisible)
     return () => {
-      alive = false
-      document.removeEventListener('visibilitychange', refreshWhenVisible)
+      alive.current = false
     }
   }, [source])
+
+  // Stats reads figures that move without the reader touching anything — the
+  // Ratchet may have stepped, and the Logical Day may have turned.
+  useReturnToView(refresh)
 
   const now = clock.now()
   const timeZone = clock.timeZone()
