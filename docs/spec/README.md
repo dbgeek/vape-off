@@ -6,6 +6,8 @@ A second map, [the Track timeline's use of space](https://github.com/dbgeek/vape
 
 A third map, [marking a Puff Session that delivers a Kick](https://github.com/dbgeek/vape-off/issues/87), added the **Kick** — one optional field, one gesture, one mark treatment and one tile. It threads through every file rather than replacing a section: two glossary entries, a record field and a `version(2)`, [ADR 0015](../adr/0015-an-unknown-earns-a-control-only-where-it-costs.md) and the eleventh invariant below, [`rules.md §12a`](./rules.md#12a-kicks-marked), and the **K** slices at the end of [`slices.md`](./slices.md).
 
+A fourth map, [entering a Puff Session's count in one act](https://github.com/dbgeek/vape-off/issues/116), changed how a count is **expressed** without changing what is stored — a hold on `PUFF`, a row of buttons beside the open-session readout, and a small sheet. It adds no field, no version, no ADR and so no invariant. [`screens.md`](./screens.md#entering-a-count) gains a section and re-describes the Merge Window by the addition rather than the tap; the glossary's `Merge Window` and `Correction` entries were re-described on the way; and the **C** slices end [`slices.md`](./slices.md). **[`rules.md`](./rules.md) was checked and owes nothing**: Pace anchors on `at`, Longest Gap measures `at` to `at`, and the badge refreshes after every write, and a count committed whole fits all three as written.
+
 ## How to read it
 
 Read in this order. The first two are short and everything else assumes them.
@@ -53,9 +55,13 @@ accounts, cloud sync, multi-device · notifications of any kind (nothing on-devi
 
 a graded Kick — any strength, scale or mild/strong distinction, which is intensity by another name · a *no Kick* control, and with it any rate, percentage or denominator ([ADR 0015](../adr/0015-an-unknown-earns-a-control-only-where-it-costs.md)) · any effect on `Target`, `Met`, `Momentum`, the `Ratchet` or `Pace` · correlating Kicks against gap length, time of day or day of week — the *"Tuesdays are bad"* reading in a new costume, and the most tempting thing this data enables · anything about Kicks on the Dial, including in its accessible description · a Kick count anywhere on Track · marking a Kick on a completed Logical Day, which inherits the editing surface's limit rather than closing it.
 
+**What entering a count does not have**, ruled out on [its own map](https://github.com/dbgeek/vape-off/issues/116):
+
+a pre-filled, defaulted or remainder-derived count at any hour or any Target, **the `…` sheet's field included** · a stepper or a keypad on the fast path · a third number on the arc · a third button in the `Resisted | PUFF` row · a standing count control before a sitting exists · any change to what a Puff Session stores · retiring tap-per-puff · narrowing the Merge Window's 90 seconds, its slide or its 04:00 split — a fresh effort off a Backup taken after the count ships, if ever · one teaching string for both holds.
+
 ## Where this spec is thinner than the map, and why
 
-Three places, flagged rather than hidden. Each is marked **derived, not decided** where it appears.
+Five places, flagged rather than hidden. Each is marked **derived, not decided** where it appears.
 
 **1. The editing surface was never grilled.** The map settled that backfill exists and is first-class ([ADR 0001](../adr/0001-unlogged-days-are-unknown-not-zero.md)), that the catch-up strip resolves Unknown days ([#5](https://github.com/dbgeek/vape-off/issues/5), [#6](https://github.com/dbgeek/vape-off/issues/6)), that deletes are hard ([#4](https://github.com/dbgeek/vape-off/issues/4)), and that an edit which moves Momentum should say so out loud — but no ticket ever designed the surface for correcting a mis-tap. [`screens.md`](./screens.md#editing-the-record) specifies the minimum the decided rules force. Treat it as a default to review, not as a settled screen.
 
@@ -66,3 +72,9 @@ The third map widened it by one without changing its shape: **a Kick you did not
 **2. The live lane carries two hollow vocabularies.** A Resisted Urge ring and a Pace ghost slot are both hollow, both on the live lane, and are told apart only by which side of the now-line they fall on — rings are always at or before `now`, slots always after it. That separation is exact, and no ticket chose it; it fell out of two decisions that were made independently ([#67](https://github.com/dbgeek/vape-off/issues/67), [#70](https://github.com/dbgeek/vape-off/issues/70)). If the two read as one thing on a device, the slot changes shape. **The Kicked halo was tested against this and does not add a third member** — it is never free-floating, and it does not depend on the now-line to be read ([#97](https://github.com/dbgeek/vape-off/issues/97)) — so the hatch stays queued and no closer to due than it was.
 
 **3. The `Kicked` toggle's copy was written at the hand-off, not reacted to.** [#89](https://github.com/dbgeek/vape-off/issues/89) settled the act on a prototype and deferred the editor row's wording here, with one hard constraint: the copy is what makes the long-press and the dialog *one act with two doors* rather than two affordances, so without it the fast path is never discovered. [`screens.md`](./screens.md#inside-the-editor) states copy that meets the constraint and states the commit rule. It is the one string in the Kick nobody has seen on a device. Treat the constraint as settled and the words as a first draft.
+
+The first real reading has since arrived and settles nothing: the Backup of 2026-09-13, from build `c960bc0`, holds **0 Kicked sessions in 505**, at least five days after the act shipped. That is *never found* or *nothing to mark*, and the record cannot say which ([#120](https://github.com/dbgeek/vape-off/issues/120)).
+
+**4. The count act's teaching line was written at the hand-off, not reacted to.** Same constraint and same status as the `Kicked` note: every teaching string names the thing you hold, and no string teaches holding as a general move ([#120](https://github.com/dbgeek/vape-off/issues/120)). The words beneath the readout's buttons in [`screens.md`](./screens.md#beside-the-readout) are a first draft.
+
+**5. Three details of the count act were derived at the hand-off, not decided by a ticket**: that the open-session readout leaves when the Merge Window closes rather than on the next minute tick, which matters now that it carries the act's accessible route; what the `…` sheet accepts, and that it outlives the readout; and that the handover offer stacks clear of the readout's row. Beside them sits one cost that *was* decided and deliberately not closed: **the accessible route cannot enter exactly 5 or 10 in one act** — it runs `PUFF` then `…` 4.
