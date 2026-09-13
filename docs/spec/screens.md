@@ -148,14 +148,16 @@ The *Clear* token sits **beneath** the label rather than merged into `Yesterday:
 
 The header chip carries it, for the times you want it: `9 / 24`. During the Baseline it shows the count alone. **Nothing else lands on the header**, at Target 0 or during the Baseline either.
 
-The rule is stated forward-looking because two candidates have now been refused on *different* reasoning, and a third will be proposed:
+The rule is stated forward-looking because candidates keep being proposed, and each has been refused on *different* reasoning:
 
 - **The day's biggest Puff Session** — refused on redundancy. A maximum is free to the eye: under the four tiers it is literally the largest object on the screen, with its number printed on it ([#64](https://github.com/dbgeek/vape-off/issues/64)).
 - **Yesterday's total** — refused, but **not** on redundancy, because a sum is never free to the eye and refusing it costs something real. It is a like-for-like reading for about one hour in twenty-four (`2` against `14` at 07:51); it would be absent on exactly the morning after a gap and a bare `0` on a Clear yesterday, so it fails at both ends of its coverage; and the full-height lane on today's exact scale *is* the reading it would duplicate. The runner-up was the symmetric version — both lanes carrying their own total at their heads — and it lost only because it reopens the header. If a total is ever wanted, that is the shape to want ([#71](https://github.com/dbgeek/vape-off/issues/71)).
 
 - **A Kick count** — refused by this rule before it was proposed, and it is the third candidate the rule was stated forward-looking for. A Kicked mark shows **state** and carries no number; the reading is `Kicks Marked` and it lives on Stats. *3 of 9 delivered* on the header, at a lane's head, or anywhere else on this screen is out.
 
-The rule is about **whole Logical Days**. It does not touch numbers about a single Puff Session: the open session's running count and the `+1 → 3` button below are the Merge Window making itself visible, and they stay.
+- **What is left of the Target** — the fourth, and refused on reasoning of its own: the first three would have been redundant or poor readings, and this one would be **a number about a whole Logical Day placed inside a control that writes** ([#118](https://github.com/dbgeek/vape-off/issues/118)). It is not on Track today. The header carries the count *so far*; the remainder is printed only on the badge, outside the app ([rules.md §14](./rules.md#14-the-badge)), and ghost slots cannot be counted for it. So pre-filling the `…` sheet with `9`, or offering `+9` on the arc, would print it here **for the first time**, as the number your thumb lands on. It cannot claim the single-session exemption below: `target − dayTotal(today())` is computed from two facts about the day and none about the sitting. Arithmetic refused it before the rule did — on **83%** of Puff Sessions logged under a Target, what was left was 50 or more, and no sitting in the record has ever exceeded 23. **The sheet therefore opens empty**, at every hour and every Target ([Entering a count](#entering-a-count)).
+
+The rule is about **whole Logical Days**. It does not touch numbers about a single Puff Session: the open session's running count, the `+1 → 3` button below and the `+5` `+10` beside the readout are the Merge Window making itself visible, and they stay.
 
 ### The timeline's floor, and the chrome budget
 
@@ -174,14 +176,87 @@ The strip is what gives: compacted from 149px to 74px, it lands an iPhone SE in 
 - **PUFF, bottom-right**, above the safe-area inset. The prototype put it bottom-left, which is the hardest corner for a right thumb on the one screen whose thesis is that logging costs under a second.
 - **Resisted, to its left.** One tap, no follow-up question.
 - **PUFF never changes** — same position, same size, at every Target including 0. Shrinking the log button at the moment logging is hardest is a penalty on honest logging in all but name.
+- **Holding it changes none of that either.** The count arc ([Entering a count](#entering-a-count)) exists only under a held finger and is drawn above the button; `PUFF` keeps its position, its size and its label. The one label change it already has — `PUFF`, or `+1 → 3` while a sitting is open — belongs to the Merge Window, and the hold adds nothing to it ([ADR 0010](../adr/0010-logging-is-never-punished.md)).
 
 ### The Merge Window
 
-**90 seconds, sliding.** A tap within 90 s of the previous *tap* increments the open session's `count` and pushes the window out, so taps spaced under 90 s apart stay one Puff Session, however many there are. The session keeps the time of its **first** tap — when the sitting was first logged, not when it began.
+**90 seconds, sliding.** Every **addition** to a Puff Session's count — a `+1`, a `+5` or `+10`, or a count from `…` — made within 90 s of the previous addition joins the open session and pushes the window out, so additions spaced under 90 s apart stay one Puff Session, however many there are. **A count opens a window exactly as a tap does**: with nothing open it creates a Puff Session with `count: n`, and a `+1` that follows joins it. The session keeps the time of its **first** addition — when the sitting was first logged, not when it began. Only logging moves the window: a Correction that re-counts a session is not an addition, and neither is marking a Kick.
 
-**It is visible, not inferred**: the open session pulses and shows its running count, and the button reads `+1 → 3`. Merging must not be a silent behaviour the user has to deduce from a total that sometimes fails to move.
+**A count is judged at commit, never at start.** Commit is the release of the hold, or the tap on `Log` in the `…` sheet, and `openSessionAt` is asked at that instant — the same question every write asks. A hold begun at 89 s and released at 91 s, or a sheet opened at 80 s and committed at 100 s, **starts a new Puff Session**. Accepted: the day's total is identical either way, and only the mark splits. A session a count creates has `at = lastTapAt =` the commit instant — **no backdating**, not to the start of the hold and not to an estimate of the sitting, neither of which the app has evidence for. The same rule carries [ADR 0012](../adr/0012-the-merge-window-closes-at-the-logical-day-boundary.md) through unchanged: a sheet held open across 04:00 commits onto the new Logical Day ([#119](https://github.com/dbgeek/vape-off/issues/119)).
+
+**It is visible, not inferred**: the open session pulses and shows its running count, the button reads `+1 → 3`, and `+5` `+10` `…` stand beside the readout. Merging must not be a silent behaviour the user has to deduce from a total that sometimes fails to move.
+
+**The readout lives exactly as long as the window, and that is now load-bearing.** It carries the count act's only keyboard- and screen-reader route, so its lifetime *is* that route's lifetime, and every addition restarts it. Narrowing or retiring the window takes the route with it ([#117](https://github.com/dbgeek/vape-off/issues/117)).
+
+> **Derived, not decided.** Track re-derives its view on a 60-second tick and after its own writes, so today the readout — and `+1 → 3` — can stand for up to a minute after the window has closed. A stale `+1 → 3` was a label that lied by one puff; a stale `+5` is the accessible route offering to join a sitting it will not join. The commit rule keeps the record right either way, since a stale tap simply starts a new Puff Session, but *visible, not inferred* wants the readout to leave when the window does: re-derive at `lastTapAt + 90 s`. No ticket decided this.
 
 The window is measured from the stored `lastTapAt`, so it survives a cold start ([data-model.md](./data-model.md#why-these-fields)).
+
+### Entering a count
+
+**Most sittings are entered, not tallied.** In the Backup of 2026-09-13 — 15 Known Logical Days, 505 Puff Sessions — the median Puff Session lasted 2.4 seconds, 464 had a median gap between taps under one second, **not one had a count of 1**, and 70% were exactly 5 or 10. `PUFF` was being used as a keypad, at about 227 taps a day ([#116](https://github.com/dbgeek/vape-off/issues/116)). **Two routes, one act** — the same shape as the Kick, paid for differently ([#117](https://github.com/dbgeek/vape-off/issues/117)):
+
+- **Hold `PUFF` and release on a number.** The everyday path.
+- **`+5` `+10` `…` beside the open-session readout.** The findable path, and the act's only keyboard and screen-reader route.
+
+**The act changes how a count is expressed, never what is stored.** A Puff Session stays one timestamp plus a puff count: no field, no index, no version and no Backup line. **Tap-per-puff stays the floor**: a first-run user meets `PUFF` exactly as before, and nothing about a count is put in front of a log until a sitting exists or a hold begins.
+
+#### The hold
+
+- **Hold `PUFF` for `LONG_PRESS_MS` (500 ms) and a short arc rises above it**, carrying `+5`, `+10` and `…`. Until it rises, the press is an ordinary tap.
+- **The release is three-way.** On a number, that number is added. On `PUFF` — not moved, or slid back — the plain `+1` it is today. **Off both, nothing**: the dead zone is the cancel. `…` writes nothing itself; it opens [the sheet](#the--sheet), where the count is committed.
+- **A slipped slide falls through to `+1`**, the thing a tap-per-puff user wanted anyway. This inherits a risk rather than creating one: `PUFF` is a plain `<button>`, so a held press already writes `+1` on release today. The arc adds the way out.
+- **The arc owns the finger.** Once it has risen, the press keeps the pointer until release. A release over anything lying under the arc — a mark, a ring, a ghost slot, the readout's own buttons — counts as *off both*, and nothing under it receives a tap or a hold from a `PUFF` press. A `PUFF` press can therefore never mark a Kick, and a mark's long-press never starts from `PUFF` ([#120](https://github.com/dbgeek/vape-off/issues/120)).
+- **One hold duration on Track; the slop is the mark's alone.** `PUFF` rises at the mark's own `LONG_PRESS_MS`, so *a hold* means one length of press everywhere. `LONG_PRESS_SLOP` is not applied: on a mark, travel cancels a press; on `PUFF`, travel is the gesture.
+- **The keyboard and the screen reader get `+1` from `PUFF`, always.** A hold has no equivalent for either, and `Enter` on `PUFF` never raises the arc. Their route is the readout's buttons.
+
+**`+5` and `+10`, and nothing else.** The open window's `+1` already finishes the job: `+5` then `+1` `+1` is 7, in the interaction the user already knows. One gesture covers **70.1%** of recorded sittings, two acts 82.0%, three 90.7% — and 227 taps a day becomes about 53. A stepper costs nine taps to reach 10, worse than today; a keypad is a two-step commit for a 1.6% tail; a wider arc (`3 5 8 10`) buys 7.7% for a fourth target under a thumb that cannot see what it is hitting. Offering 5 and 10 offers the two numbers the record actually contains, and claims no precision the user does not have.
+
+#### The `…` sheet
+
+**A small live-write sheet: one number field and one `Log` button, committing on tap.** No proposal, no naming, no Momentum impact, no `Save changes`. Reached from `…` on the arc or beside the readout, and the same sheet either way.
+
+- **The field opens empty, with the numeric keypad up** ([#118](https://github.com/dbgeek/vape-off/issues/118)). Empty is the only default that asserts nothing. Not `1` — no Puff Session in the record has ever been 1, so it would always need clearing. Not the last count used — a suggestion of a different kind is still a suggestion, and it would sit at 5 or 10 on the door that exists for the numbers 5 and 10 miss. **Not what is left of the Target**, which is refused by [Track's one-number rule](#track-carries-exactly-one-number-about-a-logical-day). Named here because this field is where it would come back: locally helpful, invisible in review, and the refused design in its last costume.
+- **`Log` writes the count and closes the sheet**, judged against the Merge Window at that instant ([above](#the-merge-window)). Dismissing the sheet writes nothing.
+- **It is not the editor's count field.** That field is a Correction and is untouched. Reusing it would make a 23 a Correction while a 5 is a log — one act under two commit rules.
+
+> **Derived, not decided.**
+> - **What the field accepts**: a whole number of at least 1, which is what the record holds; `Log` stays disabled until the field holds one. **No upper bound.** The largest recorded sitting is 23, but a cap is a claim about the user, and a typo is one cheap Correction away.
+> - **The sheet outlives the readout.** Opened from beside the readout, it stays open if the window closes underneath it, and its `Log` then starts a new Puff Session. Closing it with the readout would throw away what was typed on account of a timer nobody can see.
+
+#### Beside the readout
+
+**`+5` `+10` `…` as ordinary buttons beside `Open session · 2 puffs`, for as long as the window is open.** The Kick's findable route came free: a mark was already tappable, and the editor that tap opened was already there to host a toggle and a teaching line. This one does not. Tapping `PUFF` is a **write, not a surface**, so there is no dialog to borrow and the route has to be paid for ([#117](https://github.com/dbgeek/vape-off/issues/117)). The readout is the right place to pay: it is where the running count already lives, and where `+5` literally means something.
+
+- **Not a third button in the `Resisted | PUFF` row**, which the chrome budget refused for the Kick and refuses again. `.track-actions` holds exactly `Resisted` and `PUFF`.
+- **Not inside the readout's `<output>`.** That element is a live region announcing the running count; buttons inside it would be read as part of the count.
+- **Not an [ADR 0015](../adr/0015-an-unknown-earns-a-control-only-where-it-costs.md) control.** 0015 refuses a control for an Unknown the record is silent on, imposed on every log. Here the record is not silent — a count exists, it is on screen, and the buttons change it. Nothing is asked, and the surface lives 90 seconds rather than standing.
+- **Not in the editor**, which would put a live `+5` in the same dialog as the Correction's `Puff count` field: two ways to set one number under two commit rules, and past the cost [Inside the editor](#inside-the-editor) already carries.
+
+**The row teaches the hold, and names what you hold:**
+
+> `+5`  `+10`  `…`
+> You can also hold `PUFF`.
+
+**Two holds, taught as two** ([#120](https://github.com/dbgeek/vape-off/issues/120)). The mark's hold writes a fact that moves nothing, and toggles a sitting that exists; `PUFF`'s changes the count, and can create one. *Press and hold to say more about a sitting* is a story told after the fact, and one that would invite a third hold on the story's authority alone. So **every teaching string names the thing you hold** — *long-press the mark*, *hold `PUFF`* — and no string teaches holding as a general move. The `Kicked` toggle's note is unchanged.
+
+> **Derived, not decided.** The handover offer stands at the same height as the readout (`7.2rem` against `6.85rem` above the safe-area inset) and already overlaps it on the rare evening both are up. A row of buttons turns that overlap into two sets of targets on top of each other. Stack the offer clear of the row; do not shrink the row's targets to make room.
+
+#### It is logging, and nothing else
+
+**Adding to an open sitting is still the logging of that sitting, not a Correction** ([`CONTEXT.md`](../../CONTEXT.md) — *Correction*). Nothing is proposed and nothing is named, and `evaluate()` and the badge follow the write as they follow every write. **The programme's mechanics are not consulted**: no `Target`, `Met`, `Momentum`, `Ratchet` or `Pace` shapes what is offered or when. Entering 9 instead of 10 moves the day's total because 9 is what happened, and for no other reason. **And nothing here makes a count come out lower than what happened** — the act exists to make the record truer, not to make a Met day easier to reach, and a design whose effect was to help under-report would be refused on [ADR 0010](../adr/0010-logging-is-never-punished.md)'s own logic.
+
+**The cost to Met, recorded because it was chosen.** On 2026-09-07 the day closed `+10` with 9 left and was not Met by one puff. Nothing here would have caught it, deliberately: the day had run `+5 +5 +5 +5`, so the 10 was a doubled habit rather than a rounded remainder, and on that evening the truth may well have been 10. The honest route stays open — the sheet takes `9` if 9 is what happened ([#118](https://github.com/dbgeek/vape-off/issues/118)).
+
+#### The costs, recorded rather than smoothed over
+
+1. **A second long-press on Track**, on a different target with an unrelated meaning. The first has shown no measurable uptake: the 2026-09-13 Backup, from build `c960bc0`, holds **0 Kicked sessions in 505**, five days after that act shipped. Whether that is *never found* or *nothing to mark* cannot be read off the record.
+2. **iOS will fight this one too, and the fix is owed by the build slice.** `.puff-button` needs exactly what `.puff-mark` needed — `-webkit-touch-callout: none`, `user-select: none`, and the context menu suppressed — or a held press raises the selection callout over `PUFF` just as the arc rises. The slide also needs panning suppressed while the arc is up; the `touch-action: manipulation` the controls carry does not do that.
+3. **The accessible route cannot enter exactly 5 or 10 in one act.** The readout exists only once a sitting is open, so a keyboard or screen-reader user enters 5 as `PUFF` then `…` 4, and 10 as `PUFF` then `…` 9 — arithmetic the hold asks of nobody. Not a regression: today 5 costs five taps on every route. Closing it needs a standing count control before any sitting exists, which the chrome budget refused. Recorded, not re-opened ([#120](https://github.com/dbgeek/vape-off/issues/120)).
+4. **A slow act can split a sitting.** A hold released, or a sheet committed, after the window has closed starts a new Puff Session. The day's total is right and the mark is two.
+5. **The arc covers the bottom of the live lane while it is up** — roughly 00:00–04:00. The record holds no Puff Session in that stretch, and the arc owns the finger, so nothing there is reachable by accident; it is simply hidden for the length of a hold.
+
+**No glossary term.** *The arc*, *the sheet* and *the readout's buttons* are labels in this file, like `Yesterday`, and must not enter `CONTEXT.md`: the act is a second route to a fact the record already has a word for.
 
 ### Marking a Kick
 
@@ -198,7 +273,7 @@ The window is measured from the stored `lastTapAt`, so it survives a cold start 
 
 **With them goes the assumption that the session you mean is the latest one.** Reach is governed by the **Logical Day** — not a clock, not a window, not a recency rule. A Kick that lands after you have already begun the next sitting still reaches the sitting that delivered it, and one you only get round to recording an hour later is still yours to record.
 
-**Marking is a live write, not a Correction**, and neither is un-marking. The record is *silent* on whether a session delivered; marking fills that silence rather than changing an answer, which is the same exemption `Clear Day` already has. So none of the Correction machinery applies: nothing is proposed, nothing is named, no Momentum impact is shown, because a Kick moves no derived figure. **Marking does not close or extend the Merge Window** — the window stays keyed to taps alone.
+**Marking is a live write, not a Correction**, and neither is un-marking. The record is *silent* on whether a session delivered; marking fills that silence rather than changing an answer, which is the same exemption `Clear Day` already has. So none of the Correction machinery applies: nothing is proposed, nothing is named, no Momentum impact is shown, because a Kick moves no derived figure. **Marking does not close or extend the Merge Window** — the window stays keyed to additions to a count alone.
 
 #### Inside the editor
 
@@ -214,7 +289,7 @@ The toggle's on-state is the halo's lilac. It is the only place other than the h
 #### The costs, recorded rather than smoothed over
 
 1. **The smallest mark is now a 20px long-press target.** The fan is what makes a sub-44px mark a handle at all and it keeps working here, but a held press on 20px is harder than a tap on it. The editor route is what you fall back to when the press misses — the pairing earning its keep a second time.
-2. **Long-press is a new interaction vocabulary on Track**, which was taps only. One gesture, on one kind of target, is the whole of the addition.
+2. **Long-press is a new interaction vocabulary on Track**, which was taps only. One gesture, on one kind of target, was the whole of what the Kick added. [Entering a count](#entering-a-count) has since added a second, on `PUFF`, and teaches it separately.
 3. **iOS will fight it, and the fix is owed by the build slice.** `.puff-mark` sets neither `-webkit-touch-callout: none` nor `user-select: none`, so a held press raises the selection callout over the mark. Both, plus suppressing the context menu.
 4. **A Kick across the 04:00 boundary can be unrecordable.** A sitting straddling 04:00 is two Puff Sessions, and only today's marks are tappable — so at 04:00:30 the pre-boundary session sits on a completed Logical Day and cannot be opened. **No tie-break rule is needed; the reach rule already answers it.** The cost is a sitting running 03:58–03:59 whose Kick lands at 04:02: the mark is simply unavailable. Accepted, and it is exactly what the floor semantics were bought for — an unreachable Kick *lowers* the floor rather than corrupting it. A rule reaching backwards across 04:00 would be marking a completed Logical Day, which has no route on Track at all.
 
@@ -282,7 +357,7 @@ What replaces it is arithmetic rather than a dilemma. The bar is one of the two 
 
 Backfill is first-class and recall is the only route out of a gap ([ADR 0001](../adr/0001-unlogged-days-are-unknown-not-zero.md)), and deletes are hard ([ADR 0011](../adr/0011-store-the-ratchets-decisions-derive-everything-else.md)). So:
 
-- **Tapping a mark opens it**: adjust `count`, adjust the time, or delete. Deleting is a hard delete. **Live lane only** — the Yesterday lane is read-only. The surface also carries the `Kicked` toggle, which is *not* part of the Correction — see [Marking a Kick](#inside-the-editor).
+- **Tapping a mark opens it**: adjust `count`, adjust the time, or delete. Deleting is a hard delete. **Live lane only** — the Yesterday lane is read-only. The surface also carries the `Kicked` toggle, which is *not* part of the Correction — see [Marking a Kick](#inside-the-editor). Its count field **is** a Correction, and stays one: the count act's [`…` sheet](#the--sheet) is a live write, and the two are never merged.
 - **Adding a Puff Session or Resisted Urge at a past time** is reachable from the same surface and from the catch-up strip.
 - Any write re-stamps `logicalDay` and `tz` from the time being set, then calls `evaluate()` and `updateBadge()`.
 - **An edit that moves Momentum says so before it lands** — *"This will change your momentum from 6 to 4."* Momentum is derived, so correcting the past moves it; that is right, because you just corrected the record, but it must not move silently ([ADR 0011](../adr/0011-store-the-ratchets-decisions-derive-everything-else.md)).

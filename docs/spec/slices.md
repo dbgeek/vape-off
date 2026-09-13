@@ -1,8 +1,8 @@
 # The build order
 
-Twenty slices, each sized for one agent session. Build them in order — every slice depends on the ones above it and none depends on the ones below.
+Twenty-three slices, each sized for one agent session. Build them in order — every slice depends on the ones above it and none depends on the ones below.
 
-S1–S11 are the v1 build and have shipped. Two later maps added slices at the end of this file: **[the Track timeline rebuild](#the-track-timeline-rebuild)** adds five, and **[the Kick](#the-kick)** adds four. Start at whichever of the three you are building — they are strictly ordered among themselves and the later two do not revisit each other.
+S1–S11 are the v1 build and have shipped. Three later maps added slices at the end of this file: **[the Track timeline rebuild](#the-track-timeline-rebuild)** adds five, **[the Kick](#the-kick)** adds four, and **[entering a count](#entering-a-count)** adds three. Start at whichever of the four you are building — they are strictly ordered among themselves and the later three do not revisit each other, except that the count's hold borrows the Kick's `LONG_PRESS_MS` and changes nothing the Kick built.
 
 **Every slice:** read [`CONTEXT.md`](../../CONTEXT.md) and [`README.md`](./README.md)'s invariants first, use the glossary's vocabulary in names and tests, and do not invent behaviour this spec does not describe. If you find a genuine gap, say so in the PR rather than filling it silently — the only one known in advance is flagged in the README.
 
@@ -190,7 +190,7 @@ Build them in order: each depends on the ones above it. **Every slice:** read [`
 - `kickMarkedAt?: Instant` on `PuffSession`. **Presence is the mark**; un-marking deletes the property rather than writing a `false`.
 - The declared chain: `version(1).stores(STORE_SCHEMA)` then `version(2).stores(STORE_SCHEMA)`, **same object, no `.upgrade()`**. `SCHEMA_VERSION` becomes *the highest version declared*.
 - The two write paths, as **live writes in `track-writes.ts`, not `correction-writes.ts`** — marking and un-marking are one toggle and neither is a Correction. Nothing proposed, nothing named, no Momentum impact shown, no `evaluate()` consequence to reason about.
-- **Marking does not close or extend the Merge Window.** The window stays keyed to taps alone.
+- **Marking does not close or extend the Merge Window.** The window stays keyed to additions alone.
 - The three Backup lines: the conditional field in `createBackupFile`'s `puffSessions` map **last, after `tz`**; strict validation in the guard; **no `summary` entry**. `formatVersion` stays `1` and `FORMAT_MIGRATIONS` stays empty.
 
 **Done when** a Kick survives the Merge Window growing its sitting and a Correction re-timing it (both for free, via the existing spreads), dies with a hard delete, round-trips byte-identically through export and restore, and a Backup carrying a malformed `kickMarkedAt` is refused whole. Plus: the *older than your data* guard fires against a `version(2)` database opened by a `version(1)` build.
@@ -234,3 +234,54 @@ Build them in order: each depends on the ones above it. **Every slice:** read [`
 - **On a real iPhone, in the dark.** The lilac halo at `0.42` beside a teal ring is the one thing that cannot be checked in a test, and the whole Yesterday-lane decision rests on hue surviving the dim.
 - **The `Kicked` toggle's copy is a first draft** and is the only string here nobody has reacted to ([README](./README.md#where-this-spec-is-thinner-than-the-map-and-why)). If the long-press is still undiscovered after a week of use, that line is what to change first.
 - **Export, restore on a second device, and check the halos are still there.** The field is optional, so nothing in the type system notices if it went missing.
+
+---
+
+# Entering a count
+
+Three slices from [entering a Puff Session's count in one act](https://github.com/dbgeek/vape-off/issues/116), cut after the **K** slices. They add one write, one row of buttons with a sheet, and one gesture on `PUFF` — and **they change nothing in the record**: no field, no index, no `version(n)`, no Backup line, no `formatVersion`. Unlike the Kick, they block on nothing.
+
+Build them in order: each depends on the ones above it. **The findable route comes before the fast one on purpose** — it is the act's only keyboard and screen-reader route, and a hold shipped first would be a gesture nothing else reaches. **Every slice:** read [`CONTEXT.md`](../../CONTEXT.md)'s `Merge Window` and `Correction` entries and [screens.md § Entering a count](./screens.md#entering-a-count) first. **A count touches no mechanism beyond the total it moves** — if a slice finds itself reading `Target`, `dayTotal` or `Pace` to decide what to offer, it has rebuilt what [#118](https://github.com/dbgeek/vape-off/issues/118) refused.
+
+## C1 · The count in the record
+
+[screens.md § The Merge Window](./screens.md#the-merge-window), [#119](https://github.com/dbgeek/vape-off/issues/119), [#121](https://github.com/dbgeek/vape-off/issues/121). No UI.
+
+- **One live write for any count**, in `track-writes.ts` beside `logPuff` — not in `correction-writes.ts`. `logPuff` becomes the count of 1, so the two cannot drift: one `openSessionAt` call at the commit instant, then either `{ ...openSession, lastTapAt: commit, count: openSession.count + n }` or a new session with `at = lastTapAt = commit` and `count: n`. The Clear Day on that Logical Day drops, as it does for a tap.
+- **Refuse anything but a whole number of at least 1 at the write**, not only at the sheet.
+- Thread it through `browser-track-source.ts` and `live-record.ts`'s one queue ([ADR 0017](../adr/0017-every-change-to-the-record-crosses-one-queue.md)), so a count, a `+1` and a Kick landing together keep the order they were made in.
+- **Three comments move from tap to addition** — the only code this map already knows to be wrong. `merge-window.ts`'s header (*"which Puff Session, if any, another tap joins"*; *"every tap pushes it out again"* → *every addition — a tap or a whole count — pushes it out again*), `openSessionAt`'s doc comment (*"a tap at `at`"*), and `toggleKick`'s in `track-writes.ts` (*"that window is keyed to taps"* → *keyed to additions*).
+- **`merge-window.ts`'s logic does not change.** The 90 s, the slide, the tie-break and the 04:00 split all stand.
+
+**Done when** tests cover: a count with nothing open creates one session with `at == lastTapAt ==` the commit instant; a `+1` 60 s after a `+5` joins it and makes 6; a `+10` 80 s after a `+5` makes 15, and a `+1` 80 s after *that* still joins; a count committed 91 s after the last addition starts a new session; a `+10` at 04:00:30 beside a session open from 03:59:30 lands on the new Logical Day; a count into a declared Clear Day drops the mark; a Kick on the open session survives a count joining it; 0, a negative and a fraction are refused; and every existing `logPuff` test still passes unchanged.
+
+## C2 · Track, the readout's buttons and the sheet
+
+[screens.md § Beside the readout](./screens.md#beside-the-readout), [§ The `…` sheet](./screens.md#the--sheet), [#117](https://github.com/dbgeek/vape-off/issues/117), [#118](https://github.com/dbgeek/vape-off/issues/118), [#120](https://github.com/dbgeek/vape-off/issues/120).
+
+- **`+5` `+10` `…` as ordinary buttons beside the open-session readout**, present if and only if it is. **Outside the `<output>`**, which is a live region, and **outside `.track-actions`**, which holds exactly `Resisted` and `PUFF` — `TrackScreen.test.tsx` already asserts that, and it must pass unchanged. If it fails, the row has landed in the wrong place.
+- The teaching line beneath them, naming what you hold. The copy in the spec is a first draft.
+- **The readout leaves when the window does.** Re-derive the view at `lastTapAt + 90 s` rather than waiting for the minute tick. Derived, not decided — flag it in the PR.
+- **The `…` sheet**: `role="dialog"`, one number field with `inputmode="numeric"` and focus on open, **empty**, and one `Log` disabled until the field holds a whole number of at least 1, with no upper bound. `Log` writes through C1 and closes; dismissing writes nothing. The sheet does **not** close when the readout does. It shares nothing with the editor's Correction fields.
+- Stack the handover offer clear of the row rather than letting the two overlap — the derived note in the spec.
+
+**Done when** a keyboard alone can open a sitting with `PUFF`, add 5 with `+5` and 9 with `…`; a screen reader hears the running count change and does not hear the buttons as part of it; the sheet opens empty at every hour and every Target, over Target and at `Target 0` included; nothing in the row or the sheet reads `Target`, `dayTotal` or `Pace`; and the row is gone within a second of the window closing, not a minute.
+
+## C3 · Track, the hold
+
+[screens.md § The hold](./screens.md#the-hold), [#117](https://github.com/dbgeek/vape-off/issues/117), [#120](https://github.com/dbgeek/vape-off/issues/120).
+
+- A held `PUFF` raises the arc — `+5`, `+10`, `…` — at **`LONG_PRESS_MS`, imported from `mark-gesture.ts` and not redeclared**. **`LONG_PRESS_SLOP` is not applied**: travel, before or after the arc rises, is the gesture.
+- **The three-way release.** On a number, C1's write. On `PUFF`, `+1` — **once**: the browser's own `click` after a held release must not write a second, which is the race `mark-gesture.ts` already settles with its `marked` ref. Off both, nothing. On `…`, C2's sheet.
+- **The arc owns the finger**: capture the pointer when it rises, draw it above everything beneath, and let nothing beneath receive the release. A `PUFF` press must never reach a mark's gesture.
+- **`Enter` and `Space` on `PUFF` are always `+1`** and never raise the arc — a `click` with `detail` 0, as the mark's gesture reads it.
+- **iOS, the fix `.puff-mark` needed**: `-webkit-touch-callout: none` and `user-select: none` on `.puff-button`, plus suppressing the context menu. And **suppress panning while the arc is up** — `.track-actions button` sets `touch-action: manipulation`, which does not stop a slide from scrolling.
+- `PUFF`'s size, position and label do not change, at any Target. The arc is drawn above it and takes nothing from it.
+
+**Done when** a tap is still `+1` with nothing drawn; a hold released without moving is exactly one `+1`; a hold released on `+10` writes 10 and nothing else; a hold released off both writes nothing; a hold released over a mark under the arc neither marks a Kick nor opens the editor; `…` from the arc opens the same empty sheet as `…` beside the readout; the keyboard never meets the arc; and a held `PUFF` raises no iOS callout.
+
+## Before the count is done
+
+- **On a real iPhone, one-handed, in the dark.** Whether a right thumb can slide to `+10` without seeing it is the one thing no test answers, and it decides whether the fast path is fast.
+- **The teaching line is a first draft**, sitting in an app whose other teaching line has, on the evidence of 0 Kicked sessions in 505, not been found either. If the hold is still undiscovered after a week, that line is what to change first.
+- **Take a Backup after a fortnight and read it against the one that prompted this**: taps per day, the share of sessions at exactly 5 and 10, and how many sittings the commit rule split. It is also the only evidence a future effort to narrow the Merge Window could stand on.
