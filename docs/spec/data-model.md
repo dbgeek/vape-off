@@ -30,8 +30,8 @@ type Instant       = string   // ISO 8601 with offset, e.g. '2026-08-29T21:14:03
 
 type PuffSession = {
   id: string              // UUID (crypto.randomUUID)
-  at: Instant             // the FIRST tap of the sitting — see Merge Window below
-  lastTapAt: Instant      // the most recent tap; the sliding Merge Window is measured from this
+  at: Instant             // the FIRST addition — when the sitting was first logged, not when it began
+  lastTapAt: Instant      // the most recent addition; the sliding Merge Window is measured from this
   count: number           // integer >= 1
   logicalDay: LogicalDayKey
   tz: string              // IANA zone at write time, e.g. 'Europe/Stockholm'
