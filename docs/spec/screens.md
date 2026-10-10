@@ -157,7 +157,7 @@ The rule is stated forward-looking because candidates keep being proposed, and e
 
 - **What is left of the Target** — the fourth, and refused on reasoning of its own: the first three would have been redundant or poor readings, and this one would be **a number about a whole Logical Day placed inside a control that writes** ([#118](https://github.com/dbgeek/vape-off/issues/118)). It is not on Track today. The header carries the count *so far*; the remainder is printed only on the badge, outside the app ([rules.md §14](./rules.md#14-the-badge)), and ghost slots cannot be counted for it. So pre-filling the `…` sheet with `9`, or offering `+9` on the arc, would print it here **for the first time**, as the number your thumb lands on. It cannot claim the single-session exemption below: `target − dayTotal(today())` is computed from two facts about the day and none about the sitting. Arithmetic refused it before the rule did — on **83%** of Puff Sessions logged under a Target, what was left was 50 or more, and no sitting in the record has ever exceeded 23. **The sheet therefore opens empty**, at every hour and every Target ([Entering a count](#entering-a-count)).
 
-The rule is about **whole Logical Days**. It does not touch numbers about a single Puff Session: the open session's running count, the `+1 → 3` button below and the `+5` `+10` beside the readout are the Merge Window making itself visible, and they stay.
+The rule is about **whole Logical Days**. It does not touch numbers about a single Puff Session: the open session's running count, the `+1 → 3` button below and the `+5` `+10` beside the readout are the Merge Window making itself visible, and they stay. **Nor does it touch [the Current Gap](#the-current-gap)**, a number about the time since a single Puff Session — the latest — which takes the readout's slot whenever no window is open ([#138](https://github.com/dbgeek/vape-off/issues/138)).
 
 ### The timeline's floor, and the chrome budget
 
@@ -257,6 +257,55 @@ The window is measured from the stored `lastTapAt`, so it survives a cold start 
 5. **The arc covers the bottom of the live lane while it is up** — roughly 00:00–04:00. The record holds no Puff Session in that stretch, and the arc owns the finger, so nothing there is reachable by accident; it is simply hidden for the length of a hold.
 
 **No glossary term.** *The arc*, *the sheet* and *the readout's buttons* are labels in this file, like `Yesterday`, and must not enter `CONTEXT.md`: the act is a second route to a fact the record already has a word for.
+
+### The Current Gap
+
+**`Current Gap · 2h 14m`, in the open-session readout's slot above `PUFF`, whenever no Merge Window is open** ([#138](https://github.com/dbgeek/vape-off/issues/138)). The readout is the sitting still being logged; the Current Gap is the time since it was. Neither stands while the other does, which is what makes them one slot rather than two ([rules.md §12b](./rules.md#12b-current-gap)).
+
+- **Here because this is where an urge arrives.** `Resisted` stands beside `PUFF`, and a reading you had to go to Stats for would not be there when it was wanted.
+- **The slot spends nothing that was budgeted.** It is absolutely positioned inside the 7.5rem `.track-screen` already reserves beneath the timeline, so it takes none of [the chrome budget](#the-timelines-floor-and-the-chrome-budget), puts nothing on the header, and adds no text to the timeline, which stays at one word.
+- **Not on the now-line**, though that would draw the gap where it literally is. It would be a second string on the timeline; it would collide with marks, the fan, the ghost slots just past `now` and the Target hairline; and the session it measures from is often in the Yesterday lane. **Not on the header** beside `9 / 24`, where two bare figures blur into one and the one-number rule would be reopened rather than scoped.
+
+**When it shows:**
+
+| | the Current Gap |
+| --- | --- |
+| during the Baseline | absent |
+| a Target in force, `Target 0` included | shown whenever `currentGap()` is present |
+| a Merge Window open | absent — the readout stands there |
+| outside the Pace Window | shown — it is not a Pace reading |
+| no eligible stretch | absent |
+
+- **Absent during the Baseline, because a timer is pressure.** The Baseline measures how much you vape before anything leans on it, and its average is the frozen origin of every Target. A Current Gap pulling those seven days below your real habit would start the programme from a week you were already resisting. Pace is absent there too, for its own reason.
+- **At `Target 0` it is Track's only reading of time**, Pace being permanently silent there.
+- **Absent without explanation** when the stretch is ineligible. After a whole Logical Day with nothing on it, it goes silent at 04:00, and the catch-up strip arrives in the same moment with that day's chip — the one moment the slot has nothing to show is the one with something to do. A line saying *why* would be a second channel of copy on Track, and the Yesterday lane's rule holds here as well: **Track asserts only what the app knows.**
+
+**How it reads:**
+
+- **Minute resolution, coarsening, on the existing 60-second tick**: under an hour `14m`, under a day `2h 14m`, from a day on `3d 4h`. Every unit is floored, so it never claims time that has not passed. **No seconds**: a ticking stopwatch reads as a countdown, which is the reason ghost slots are ambient rather than a countdown too.
+- **The readout's own muted style** — its size and `--color-muted`, never amber. Nothing about it grows with the gap.
+- **A plain element, not a live region.** The readout's `<output>` is `aria-live` because its count changes when you act; this changes every minute on its own, and a live region would announce it every minute. Its accessible text is *Current Gap, 2 hours 14 minutes*.
+
+> **Derived, not decided.**
+> - **Two units always below a day** — `2h 0m`, not `2h` — so the reading does not change width on the hour.
+> - **It appears when the readout leaves**, at `lastTapAt + 90 s`, not on the next minute tick: the same re-derive [the readout already owes](#the-merge-window).
+> - **`0m` is reachable, rarely.** A window ordinarily closes 90 s after its last addition, so the shortest reading is `1m` — but [ADR 0012](../adr/0012-the-merge-window-closes-at-the-logical-day-boundary.md) closes a window at 04:00, and a sitting logged at 03:59:30 is a 30-second Current Gap at 04:00:00. It reads `0m` and gets no special case.
+> - **Track and Stats format the same quantity differently**: `2h 14m` in the slot, *14 hours* on the Longest Gap tile. The slot is one muted line beside a live control; the tile is a headline figure. Accepted rather than unified, and the first thing to change if the two ever read as different quantities.
+> - **The handover offer's overlap stops being rare.** It stands at `7.2rem` against the slot's `6.85rem`, and [already overlapped the readout](#beside-the-readout) *on the rare evening both are up*. With the Current Gap in the slot it overlaps whenever the offer is up and no sitting is open — which is most of the time it is up. The answer is the one already given: stack the offer clear of the row.
+
+#### It is never an achievement
+
+**It returns to zero on every Puff Session you log, and that is not a cost.** [ADR 0010](../adr/0010-logging-is-never-punished.md) draws the line at *visible, not costly*: the reset withholds nothing the app could give — no Momentum, no Ratchet, no Target — and what you have built is kept by the Longest Gap, which a log never shortens. **What would make the reset a cost is presentation.** A figure framed as a run you are on makes zeroing it a loss, and a loss attached to logging is the under-reporting incentive arriving somewhere new, since *not* logging keeps the number running. It is the argument that renamed **Streak** to **Momentum**, applied at the scale of minutes.
+
+**So it is a number about the time since one Puff Session: never compared, never celebrated, and it returns to zero without comment.** Refused by name, because each will be proposed:
+
+1. **A *best* beside it** — the Longest Gap, or any figure from Stats, on Track.
+2. **A bar or ring filling toward the Longest Gap.** A comparison drawn rather than printed is still a comparison.
+3. **Any mark of reaching or passing the Longest Gap**, and milestones — *24h!*, a first full day, a week.
+4. ***Still running* on Stats' Longest Gap** when the running stretch is the record. True and tempting, and it turns the next log into a visible *no longer running* — the same loss, moved one screen over.
+5. **Any colour, size or weight that grows with the gap.**
+
+*The slot* is a label in this file and must not enter `CONTEXT.md`; `Current Gap` is the term.
 
 ### Marking a Kick
 
@@ -400,7 +449,7 @@ One column. **It never becomes a dashboard.**
 
 1. **Steps Remaining** and the **Quit Horizon**, as a pair of tiles. Two tiles rather than one number, because one is exact and the other is a guess and a single readout re-hides which is which. Each degrades to its own silence independently ([rules.md §9–11](./rules.md#9-steps-remaining)).
 2. **The trend**, kept small: a **28-day sparkline** of daily total with the **Target as a dashed step line**, **breaking across Unknown Logical Days** rather than drawing zeros. Not promoted — its real job is carrying the Target line and the breaks. Not dropped either: Steps Remaining says the *Target* is falling, which is not the same as whether you are hugging it.
-3. **Longest Gap.** When the honest figure has been disqualified by an Unknown day, one factual footnote says so — kept small, never a telling-off.
+3. **Longest Gap.** When the honest figure has been disqualified by an Unknown day, one factual footnote says so — kept small, never a telling-off. The day still running never disqualifies it, so the footnote no longer fires on a morning with nothing logged yet ([rules.md §12](./rules.md#12-longest-gap)). **Never marked *still running*** when the Current Gap is the record: that turns the next log into a visible loss ([It is never an achievement](#it-is-never-an-achievement)).
 4. **Kicks Marked.** A bare count of the Puff Sessions you marked as having delivered, over the same 14 Logical Days the Dial uses, today's running day included ([rules.md §12a](./rules.md#12a-kicks-marked)). **Absent entirely when the window holds none.** A tile of its own, not fused into a pair with `Longest Gap`: the `Steps Remaining` / `Quit Horizon` pairing exists to keep an exact figure and a guess visibly distinct, and two floors have no such tension to display. Here because this is the screen's *descriptive floors* neighbourhood, and before the backup line because that line is housekeeping rather than a reading.
 5. **The backup status line**, from the first uncovered Known Logical Day: *"Last backup: 3 Logical Days ago."* A reading, not a warning. The **card at 30** appears here too, dismissible ([rules.md §13](./rules.md#13-the-export-nag)).
 
@@ -410,7 +459,7 @@ One column. **It never becomes a dashboard.**
 
 ### At Target 0
 
-Steps Remaining and the Quit Horizon **retire**; **Longest Gap takes the headline**, with Momentum beneath it. There is no graduation screen: an app that declares victory has nothing to offer on the day after, which is the day it is most needed ([ADR 0006](../adr/0006-the-ratchet-stops-at-target-1.md)).
+Steps Remaining and the Quit Horizon **retire**; **Longest Gap takes the headline**, with Momentum beneath it — and the headline is never marked *still running* either, here least of all, where the run is the whole reading. There is no graduation screen: an app that declares victory has nothing to offer on the day after, which is the day it is most needed ([ADR 0006](../adr/0006-the-ratchet-stops-at-target-1.md)).
 
 **`Kicks Marked` is unchanged here, and that has to be said rather than left to be inferred.** This is a paragraph about things that retire, so a reader who watches the tile vanish will conclude it retired alongside them — and the obvious "fix" for that is an explicit retirement rule, which is the suppression refused below. What actually happens needs no special case: at `Target 0` a Met day admits no Puff Sessions, so in the steady state there is nothing to Kick, the count reaches zero and the silence rule empties the tile unaided.
 

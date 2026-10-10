@@ -8,6 +8,8 @@ A third map, [marking a Puff Session that delivers a Kick](https://github.com/db
 
 A fourth map, [entering a Puff Session's count in one act](https://github.com/dbgeek/vape-off/issues/116), changed how a count is **expressed** without changing what is stored — a hold on `PUFF`, a row of buttons beside the open-session readout, and a small sheet. It adds no field, no version, no ADR and so no invariant. [`screens.md`](./screens.md#entering-a-count) gains a section and re-describes the Merge Window by the addition rather than the tap; the glossary's `Merge Window` and `Correction` entries were re-described on the way; and the **C** slices end [`slices.md`](./slices.md). **[`rules.md`](./rules.md) was checked and owes nothing**: Pace anchors on `at`, Longest Gap measures `at` to `at`, and the badge refreshes after every write, and a count committed whole fits all three as written.
 
+A fifth effort, [the Current Gap](https://github.com/dbgeek/vape-off/issues/138), was grilled in one session rather than mapped: the time since the latest Puff Session, shown on Track in the open-session readout's slot. It stores nothing and adds no ADR, so it adds no invariant. The glossary gains `Current Gap` and re-describes `Longest Gap`, whose still-running stretch it is. [`rules.md §12`](./rules.md#12-longest-gap) is corrected so the Logical Day still running no longer disqualifies that stretch, and gains [§12b](./rules.md#12b-current-gap). [`screens.md`](./screens.md#the-current-gap) gains a section, and Track's one-number rule gains one sentence. The single **G** slice ends [`slices.md`](./slices.md). **[`data-model.md`](./data-model.md) was checked and owes nothing.**
+
 ## How to read it
 
 Read in this order. The first two are short and everything else assumes them.
@@ -59,9 +61,13 @@ a graded Kick — any strength, scale or mild/strong distinction, which is inten
 
 a pre-filled, defaulted or remainder-derived count at any hour or any Target, **the `…` sheet's field included** · a stepper or a keypad on the fast path · a third number on the arc · a third button in the `Resisted | PUFF` row · a standing count control before a sitting exists · any change to what a Puff Session stores · retiring tap-per-puff · narrowing the Merge Window's 90 seconds, its slide or its 04:00 split — a fresh effort off a Backup taken after the count ships, if ever · one teaching string for both holds.
 
+**What the Current Gap does not have**, ruled out in [its grilling](https://github.com/dbgeek/vape-off/issues/138):
+
+a *best*, the Longest Gap or any Stats figure beside it on Track · a bar or ring filling toward the Longest Gap · any highlight on reaching or passing it, and milestones of any kind · *still running* on Stats' Longest Gap · any colour, size or weight that grows with the gap · seconds, or a stopwatch · a live region · a place on the header, on the now-line or on the badge · an appearance during the Baseline · copy explaining its silence.
+
 ## Where this spec is thinner than the map, and why
 
-Five places, flagged rather than hidden. Each is marked **derived, not decided** where it appears.
+Six places, flagged rather than hidden. Each is marked **derived, not decided** where it appears.
 
 **1. The editing surface was never grilled.** The map settled that backfill exists and is first-class ([ADR 0001](../adr/0001-unlogged-days-are-unknown-not-zero.md)), that the catch-up strip resolves Unknown days ([#5](https://github.com/dbgeek/vape-off/issues/5), [#6](https://github.com/dbgeek/vape-off/issues/6)), that deletes are hard ([#4](https://github.com/dbgeek/vape-off/issues/4)), and that an edit which moves Momentum should say so out loud — but no ticket ever designed the surface for correcting a mis-tap. [`screens.md`](./screens.md#editing-the-record) specifies the minimum the decided rules force. Treat it as a default to review, not as a settled screen.
 
@@ -78,3 +84,5 @@ The first real reading has since arrived and settles nothing: the Backup of 2026
 **4. The count act's teaching line was written at the hand-off, not reacted to.** Same constraint and same status as the `Kicked` note: every teaching string names the thing you hold, and no string teaches holding as a general move ([#120](https://github.com/dbgeek/vape-off/issues/120)). The words beneath the readout's buttons in [`screens.md`](./screens.md#beside-the-readout) are a first draft.
 
 **5. Three details of the count act were derived at the hand-off, not decided by a ticket**: that the open-session readout leaves when the Merge Window closes rather than on the next minute tick, which matters now that it carries the act's accessible route; what the `…` sheet accepts, and that it outlives the readout; and that the handover offer stacks clear of the readout's row. Beside them sits one cost that *was* decided and deliberately not closed: **the accessible route cannot enter exactly 5 or 10 in one act** — it runs `PUFF` then `…` 4.
+
+**6. Five details of the Current Gap were derived at the hand-off, not decided in its grilling**: two units always below a day; that it appears when the readout leaves rather than on the minute tick; that `0m` is reachable at the 04:00 split and gets no special case; that Track and Stats format the same quantity differently, `2h 14m` against *14 hours*; and that the handover offer's overlap with the slot stops being rare. The grilling also assumed `0m` could not occur. It can, at the 04:00 split.
