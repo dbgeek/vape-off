@@ -1,8 +1,8 @@
 # The build order
 
-Twenty-three slices, each sized for one agent session. Build them in order — every slice depends on the ones above it and none depends on the ones below.
+Twenty-four slices, each sized for one agent session. Build them in order — every slice depends on the ones above it and none depends on the ones below.
 
-S1–S11 are the v1 build and have shipped. Three later maps added slices at the end of this file: **[the Track timeline rebuild](#the-track-timeline-rebuild)** adds five, **[the Kick](#the-kick)** adds four, and **[entering a count](#entering-a-count)** adds three. Start at whichever of the four you are building — they are strictly ordered among themselves and the later three do not revisit each other, except that the count's hold borrows the Kick's `LONG_PRESS_MS` and changes nothing the Kick built.
+S1–S11 are the v1 build and have shipped. Three later maps added slices at the end of this file: **[the Track timeline rebuild](#the-track-timeline-rebuild)** adds five, **[the Kick](#the-kick)** adds four, and **[entering a count](#entering-a-count)** adds three. One grilling added **[the Current Gap](#the-current-gap)**, a single slice. Start at whichever of the five you are building — they are strictly ordered among themselves and the later four do not revisit each other, except that the count's hold borrows the Kick's `LONG_PRESS_MS` and changes nothing the Kick built, and the Current Gap takes the slot the count's readout stands in.
 
 **Every slice:** read [`CONTEXT.md`](../../CONTEXT.md) and [`README.md`](./README.md)'s invariants first, use the glossary's vocabulary in names and tests, and do not invent behaviour this spec does not describe. If you find a genuine gap, say so in the PR rather than filling it silently — the only one known in advance is flagged in the README.
 
@@ -285,3 +285,47 @@ Build them in order: each depends on the ones above it. **The findable route com
 - **On a real iPhone, one-handed, in the dark.** Whether a right thumb can slide to `+10` without seeing it is the one thing no test answers, and it decides whether the fast path is fast.
 - **The teaching line is a first draft**, sitting in an app whose other teaching line has, on the evidence of 0 Kicked sessions in 505, not been found either. If the hold is still undiscovered after a week, that line is what to change first.
 - **Take a Backup after a fortnight and read it against the one that prompted this**: taps per day, the share of sessions at exactly 5 and 10, and how many sittings the commit rule split. It is also the only evidence a future effort to narrow the Merge Window could stand on.
+
+---
+
+# The Current Gap
+
+One slice from [the Current Gap](https://github.com/dbgeek/vape-off/issues/138), cut after the **C** slices. It adds one pure function, amends one, and puts one line on Track. **It changes nothing in the record**: no field, no index, no `version(n)`, no Backup line, no `formatVersion`. It blocks on nothing.
+
+**Read first:** [`CONTEXT.md`](../../CONTEXT.md)'s `Current Gap` and `Longest Gap` entries, [rules.md §12 and §12b](./rules.md#12b-current-gap), [screens.md § The Current Gap](./screens.md#the-current-gap) and [ADR 0010](../adr/0010-logging-is-never-punished.md). **The Current Gap touches no mechanism.** If the slice reads `Target` for anything other than whether one is in force, or reads `Met`, `Momentum`, the `Ratchet` or `Pace` at all, it has gone wrong.
+
+## G1 · The Current Gap
+
+[rules.md §12, §12b](./rules.md#12b-current-gap), [screens.md § The Current Gap](./screens.md#the-current-gap), [#138](https://github.com/dbgeek/vape-off/issues/138).
+
+**The rule, test-first:**
+
+- `currentGap(record, now, today)` in `readouts.ts` beside `longestGap`, returning milliseconds or `undefined`. Pure, with `longestGap`'s signature.
+- **`intervalIsKnown` cannot express the exemption as it stands.** It returns `false` when `start > end`, so asking it about `last.logicalDay` through the day before `today` answers `false` for a session logged today, which is the one case that must always be eligible. Answer that case outright. **Do not change `intervalIsKnown`**: the consecutive pairs rely on what it says now.
+- `longestGap()`'s still-running stretch takes the same exemption. Keep the footnote honest about the rest: a running stretch ruled out by a *completed* Unknown day is still an exclusion and can still earn it, and a stretch of negative length is still neither run nor exclusion.
+- **Every existing `longestGap` test passes unchanged.** They were checked against the new rule and none depends on today being Unknown; if one fails, the exemption has leaked past the day still running.
+
+**Track:**
+
+- `TrackView` gains `currentGap: number | undefined`, present if and only if a Target is in force, no session is open, and `currentGap()` is present. **The gate lives in `buildTrackView`, not in the rule**, because §12 reads `currentGap()` during the Baseline and inside an open window.
+- **`Current Gap · 2h 14m` in the open-session readout's slot**, in the readout's muted style. A plain element: **not an `<output>` and not `aria-live`**. Its accessible text is *Current Gap, 2 hours 14 minutes*. Outside `.track-actions`, which holds exactly `Resisted` and `PUFF`; `TrackScreen.test.tsx` already asserts that, and it must pass unchanged.
+- **The formatter floors every unit**: `14m`; `2h 14m`, two units always below a day, so `2h 0m`; `3d 4h` from a day on. `0m` is reachable at the 04:00 split and is not special-cased.
+- **It appears when the readout leaves, at `lastTapAt + 90 s`.** That re-derive is [C2](#c2--track-the-readouts-buttons-and-the-sheet)'s too. Whichever of the two lands first adds it, and one timer serves both.
+- **Stack the handover offer clear of the slot.** Also owed by C2, for the readout's row, and the same rule: whichever lands first does it.
+- **Nothing on the refused list** in [It is never an achievement](./screens.md#it-is-never-an-achievement): no comparison, no bar, no highlight, no milestone, nothing that grows with the gap, and no *still running* on Stats.
+
+**Done when** tests cover:
+
+- **The exemption.** Last Puff Session at 23:00 yesterday and nothing today: at 09:00 the Current Gap is 10 hours, `longestGap()` is at least that, and the footnote does not fire.
+- **A completed Unknown Logical Day** in the stretch silences it, and a Clear Day declared on that day brings it back.
+- A session logged today is always eligible. A session stamped ahead of `now` gives no Current Gap.
+- **Absent** during the Baseline and while a Merge Window is open; **present** at `Target 0` and at 02:00.
+- **It appears within a second of the window closing**, not on the minute tick.
+- **The format**: 59 s → `0m`, 90 s → `1m`, 59 min 59 s → `59m`, exactly 2 h → `2h 0m`, 23 h 59 min → `23h 59m`, 24 h → `1d 0h`, 76 h → `3d 4h`.
+- It is not a live region, and its accessible text reads in words.
+- `longestGap() >= currentGap()` wherever both are present, across the existing `longestGap` fixtures.
+
+## Before the Current Gap is done
+
+- **On a real iPhone at `Target 1` with the handover offer up**: the offer clear of the slot, and both readable.
+- **Take a Backup after a fortnight and compare it with one from before**: Known Logical Days per week, and the daily total. The record cannot prove under-reporting. But a drop in Known days in the week this ships is the one signature of the incentive [ADR 0010](../adr/0010-logging-is-never-punished.md) names that the record *could* show.

@@ -256,13 +256,14 @@ longestGap():
     for each consecutive pair (a, b) in s:
         if every Logical Day key from a.logicalDay to b.logicalDay is Known:
             best = max(best, b.at - a.at)
-    // the still-running stretch
-    if every Logical Day key from last(s).logicalDay to today() is Known:
-        best = max(best, now - last(s).at)
+    // the still-running stretch is the Current Gap (§12b)
+    best = max(best, currentGap())
     return best
 ```
 
 A stretch crossing an Unknown Logical Day is not evidence that you did not vape and is **never eligible**, so the figure is a floor on your best run rather than a measure of it. After a twelve-day absence the honest answer is 22 hours, not twelve days — and the screen says so in one factual footnote rather than showing a number that looks broken.
+
+**The Logical Day still running is exempt, and only for the still-running stretch.** This corrects the rule as first written, which demanded every key *through* `today()` be Known: today is not Known until something is written on it, so on any morning with nothing logged yet the running stretch was excluded — and the footnote could fire when the only Unknown day was the one still in progress. Today is not yet judged, exactly as it is never yet Met or not. A consecutive pair needs no exemption, since a Puff Session on today already makes today Known. **`longestGap() >= currentGap()` whenever both are present**, so Track's Current Gap never reads longer than the Longest Gap on Stats ([#138](https://github.com/dbgeek/vape-off/issues/138)).
 
 This makes **Clear Day load-bearing for a stat it was not introduced to serve**: in the reference scenario the winning gap is produced by three consecutive Clear Days. The readout is exactly as trustworthy as that mark and no more.
 
@@ -287,6 +288,32 @@ kicksMarked():
 - **No Unknown-day exclusion, and it is vacuous rather than omitted.** §2 makes a Logical Day Known if it carries any Puff Session, so every session this reaches already sits in a Known day. Nothing is ever disqualified — unlike `Longest Gap`, whose eligibility rule is load-bearing.
 - **Never a footnote.** A floor can only be *understated* by missing evidence, never falsified by it, so a footnote here would fire constantly and teach the reader the number is damaged when it is only small. The tile degrades by going absent, and in no other way.
 - **Never divided.** The honest denominator — sessions you answered about — does not exist, by construction ([ADR 0015](../adr/0015-an-unknown-earns-a-control-only-where-it-costs.md)).
+
+## 12b. Current Gap
+
+> Numbered `12b` for the reason `12a` is. It belongs beside §12, whose still-running stretch it is.
+
+```
+currentGap():
+    s = all puffSessions sorted by at
+    if s is empty: return ABSENT
+    last = last(s)
+    if now < last.at:              return ABSENT     // stamped ahead of the clock (ADR 0008)
+    if last.logicalDay > today():  return ABSENT     // keys running backwards vouch for nothing
+    // the Logical Day still running is not yet judged; every completed one crossed must be Known
+    if every Logical Day key from last.logicalDay to the day before today() is Known:
+        return now - last.at
+    return ABSENT
+```
+
+A last Puff Session on today makes that range empty, and an empty range is vacuously Known: the stretch since a session logged today is always eligible.
+
+- **Measured from `at`**, as Pace and §12 are — so it is literally the Longest Gap's still-running stretch, not a second quantity that almost agrees with it. It differs from a reading off `lastTapAt` by the length of one sitting, whose median is 2.4 seconds.
+- **The rule computes; the screen gates.** `currentGap()` answers whenever a stretch is eligible — during the Baseline and inside an open Merge Window included — because §12 reads it there. Where it is *shown*, from the first Target onward and never beside an open session, is [screens.md](./screens.md#the-current-gap)'s to say.
+- **A whole Logical Day with nothing on it silences it at 04:00.** Puff at 22:00 on Monday, hold off all of Tuesday without writing anything — not even a Resisted Urge — and at 04:00 on Wednesday the stretch crosses a completed Unknown Logical Day. That is [ADR 0001](../adr/0001-unlogged-days-are-unknown-not-zero.md) as written: nothing distinguishes *held off all day* from *was not using the app*. Declaring Tuesday a Clear Day, from the catch-up strip that arrives in the same moment, makes the stretch eligible again; at Target 0 it is also what makes Tuesday Met. Today can be declared Clear before 04:00 to the same effect. **Clear Day is load-bearing here exactly as it is for §12**, and the reading is as trustworthy as that mark and no more.
+- **It reads no mechanism and moves none.** Nothing in Target, Met, Momentum, the Ratchet or Pace reads it, and it reads none of them. Pace anchors on the same `at`; that is a shared fact, not a dependency.
+- **Returning to zero is not a cost.** Every Puff Session logged resets it, and that withholds nothing the app could give — what you have built is kept by §12, which a log never shortens ([ADR 0010](../adr/0010-logging-is-never-punished.md)). What would make it a cost is presentation, and the rules against that are [screens.md](./screens.md#the-current-gap)'s.
+- **Never on the badge**, for §14's own reason: a badge updates only while the app runs, so a gap shown there would be stale the moment it mattered.
 
 ## 13. The export nag
 
