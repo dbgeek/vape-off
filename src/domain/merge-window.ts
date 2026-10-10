@@ -26,6 +26,16 @@ function windowIsOpen(lastTapAt: string, at: Date): boolean {
   return elapsed >= 0 && elapsed <= MERGE_WINDOW_MS
 }
 
+/**
+ * The first instant a Puff Session's window is closed by time alone, so a
+ * reader can re-derive then rather than on its next tick. The window is still
+ * open at exactly 90 s, so it closes a millisecond after. The 04:00 boundary
+ * can close it sooner; this does not say so, and is not asked to.
+ */
+export function windowClosesAt(session: PuffSession): number {
+  return Date.parse(session.lastTapAt) + MERGE_WINDOW_MS + 1
+}
+
 /** The Puff Session a tap at `at` would join, or undefined if it starts a new one. */
 export function openSessionAt(
   sessions: readonly PuffSession[],

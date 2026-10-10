@@ -20,6 +20,7 @@ import {
 import { momentum } from '../domain/readouts.ts'
 import { isStandalone } from '../shell/install-state.ts'
 import type { LogicalDayKey, PuffSession, ResistedUrge } from '../store/records.ts'
+import { formatCurrentGap } from './current-gap-format.ts'
 import { Lane, LANE_AXES, LIVE_LANE } from './Lane.tsx'
 import { isKicked, kickedClass, puffLabel, urgeLabel } from './lane-events.ts'
 import { useLiveRecord } from './live-record.ts'
@@ -331,6 +332,7 @@ export function TrackScreen({
 }) {
   const live = useLiveRecord(source, clock)
   const { record, view, now, loaded } = live
+  const currentGap = view.currentGap === undefined ? undefined : formatCurrentGap(view.currentGap)
   const [restoreDoorOpen, setRestoreDoorOpen] = useState(false)
   const [editor, setEditor] = useState<EditorState>()
   const timeZone = clock.timeZone()
@@ -537,6 +539,16 @@ export function TrackScreen({
           <span className="open-session-pulse" aria-hidden="true" />
           Open session · {view.openSession.count} {view.openSession.count === 1 ? 'puff' : 'puffs'}
         </output>
+      ) : null}
+
+      {/* The Current Gap takes the readout's slot whenever no sitting is open
+        * (`screens.md` § The Current Gap). Not a live region: it changes every
+        * minute on its own, and would be announced every minute. */}
+      {currentGap ? (
+        <p className="current-gap">
+          <span aria-hidden="true">Current Gap · {currentGap.text}</span>
+          <span className="sr-only">Current Gap, {currentGap.words}</span>
+        </p>
       ) : null}
 
       <div className="track-actions">

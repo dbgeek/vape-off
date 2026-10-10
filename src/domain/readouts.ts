@@ -262,12 +262,48 @@ export function longestGap(
     )
   }
 
-  const latest = sessions.at(-1)!
-  consider(Date.parse(latest.at), latest.logicalDay, now.getTime(), today)
+  // The still-running stretch is the Current Gap. When that is ineligible, the
+  // stretch it would have been is still weighed as an exclusion — unless it is
+  // negative, which `consider` already treats as evidence of nothing.
+  const running = currentGap(record, now, today)
+  if (running !== undefined) {
+    best = Math.max(best ?? 0, running)
+  } else {
+    const latest = sessions.at(-1)!
+    consider(Date.parse(latest.at), latest.logicalDay, now.getTime(), today)
+  }
 
   return {
     milliseconds: best,
     disqualifiedByUnknownDay:
       longestExcluded !== undefined && longestExcluded > (best ?? -Infinity),
   }
+}
+
+/**
+ * The Current Gap: the Longest Gap's still-running stretch, read on its own.
+ *
+ * Measured from the latest Puff Session's `at`, as §12 measures every stretch,
+ * so the two readings are one quantity rather than two that almost agree.
+ */
+export function currentGap(
+  record: DayLedgerRecord,
+  now: Date,
+  today: LogicalDayKey,
+): number | undefined {
+  const latest = [...record.puffSessions].sort(
+    (left, right) => Date.parse(left.at) - Date.parse(right.at),
+  ).at(-1)
+  if (latest === undefined || latest.logicalDay > today) return undefined
+  // The Logical Day still running is not yet judged, so only the completed ones
+  // the stretch crosses must be Known. A session logged today crosses none —
+  // an empty range `intervalIsKnown` would answer `false`, so it is answered here.
+  if (
+    latest.logicalDay < today &&
+    !intervalIsKnown(knownLogicalDayKeys(record), latest.logicalDay, shiftLogicalDay(today, -1))
+  ) {
+    return undefined
+  }
+  const stretch = now.getTime() - Date.parse(latest.at)
+  return stretch < 0 ? undefined : stretch
 }

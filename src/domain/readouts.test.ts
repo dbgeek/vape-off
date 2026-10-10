@@ -4,6 +4,7 @@ import { dayTotal, isMet, type DayLedgerRecord } from './day-ledger.ts'
 import {
   DIAL_WINDOW_DAYS,
   isInDialWindow,
+  currentGap,
   kicksMarked,
   longestGap,
   momentum,
@@ -221,17 +222,17 @@ describe('readouts', () => {
     ).toEqual({ status: 'retired' })
   })
 
+  const hours = (count: number) => count * 60 * 60 * 1000
+
+  function sessionAt(logicalDay: string, at: string): PuffSession {
+    return { ...puffSession(logicalDay, 1), id: `session-${at}`, at }
+  }
+
+  function clearDay(logicalDay: string): ClearDay {
+    return { logicalDay, at: `${logicalDay}T20:00:00.000Z`, tz: 'UTC' }
+  }
+
   describe('Longest Gap', () => {
-    const hours = (count: number) => count * 60 * 60 * 1000
-
-    function sessionAt(logicalDay: string, at: string): PuffSession {
-      return { ...puffSession(logicalDay, 1), id: `session-${at}`, at }
-    }
-
-    function clearDay(logicalDay: string): ClearDay {
-      return { logicalDay, at: `${logicalDay}T20:00:00.000Z`, tz: 'UTC' }
-    }
-
     it('has nothing to measure and nothing to admit without a Puff Session', () => {
       expect(longestGap(emptyRecord, new Date('2026-08-14T08:00:00.000Z'), '2026-08-14')).toEqual({
         milliseconds: undefined,
@@ -253,6 +254,19 @@ describe('readouts', () => {
       expect(longestGap(record, new Date('2026-08-14T08:00:00.000Z'), '2026-08-14')).toEqual({
         milliseconds: hours(22),
         disqualifiedByUnknownDay: true,
+      })
+    })
+
+    it('counts the still-running stretch on a morning with nothing logged yet, and admits nothing', () => {
+      // Today is not yet judged, so the day still running disqualifies nothing.
+      const record = {
+        ...emptyRecord,
+        puffSessions: [sessionAt('2026-08-28', '2026-08-28T23:00:00.000Z')],
+      }
+
+      expect(longestGap(record, new Date('2026-08-29T09:00:00.000Z'), '2026-08-29')).toEqual({
+        milliseconds: hours(10),
+        disqualifiedByUnknownDay: false,
       })
     })
 
@@ -354,6 +368,117 @@ describe('readouts', () => {
         milliseconds: undefined,
         disqualifiedByUnknownDay: false,
       })
+    })
+  })
+
+  describe('Current Gap', () => {
+    it('runs on through a Logical Day with nothing on it yet, because today is not yet judged', () => {
+      const record = {
+        ...emptyRecord,
+        puffSessions: [sessionAt('2026-08-28', '2026-08-28T23:00:00.000Z')],
+      }
+
+      expect(currentGap(record, new Date('2026-08-29T09:00:00.000Z'), '2026-08-29')).toBe(hours(10))
+    })
+
+    it('falls silent across a completed Logical Day with nothing on it, until it is declared Clear', () => {
+      // Held off all of the 28th without writing anything: nothing tells that
+      // apart from not using the app (ADR 0001). Declaring it Clear does.
+      const record = {
+        ...emptyRecord,
+        puffSessions: [sessionAt('2026-08-27', '2026-08-27T22:00:00.000Z')],
+      }
+      const now = new Date('2026-08-29T09:00:00.000Z')
+
+      expect(currentGap(record, now, '2026-08-29')).toBeUndefined()
+      expect(
+        currentGap({ ...record, clearDays: [clearDay('2026-08-28')] }, now, '2026-08-29'),
+      ).toBe(hours(35))
+    })
+
+    it('always counts the stretch since a Puff Session logged today', () => {
+      const record = {
+        ...emptyRecord,
+        puffSessions: [sessionAt('2026-08-29', '2026-08-29T09:00:00.000Z')],
+      }
+
+      expect(currentGap(record, new Date('2026-08-29T11:00:00.000Z'), '2026-08-29')).toBe(hours(2))
+    })
+
+    it('has nothing to say about a Puff Session stamped ahead of the clock', () => {
+      // Travelling east can stamp a Puff Session ahead of now (ADR 0008).
+      const record = {
+        ...emptyRecord,
+        puffSessions: [sessionAt('2026-08-29', '2026-08-29T12:00:00.000Z')],
+      }
+
+      expect(currentGap(record, new Date('2026-08-29T06:00:00.000Z'), '2026-08-29')).toBeUndefined()
+    })
+
+    it('has nothing to say when the latest Logical Day key runs ahead of today', () => {
+      // Flying west after logging stamps today's key earlier than the session's.
+      const record = {
+        ...emptyRecord,
+        puffSessions: [sessionAt('2026-08-30', '2026-08-29T10:00:00.000Z')],
+      }
+
+      expect(currentGap(record, new Date('2026-08-29T12:00:00.000Z'), '2026-08-29')).toBeUndefined()
+    })
+
+    it('has nothing to measure without a Puff Session', () => {
+      expect(currentGap(emptyRecord, new Date('2026-08-29T12:00:00.000Z'), '2026-08-29')).toBeUndefined()
+    })
+
+    it('never reads longer than the Longest Gap beside it', () => {
+      const scenarios: Array<[DayLedgerRecord, string, string]> = [
+        // a morning with nothing logged yet
+        [
+          { ...emptyRecord, puffSessions: [sessionAt('2026-08-28', '2026-08-28T23:00:00.000Z')] },
+          '2026-08-29T09:00:00.000Z',
+          '2026-08-29',
+        ],
+        // Clear Days vouching for the run
+        [
+          {
+            ...emptyRecord,
+            puffSessions: [sessionAt('2026-08-20', '2026-08-20T12:00:00.000Z')],
+            clearDays: ['21', '22', '23'].map((day) => clearDay(`2026-08-${day}`)),
+          },
+          '2026-08-23T18:00:00.000Z',
+          '2026-08-23',
+        ],
+        // a longer stretch behind it, excluded by an Unknown Logical Day
+        [
+          {
+            ...emptyRecord,
+            puffSessions: [
+              sessionAt('2026-08-20', '2026-08-20T12:00:00.000Z'),
+              sessionAt('2026-08-23', '2026-08-23T12:00:00.000Z'),
+            ],
+          },
+          '2026-08-24T09:00:00.000Z',
+          '2026-08-24',
+        ],
+        // a longer eligible stretch behind it
+        [
+          {
+            ...emptyRecord,
+            puffSessions: [
+              sessionAt('2026-08-20', '2026-08-20T08:00:00.000Z'),
+              sessionAt('2026-08-21', '2026-08-21T20:00:00.000Z'),
+              sessionAt('2026-08-22', '2026-08-22T10:00:00.000Z'),
+            ],
+          },
+          '2026-08-22T11:00:00.000Z',
+          '2026-08-22',
+        ],
+      ]
+
+      for (const [record, now, today] of scenarios) {
+        const running = currentGap(record, new Date(now), today)
+        expect(running).toBeDefined()
+        expect(longestGap(record, new Date(now), today).milliseconds).toBeGreaterThanOrEqual(running!)
+      }
     })
   })
 

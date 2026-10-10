@@ -1164,7 +1164,11 @@ select:focus-visible {
   border-radius: 50%;
 }
 
-.open-session {
+/* The Current Gap stands in the readout's slot whenever no sitting is open, in
+ * the readout's own muted voice: never amber, never larger, and nothing about
+ * it grows with the gap (`screens.md` § The Current Gap). */
+.open-session,
+.current-gap {
   position: absolute;
   right: 1.25rem;
   bottom: calc(6.85rem + env(safe-area-inset-bottom, 0px));
@@ -1190,10 +1194,13 @@ select:focus-visible {
   padding-inline: 0;
 }
 
+/* Stacked clear of the readout's slot rather than over it: with the Current
+ * Gap there, the slot is filled nearly whenever this offer stands, and the
+ * offer was already landing on top of it at `7.2rem`. */
 .handover-offer {
   position: absolute;
   right: 1.25rem;
-  bottom: calc(7.2rem + env(safe-area-inset-bottom, 0px));
+  bottom: calc(8.4rem + env(safe-area-inset-bottom, 0px));
   left: 1.25rem;
   z-index: 8;
   display: flex;

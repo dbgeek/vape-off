@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Correction, CorrectionRefusal } from '../domain/corrections.ts'
 import type { DayLedgerRecord } from '../domain/day-ledger.ts'
+import { windowClosesAt } from '../domain/merge-window.ts'
 import { useReturnToView } from '../shell/return-to-view.ts'
 import { buildTrackView, type TrackView } from './track-view.ts'
 import type { TrackClock, TrackSource } from './TrackScreen.tsx'
@@ -166,6 +167,19 @@ export function useLiveRecord(source: TrackSource, clock: TrackClock): LiveRecor
   })
 
   const view = useMemo(() => buildTrackView(record, now, timeZone), [record, now, timeZone])
+
+  // The readout leaves when its Merge Window closes rather than on the next
+  // minute tick, and the Current Gap takes its slot in the same moment
+  // (`screens.md` § The Current Gap).
+  const windowCloses = view.openSession === undefined ? undefined : windowClosesAt(view.openSession)
+  useEffect(() => {
+    if (windowCloses === undefined) return
+    const timer = window.setTimeout(
+      () => setNow(clock.now()),
+      Math.max(0, windowCloses - clock.now().getTime()),
+    )
+    return () => window.clearTimeout(timer)
+  }, [windowCloses, clock])
 
   return {
     record,
