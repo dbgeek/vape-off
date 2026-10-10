@@ -1301,3 +1301,56 @@ describe('the Yesterday lane', () => {
     expect(timeline.style.getPropertyValue('--spine')).toBe('46%')
   })
 })
+
+describe('the Current Gap', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
+
+  it('takes the slot above PUFF as a plain line, in words for a screen reader', async () => {
+    const record = {
+      ...emptyRecord,
+      puffSessions: [session('morning', '2026-08-29T10:00:00.000Z', 5)],
+      ratchetSteps: [target(24)],
+    }
+
+    render(
+      <TrackScreen
+        source={source(record)}
+        clock={{ now: () => new Date('2026-08-29T12:14:00.000Z'), timeZone: () => 'UTC' }}
+      />,
+    )
+
+    const printed = await screen.findByText('Current Gap · 2h 14m')
+    const spoken = screen.getByText('Current Gap, 2 hours 14 minutes')
+    // It changes every minute on its own, so announcing it would announce it
+    // every minute: never an `<output>`, never inside a live region.
+    expect(printed.closest('[aria-live], output')).toBeNull()
+    expect(spoken.closest('[aria-live], output')).toBeNull()
+    expect(
+      within(timelineElement('.track-actions')).getAllByRole('button').map((one) => one.textContent),
+    ).toEqual(['Resisted', 'PUFF'])
+  })
+
+  it('arrives when the readout leaves, not on the next minute tick', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    vi.setSystemTime(new Date('2026-08-29T19:02:00.000Z'))
+    const record = {
+      ...emptyRecord,
+      // Logged from 19:00, last added to at 19:01: the window closes at 19:02:30.
+      puffSessions: [session('open', '2026-08-29T19:00:00.000Z', 5, '2026-08-29T19:01:00.000Z')],
+      ratchetSteps: [target(24)],
+    }
+
+    render(<TrackScreen source={source(record)} clock={{ now: () => new Date(), timeZone: () => 'UTC' }} />)
+
+    expect(await screen.findByText('Open session · 5 puffs')).toBeInTheDocument()
+    expect(screen.queryByText(/^Current Gap ·/)).not.toBeInTheDocument()
+
+    await act(async () => vi.advanceTimersByTime(31_000))
+
+    expect(screen.queryByText(/Open session/)).not.toBeInTheDocument()
+    expect(screen.getByText('Current Gap · 2m')).toBeInTheDocument()
+  })
+})

@@ -8,7 +8,7 @@ import {
 } from '../domain/day-ledger.ts'
 import { logicalDayKeyOf, shiftLogicalDay } from '../domain/logical-day.ts'
 import { openSessionAt } from '../domain/merge-window.ts'
-import { pace } from '../domain/readouts.ts'
+import { currentGap, pace } from '../domain/readouts.ts'
 import { decideStep } from '../domain/ratchet.ts'
 import type { Instant, LogicalDayKey, PuffSession, ResistedUrge } from '../store/records.ts'
 
@@ -51,6 +51,12 @@ export interface TrackView {
   openSession: PuffSession | undefined
   /** The Pace slots still ahead of now. */
   paceSlots: readonly Instant[]
+  /**
+   * The Current Gap in milliseconds, when Track shows it: a Target in force, no
+   * sitting still being logged, and a stretch eligible under §12b. The gate is
+   * the screen's and lives here, because §12 reads `currentGap()` everywhere.
+   */
+  currentGap: number | undefined
   /** The Unknown Logical Days the catch-up strip offers. */
   catchUpDays: readonly LogicalDayKey[]
   /** The previous Logical Day, or `undefined` when it is Unknown. */
@@ -174,6 +180,7 @@ export function buildTrackView(
   const puffSessions = sessionsOn(record, today)
   const target = targetOn(record, today)
   const reached = targetReachedBy(puffSessions, target)
+  const openSession = openSessionAt(record.puffSessions, now, timeZone)
 
   return {
     today,
@@ -183,9 +190,13 @@ export function buildTrackView(
     target,
     targetReached: reached,
     overTargetSessionIds: overTargetSessionIds(puffSessions, target, reached),
-    openSession: openSessionAt(record.puffSessions, now, timeZone),
+    openSession,
     paceSlots:
       pace(record, now, timeZone)?.slots.filter((slot) => Date.parse(slot) > now.getTime()) ?? [],
+    currentGap:
+      target === undefined || openSession !== undefined
+        ? undefined
+        : currentGap(record, now, today),
     catchUpDays: catchUpDays(record, today),
     yesterday: yesterdayOf(record, today),
     todayIsClear: record.clearDays.some((day) => day.logicalDay === today),

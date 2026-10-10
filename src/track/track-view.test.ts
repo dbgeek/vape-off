@@ -155,6 +155,48 @@ describe('the Track view', () => {
     expect(baseline.paceSlots).toEqual([])
   })
 
+  it('carries the Current Gap once a Target is in force, and none during the Baseline', () => {
+    const record = {
+      ...emptyRecord,
+      puffSessions: [session('morning', '2026-08-29', '2026-08-29T10:00:00.000Z', 2)],
+      ratchetSteps: [step('2026-08-20', 6)],
+    }
+    const now = new Date('2026-08-29T12:00:00.000Z')
+
+    expect(buildTrackView(record, now, 'UTC').currentGap).toBe(2 * 60 * 60 * 1000)
+    expect(buildTrackView({ ...record, ratchetSteps: [] }, now, 'UTC').currentGap).toBeUndefined()
+  })
+
+  it('leaves the Current Gap to the readout while a sitting is still being logged', () => {
+    const record = {
+      ...emptyRecord,
+      puffSessions: [
+        session('open', '2026-08-29', '2026-08-29T19:00:00.000Z', 2, '2026-08-29T19:01:00.000Z'),
+      ],
+      ratchetSteps: [step('2026-08-20', 6)],
+    }
+
+    const open = buildTrackView(record, new Date('2026-08-29T19:02:00.000Z'), 'UTC')
+    const closed = buildTrackView(record, new Date('2026-08-29T19:05:00.000Z'), 'UTC')
+
+    expect(open.currentGap).toBeUndefined()
+    expect(closed.currentGap).toBe(5 * 60 * 1000)
+  })
+
+  it('carries the Current Gap at Target 0, and through the night outside the Pace Window', () => {
+    const record = {
+      ...emptyRecord,
+      puffSessions: [session('evening', '2026-08-29', '2026-08-29T21:00:00.000Z', 3)],
+      ratchetSteps: [step('2026-08-20', 0, 'declared')],
+    }
+
+    // 02:00 on the 30th still belongs to the Logical Day that began on the 29th.
+    const view = buildTrackView(record, new Date('2026-08-30T02:00:00.000Z'), 'UTC')
+
+    expect(view.target).toBe(0)
+    expect(view.currentGap).toBe(5 * 60 * 60 * 1000)
+  })
+
   it('offers the seven most recent Unknown Logical Days for catch-up', () => {
     const record = {
       ...emptyRecord,
