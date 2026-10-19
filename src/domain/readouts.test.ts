@@ -10,6 +10,7 @@ import {
   momentum,
   pace,
   quitHorizon,
+  spacing,
   stepCadence,
   stepsRemaining,
 } from './readouts.ts'
@@ -220,6 +221,178 @@ describe('readouts', () => {
         '2026-08-08',
       ),
     ).toEqual({ status: 'retired' })
+  })
+
+  describe('Spacing', () => {
+    /** A sitting of `count` on `logicalDay`, distinct from every other one. */
+    function sitting(id: string, logicalDay: string, count: number): PuffSession {
+      return { ...puffSession(logicalDay, count), id }
+    }
+
+    /** Five sittings of five before today: the record's habit. */
+    const habitOfFive = ['2026-08-24', '2026-08-25', '2026-08-26', '2026-08-27', '2026-08-28'].map(
+      (logicalDay) => sitting(`habit-${logicalDay}`, logicalDay, 5),
+    )
+
+    /** The record as it stood when the spec was written: Target 223, never stepped. */
+    const firstTarget = {
+      ...emptyRecord,
+      puffSessions: habitOfFive,
+      ratchetSteps: [ratchetStep('2026-08-20', 223)],
+    }
+
+    const opening = new Date('2026-08-29T07:00:00.000Z')
+    const noon = new Date('2026-08-29T12:00:00.000Z')
+
+    it('cuts the Target into sittings scaled from your habit, as the record reads today', () => {
+      const reading = spacing(firstTarget, opening, 'UTC')
+
+      // floor(0.9 × 5) = 4 puffs a sitting; ceil(223 / 4) = 56 sittings across 16 hours.
+      expect(reading?.puffs).toBe(4)
+      expect(reading?.slots).toHaveLength(56)
+      expect(reading?.intervalMs).toBeCloseTo(17 * 60 * 1000 + 8_571.43, 1)
+      expect(reading?.nextDue).toBe(reading?.slots[0])
+      expect(reading?.slots.at(-1)).toBe('2026-08-29T23:00:00.000Z')
+    })
+
+    it('is Pace when a sitting is one puff', () => {
+      const record = {
+        ...emptyRecord,
+        puffSessions: [sitting('today', '2026-08-29', 2)],
+        // floor(2 × 10 × 0.9 / 24) = 0, floored at one puff.
+        ratchetSteps: [ratchetStep('2026-08-01', 24), ratchetStep('2026-08-20', 10)],
+      }
+
+      const reading = spacing(record, noon, 'UTC')
+
+      expect(reading?.puffs).toBe(1)
+      expect(reading?.intervalMs).toBe(pace(record, noon, 'UTC')?.intervalMs)
+      expect(reading?.nextDue).toBe(pace(record, noon, 'UTC')?.nextDue)
+      expect(reading?.slots).toEqual(pace(record, noon, 'UTC')?.slots)
+    })
+
+    it("prints what is left when it is less than a sitting, as the day's last slot", () => {
+      const record = {
+        ...firstTarget,
+        puffSessions: [...habitOfFive, sitting('today', '2026-08-29', 220)],
+      }
+
+      const reading = spacing(record, noon, 'UTC')
+
+      expect(reading?.puffs).toBe(3)
+      expect(reading?.slots).toEqual(['2026-08-29T23:00:00.000Z'])
+    })
+
+    it("is silent wherever Pace is, judging the ten minutes on its own interval", () => {
+      const atZero = { ...firstTarget, ratchetSteps: [ratchetStep('2026-08-20', 0, 'declared')] }
+      const nothingLeft = {
+        ...firstTarget,
+        puffSessions: [...habitOfFive, sitting('today', '2026-08-29', 223)],
+      }
+      // A habit of one is a size of one: 223 sittings at 07:00 is 4.3 minutes apiece.
+      const habitOfOne = {
+        ...firstTarget,
+        puffSessions: habitOfFive.map((session) => ({ ...session, count: 1 })),
+      }
+
+      expect(spacing({ ...firstTarget, ratchetSteps: [] }, opening, 'UTC')).toBeUndefined()
+      expect(spacing(atZero, opening, 'UTC')).toBeUndefined()
+      expect(spacing(nothingLeft, noon, 'UTC')).toBeUndefined()
+      expect(spacing(firstTarget, new Date('2026-08-29T06:59:00.000Z'), 'UTC')).toBeUndefined()
+      expect(spacing(firstTarget, new Date('2026-08-29T23:00:00.000Z'), 'UTC')).toBeUndefined()
+      expect(spacing(habitOfOne, opening, 'UTC')).toBeUndefined()
+    })
+
+    it('speaks on an evening Pace has gone quiet on', () => {
+      // 20 left at 21:00 is six minutes a puff, but five sittings of four.
+      const record = {
+        ...firstTarget,
+        puffSessions: [...habitOfFive, sitting('today', '2026-08-29', 203)],
+      }
+      const evening = new Date('2026-08-29T21:00:00.000Z')
+
+      expect(pace(record, evening, 'UTC')).toBeUndefined()
+      expect(spacing(record, evening, 'UTC')?.intervalMs).toBe(24 * 60 * 1000)
+    })
+
+    it('takes its habit from the 14 most recent Logical Days, and is silent with none in them', () => {
+      const fourteenBack = {
+        ...firstTarget,
+        puffSessions: [sitting('edge', '2026-08-15', 5)],
+      }
+      const thirteenBack = {
+        ...firstTarget,
+        puffSessions: [sitting('edge', '2026-08-16', 5)],
+      }
+
+      expect(spacing({ ...firstTarget, puffSessions: [] }, opening, 'UTC')).toBeUndefined()
+      expect(spacing(fourteenBack, opening, 'UTC')).toBeUndefined()
+      expect(spacing(thirteenBack, opening, 'UTC')?.puffs).toBe(4)
+    })
+
+    it("counts today's sittings in the habit", () => {
+      const record = { ...firstTarget, puffSessions: [sitting('today', '2026-08-29', 5)] }
+
+      expect(spacing(record, noon, 'UTC')?.puffs).toBe(4)
+    })
+
+    it('takes the lower median on an even count', () => {
+      const record = {
+        ...emptyRecord,
+        puffSessions: [sitting('small', '2026-08-27', 2), sitting('large', '2026-08-28', 10)],
+        ratchetSteps: [ratchetStep('2026-08-20', 20)],
+      }
+
+      // A habit of 2, not 6 or 10: floor(0.9 × 2) = 1.
+      expect(spacing(record, noon, 'UTC')?.puffs).toBe(1)
+    })
+
+    it('moves with a Correction that re-counts a sitting in the window', () => {
+      const recounted = {
+        ...firstTarget,
+        puffSessions: habitOfFive.map((session, index) =>
+          index < 3 ? { ...session, count: 10 } : session,
+        ),
+      }
+
+      expect(spacing(firstTarget, opening, 'UTC')?.puffs).toBe(4)
+      expect(spacing(recounted, opening, 'UTC')?.puffs).toBe(9)
+    })
+
+    it('scales by the Baseline Average as the first Step froze it', () => {
+      const baseline = ['2026-08-01', '2026-08-02', '2026-08-03', '2026-08-04', '2026-08-05', '2026-08-06', '2026-08-07'].map(
+        (logicalDay) => sitting(`baseline-${logicalDay}`, logicalDay, 10),
+      )
+      const record = {
+        ...emptyRecord,
+        puffSessions: [...baseline, ...habitOfFive],
+        // The Baseline Average of 10 froze as a first Target of 9; one Step since.
+        ratchetSteps: [ratchetStep('2026-08-08', 9), ratchetStep('2026-08-20', 8)],
+      }
+      const backfilled = {
+        ...record,
+        puffSessions: [...record.puffSessions, sitting('backfill', '2026-08-03', 500)],
+      }
+
+      // floor(5 × 8 × 0.9 / 9) = 4, whatever the Baseline window says now.
+      expect(spacing(record, opening, 'UTC')?.puffs).toBe(4)
+      expect(spacing(backfilled, opening, 'UTC')?.puffs).toBe(4)
+    })
+
+    it('scales from the first Step even when the Baseline it closed was seven Clear Days', () => {
+      const clearBaseline = {
+        ...firstTarget,
+        clearDays: ['2026-08-01', '2026-08-02', '2026-08-03', '2026-08-04', '2026-08-05', '2026-08-06', '2026-08-07'].map((logicalDay) => ({
+          logicalDay,
+          at: `${logicalDay}T12:00:00.000Z`,
+          tz: 'UTC',
+        })),
+        ratchetSteps: [ratchetStep('2026-08-08', 1)],
+      }
+
+      // A recomputed Baseline Average of 0 would divide by zero; the frozen one is 1.11.
+      expect(spacing(clearBaseline, opening, 'UTC')?.puffs).toBe(1)
+    })
   })
 
   const hours = (count: number) => count * 60 * 60 * 1000
@@ -584,6 +757,8 @@ describe('readouts', () => {
 
     expect(pace(record, now, 'UTC')).toBeDefined()
     expect(pace(kicked, now, 'UTC')).toEqual(pace(record, now, 'UTC'))
+    expect(spacing(record, now, 'UTC')).toBeDefined()
+    expect(spacing(kicked, now, 'UTC')).toEqual(spacing(record, now, 'UTC'))
     expect(momentum(kicked, today)).toBe(momentum(record, today))
     expect(stepsRemaining(kicked, today)).toEqual(stepsRemaining(record, today))
     expect(stepCadence(kicked)).toBe(stepCadence(record))

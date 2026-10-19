@@ -554,7 +554,7 @@ select:focus-visible {
  * from, and a mark that collides with nothing needs no inline left at all. */
 .puff-mark,
 .resisted-mark,
-.pace-slot {
+.spacing-slot {
   position: absolute;
   left: var(--spine);
   z-index: 4;
@@ -1156,7 +1156,7 @@ select:focus-visible {
   cursor: pointer;
 }
 
-.pace-slot {
+.spacing-slot {
   z-index: 0;
   width: 0.4rem;
   height: 0.4rem;
@@ -1177,6 +1177,18 @@ select:focus-visible {
   gap: 0.4rem;
   color: var(--color-muted);
   font-size: 0.72rem;
+}
+
+/* Spacing shares the Current Gap's row from the left, in the same muted voice
+ * and never amber (`screens.md` § Spacing). One line, always: a second would
+ * paint over the live lane's foot and meet the handover offer. */
+.spacing {
+  position: absolute;
+  left: 1.25rem;
+  bottom: calc(6.85rem + env(safe-area-inset-bottom, 0px));
+  color: var(--color-muted);
+  font-size: 0.72rem;
+  white-space: nowrap;
 }
 
 .track-offers {

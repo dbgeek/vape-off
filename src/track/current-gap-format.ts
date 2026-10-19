@@ -10,7 +10,7 @@ export interface CurrentGapText {
   words: string
 }
 
-function counted(count: number, unit: string): string {
+export function counted(count: number, unit: string): string {
   return `${count} ${unit}${count === 1 ? '' : 's'}`
 }
 

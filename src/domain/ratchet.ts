@@ -38,9 +38,16 @@ export function nextEarnedTarget(target: number): number {
   return target - Math.max(1, Math.floor(0.1 * target + 0.5))
 }
 
+/**
+ * The share of the Baseline Average the first Target allows. Spacing reads the
+ * Baseline Average back out of the first Step through this same figure, so the
+ * two are one number rather than two that must be kept equal.
+ */
+export const FIRST_TARGET_SHARE = 0.9
+
 /** The first Target: 90% of the Baseline Average, never below 1. */
 function firstTarget(average: number): number {
-  return Math.max(1, Math.floor(0.9 * average + 0.5))
+  return Math.max(1, Math.floor(FIRST_TARGET_SHARE * average + 0.5))
 }
 
 /**

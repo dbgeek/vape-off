@@ -14,7 +14,8 @@ import {
   shiftLogicalDay,
   wallClockAt,
 } from './logical-day.ts'
-import { nextEarnedTarget } from './ratchet.ts'
+import { FIRST_TARGET_SHARE, nextEarnedTarget } from './ratchet.ts'
+import { stepLog } from './step-log.ts'
 
 /**
  * The Dial's window, owned here because two readings share it.
@@ -36,6 +37,11 @@ export interface PaceReading {
   intervalMs: number
   nextDue: string
   slots: string[]
+}
+
+/** Spacing: Pace counted in sittings, and how many puffs the next one holds. */
+export interface SpacingReading extends PaceReading {
+  puffs: number
 }
 
 export type StepsRemaining =
@@ -117,11 +123,20 @@ export function momentum(record: DayLedgerRecord, today: LogicalDayKey): number 
   return score
 }
 
-export function pace(
-  record: DayLedgerRecord,
-  now: Date,
-  timeZone: string,
-): PaceReading | undefined {
+/**
+ * What Pace and Spacing both read off today: the Target still to spread, the
+ * Pace Window's close, and the anchor the spreading starts from — or
+ * `undefined` for the silences the two share (rules.md §8, §8a).
+ */
+interface PaceDay {
+  today: LogicalDayKey
+  target: number
+  remaining: number
+  closeMs: number
+  anchorMs: number
+}
+
+function paceDay(record: DayLedgerRecord, now: Date, timeZone: string): PaceDay | undefined {
   const wall = wallClockAt(now, timeZone)
   const minutesSinceMidnight = wall.hour * 60 + wall.minute
   if (
@@ -140,18 +155,80 @@ export function pace(
   const localDate = { year: wall.year, month: wall.month, day: wall.day }
   const open = instantAtWallClock({ ...localDate, hour: PACE_WINDOW_OPEN_HOUR }, timeZone)
   const close = instantAtWallClock({ ...localDate, hour: PACE_WINDOW_CLOSE_HOUR }, timeZone)
-  const intervalMs = (close.getTime() - now.getTime()) / remaining
-  if (intervalMs < MIN_PACE_INTERVAL_MS) return undefined
-
   const latestSessionAt = record.puffSessions
     .filter((session) => session.logicalDay === today)
     .reduce((latest, session) => Math.max(latest, new Date(session.at).getTime()), -Infinity)
-  const anchor = Math.max(open.getTime(), latestSessionAt)
-  const slots = Array.from({ length: remaining }, (_, index) =>
-    new Date(anchor + (index + 1) * intervalMs).toISOString(),
-  )
 
+  return {
+    today,
+    target,
+    remaining,
+    closeMs: close.getTime(),
+    anchorMs: Math.max(open.getTime(), latestSessionAt),
+  }
+}
+
+/** The rest of the Pace Window cut into `count` slots from the anchor, or silence under ten minutes. */
+function spread(day: PaceDay, now: Date, count: number): PaceReading | undefined {
+  const intervalMs = (day.closeMs - now.getTime()) / count
+  if (intervalMs < MIN_PACE_INTERVAL_MS) return undefined
+  const slots = Array.from({ length: count }, (_, index) =>
+    new Date(day.anchorMs + (index + 1) * intervalMs).toISOString(),
+  )
   return { intervalMs, nextDue: slots[0]!, slots }
+}
+
+export function pace(
+  record: DayLedgerRecord,
+  now: Date,
+  timeZone: string,
+): PaceReading | undefined {
+  const day = paceDay(record, now, timeZone)
+  return day === undefined ? undefined : spread(day, now, day.remaining)
+}
+
+/**
+ * Your habit: the lower median count of the Puff Sessions in the Dial's
+ * window, today's running day included (rules.md §8a). Undefined when the
+ * window holds none, there being no sitting to scale.
+ */
+function habit(record: DayLedgerRecord, today: LogicalDayKey): number | undefined {
+  const counts = record.puffSessions
+    .filter((session) => isInDialWindow(session.logicalDay, today))
+    .map((session) => session.count)
+    .sort((left, right) => left - right)
+  return counts.length === 0 ? undefined : counts[Math.floor((counts.length - 1) / 2)]
+}
+
+/**
+ * Spacing: Pace counted in sittings (rules.md §8a, ADR 0018).
+ *
+ * The size of a sitting is your habit scaled by how far the Target has come
+ * down from the Baseline Average **as the first Step froze it** — never
+ * `baselineAverage()`, which a backfill into the Baseline moves and seven Clear
+ * Days make 0. `habit × target ÷ (first ÷ 0.9)` is computed as
+ * `habit × target × 0.9 ÷ first`: the same ratio, but dividing by a recovered
+ * origin lands a hair under a whole number often enough to floor a size away.
+ *
+ * Floor and ceil are bounds: the size never exceeds the Ratchet's own
+ * proportion, and the day's last, smaller sitting is still counted. A reading
+ * and nothing more — it reads the Target and the first Step, and nothing reads
+ * it. Whether it is printed inside an open Merge Window is the screen's call.
+ */
+export function spacing(
+  record: DayLedgerRecord,
+  now: Date,
+  timeZone: string,
+): SpacingReading | undefined {
+  const day = paceDay(record, now, timeZone)
+  if (day === undefined) return undefined
+  const usual = habit(record, day.today)
+  const first = stepLog(record.ratchetSteps).first()
+  if (usual === undefined || first === undefined) return undefined
+
+  const size = Math.max(1, Math.floor((usual * day.target * FIRST_TARGET_SHARE) / first.target))
+  const reading = spread(day, now, Math.ceil(day.remaining / size))
+  return reading === undefined ? undefined : { ...reading, puffs: Math.min(size, day.remaining) }
 }
 
 export function stepsRemaining(

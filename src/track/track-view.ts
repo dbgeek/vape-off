@@ -8,7 +8,7 @@ import {
 } from '../domain/day-ledger.ts'
 import { logicalDayKeyOf, shiftLogicalDay } from '../domain/logical-day.ts'
 import { openSessionAt } from '../domain/merge-window.ts'
-import { currentGap, pace } from '../domain/readouts.ts'
+import { currentGap, spacing } from '../domain/readouts.ts'
 import { decideStep } from '../domain/ratchet.ts'
 import type { Instant, LogicalDayKey, PuffSession, ResistedUrge } from '../store/records.ts'
 
@@ -49,8 +49,17 @@ export interface TrackView {
   overTargetSessionIds: ReadonlySet<string>
   /** The Puff Session another tap would still merge into. */
   openSession: PuffSession | undefined
-  /** The Pace slots still ahead of now. */
-  paceSlots: readonly Instant[]
+  /**
+   * Spacing's slots still ahead of now, one per sitting. Drawn through an open
+   * Merge Window, so they re-spread live as the sitting's count grows.
+   */
+  spacingSlots: readonly Instant[]
+  /**
+   * Spacing's line: the wait until the next Puff Session is due, negative once
+   * it is past, and how many puffs it should hold. Absent while a sitting is still being
+   * logged — the gate is the screen's and lives here, as the Current Gap's does.
+   */
+  spacing: { dueInMs: number; puffs: number } | undefined
   /**
    * The Current Gap in milliseconds, when Track shows it: a Target in force, no
    * sitting still being logged, and a stretch eligible under §12b. The gate is
@@ -181,6 +190,7 @@ export function buildTrackView(
   const target = targetOn(record, today)
   const reached = targetReachedBy(puffSessions, target)
   const openSession = openSessionAt(record.puffSessions, now, timeZone)
+  const spacingReading = spacing(record, now, timeZone)
 
   return {
     today,
@@ -191,8 +201,14 @@ export function buildTrackView(
     targetReached: reached,
     overTargetSessionIds: overTargetSessionIds(puffSessions, target, reached),
     openSession,
-    paceSlots:
-      pace(record, now, timeZone)?.slots.filter((slot) => Date.parse(slot) > now.getTime()) ?? [],
+    spacingSlots: spacingReading?.slots.filter((slot) => Date.parse(slot) > now.getTime()) ?? [],
+    spacing:
+      spacingReading === undefined || openSession !== undefined
+        ? undefined
+        : {
+            dueInMs: Date.parse(spacingReading.nextDue) - now.getTime(),
+            puffs: spacingReading.puffs,
+          },
     currentGap:
       target === undefined || openSession !== undefined
         ? undefined

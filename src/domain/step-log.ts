@@ -11,6 +11,8 @@ import type { LogicalDayKey, RatchetStep } from '../store/records.ts'
 export interface StepLog {
   /** The Target in force on `logicalDay`, or undefined during the Baseline. */
   targetOn: (logicalDay: LogicalDayKey) => number | undefined
+  /** The Baseline's conclusion: the earliest Step, or undefined during the Baseline. */
+  first: () => RatchetStep | undefined
   /** The most recent Step, whatever Logical Day it takes effect from. */
   latest: () => RatchetStep | undefined
   /** Whether a Step already takes effect on `logicalDay`. */
@@ -31,6 +33,8 @@ export function stepLog(steps: readonly RatchetStep[]): StepLog {
       }
       return target
     },
+
+    first: () => ordered[0],
 
     latest: () => ordered.at(-1),
 

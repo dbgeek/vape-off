@@ -21,6 +21,7 @@ import { momentum } from '../domain/readouts.ts'
 import { isStandalone } from '../shell/install-state.ts'
 import type { LogicalDayKey, PuffSession, ResistedUrge } from '../store/records.ts'
 import { formatCurrentGap } from './current-gap-format.ts'
+import { formatSpacing } from './spacing-format.ts'
 import { Lane, LANE_AXES, LIVE_LANE } from './Lane.tsx'
 import { isKicked, kickedClass, puffLabel, urgeLabel } from './lane-events.ts'
 import { useLiveRecord } from './live-record.ts'
@@ -333,6 +334,7 @@ export function TrackScreen({
   const live = useLiveRecord(source, clock)
   const { record, view, now, loaded } = live
   const currentGap = view.currentGap === undefined ? undefined : formatCurrentGap(view.currentGap)
+  const spacing = view.spacing === undefined ? undefined : formatSpacing(view.spacing)
   const [restoreDoorOpen, setRestoreDoorOpen] = useState(false)
   const [editor, setEditor] = useState<EditorState>()
   const timeZone = clock.timeZone()
@@ -465,12 +467,12 @@ export function TrackScreen({
           <time>{formatWallTime(now, timeZone)}</time>
         </div>
 
-        {view.paceSlots.map((slot) => (
+        {view.spacingSlots.map((slot) => (
           <span
             key={slot}
-            className="pace-slot"
+            className="spacing-slot"
             style={{ top: `${timelinePosition(slot, timeZone)}%` }}
-            aria-label={`Pace slot at ${formatWallTime(slot, timeZone)}`}
+            aria-label={`Spacing slot at ${formatWallTime(slot, timeZone)}`}
           />
         ))}
 
@@ -548,6 +550,17 @@ export function TrackScreen({
         <p className="current-gap">
           <span aria-hidden="true">Current Gap · {currentGap.text}</span>
           <span className="sr-only">Current Gap, {currentGap.words}</span>
+        </p>
+      ) : null}
+
+      {/* Spacing shares the Current Gap's row from the left, each keeping its
+        * own side whether or not the other is there (`screens.md` § Spacing).
+        * Printed, never offered: the count goes in no control that writes.
+        * Not a live region, for the Current Gap's reason. */}
+      {spacing ? (
+        <p className="spacing">
+          <span aria-hidden="true">{spacing.text}</span>
+          <span className="sr-only">{spacing.words}</span>
         </p>
       ) : null}
 
