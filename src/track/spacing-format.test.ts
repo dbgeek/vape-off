@@ -15,19 +15,19 @@ describe('Spacing, as Track prints it', () => {
     [HOUR + 20 * MINUTE, 'Next in 1h 20m · 4 puffs'],
     [15 * HOUR + 58 * MINUTE + 1 * SECOND, 'Next in 15h 59m · 4 puffs'],
   ])('rounds %i ms up to the minute, keeping two units from the hour', (milliseconds, text) => {
-    expect(formatSpacing(milliseconds, 4).text).toBe(text)
+    expect(formatSpacing({ dueInMs: milliseconds, puffs: 4 }).text).toBe(text)
   })
 
   it.each([0, -1, -3 * HOUR])('reads now at and past the due time (%i ms), never late', (milliseconds) => {
-    expect(formatSpacing(milliseconds, 4)).toEqual({
+    expect(formatSpacing({ dueInMs: milliseconds, puffs: 4 })).toEqual({
       text: 'Next · now · 4 puffs',
       words: 'Spacing, due now, 4 puffs',
     })
   })
 
   it('counts a single puff in the singular', () => {
-    expect(formatSpacing(14 * MINUTE, 1).text).toBe('Next in 14m · 1 puff')
-    expect(formatSpacing(0, 1).words).toBe('Spacing, due now, 1 puff')
+    expect(formatSpacing({ dueInMs: 14 * MINUTE, puffs: 1 }).text).toBe('Next in 14m · 1 puff')
+    expect(formatSpacing({ dueInMs: 0, puffs: 1 }).words).toBe('Spacing, due now, 1 puff')
   })
 
   it.each([
@@ -36,6 +36,6 @@ describe('Spacing, as Track prints it', () => {
     [30 * SECOND, 'Spacing, next in 1 minute, 4 puffs'],
     [2 * HOUR, 'Spacing, next in 2 hours 0 minutes, 4 puffs'],
   ])('says %i ms in words, as %s, for a screen reader', (milliseconds, words) => {
-    expect(formatSpacing(milliseconds, 4).words).toBe(words)
+    expect(formatSpacing({ dueInMs: milliseconds, puffs: 4 }).words).toBe(words)
   })
 })

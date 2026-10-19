@@ -55,8 +55,8 @@ export interface TrackView {
    */
   spacingSlots: readonly Instant[]
   /**
-   * Spacing's line: the wait until the next sitting is due, negative once it
-   * is past, and how many puffs it holds. Absent while a sitting is still being
+   * Spacing's line: the wait until the next Puff Session is due, negative once
+   * it is past, and how many puffs it should hold. Absent while a sitting is still being
    * logged — the gate is the screen's and lives here, as the Current Gap's does.
    */
   spacing: { dueInMs: number; puffs: number } | undefined
@@ -190,7 +190,7 @@ export function buildTrackView(
   const target = targetOn(record, today)
   const reached = targetReachedBy(puffSessions, target)
   const openSession = openSessionAt(record.puffSessions, now, timeZone)
-  const spaced = spacing(record, now, timeZone)
+  const spacingReading = spacing(record, now, timeZone)
 
   return {
     today,
@@ -201,11 +201,14 @@ export function buildTrackView(
     targetReached: reached,
     overTargetSessionIds: overTargetSessionIds(puffSessions, target, reached),
     openSession,
-    spacingSlots: spaced?.slots.filter((slot) => Date.parse(slot) > now.getTime()) ?? [],
+    spacingSlots: spacingReading?.slots.filter((slot) => Date.parse(slot) > now.getTime()) ?? [],
     spacing:
-      spaced === undefined || openSession !== undefined
+      spacingReading === undefined || openSession !== undefined
         ? undefined
-        : { dueInMs: Date.parse(spaced.nextDue) - now.getTime(), puffs: spaced.puffs },
+        : {
+            dueInMs: Date.parse(spacingReading.nextDue) - now.getTime(),
+            puffs: spacingReading.puffs,
+          },
     currentGap:
       target === undefined || openSession !== undefined
         ? undefined

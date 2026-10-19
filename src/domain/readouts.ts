@@ -222,11 +222,11 @@ export function spacing(
 ): SpacingReading | undefined {
   const day = paceDay(record, now, timeZone)
   if (day === undefined) return undefined
-  const sitting = habit(record, day.today)
+  const usual = habit(record, day.today)
   const first = stepLog(record.ratchetSteps).first()
-  if (sitting === undefined || first === undefined) return undefined
+  if (usual === undefined || first === undefined) return undefined
 
-  const size = Math.max(1, Math.floor((sitting * day.target * FIRST_TARGET_SHARE) / first.target))
+  const size = Math.max(1, Math.floor((usual * day.target * FIRST_TARGET_SHARE) / first.target))
   const reading = spread(day, now, Math.ceil(day.remaining / size))
   return reading === undefined ? undefined : { ...reading, puffs: Math.min(size, day.remaining) }
 }

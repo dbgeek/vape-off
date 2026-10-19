@@ -162,7 +162,7 @@ describe('the Track view', () => {
       (logicalDay) => session(`habit-${logicalDay}`, logicalDay, `${logicalDay}T12:00:00.000Z`, 5),
     )
 
-    it('carries the wait until the next sitting and its count, with a slot per sitting', () => {
+    it('carries the wait until the next Puff Session is due and its count, with a slot per sitting', () => {
       const record = {
         ...emptyRecord,
         puffSessions: habitOfFive,

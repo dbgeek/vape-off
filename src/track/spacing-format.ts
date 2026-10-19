@@ -19,8 +19,8 @@ export interface SpacingText {
  * the Pace Window's 16 hours. At and past the due time it reads `now`: never
  * negative and never *late*, since a wait you overran is not a debt.
  */
-export function formatSpacing(dueInMs: number, puffs: number): SpacingText {
-  const count = `${puffs} ${puffs === 1 ? 'puff' : 'puffs'}`
+export function formatSpacing({ dueInMs, puffs }: { dueInMs: number; puffs: number }): SpacingText {
+  const count = counted(puffs, 'puff')
   if (dueInMs <= 0) {
     return { text: `Next · now · ${count}`, words: `Spacing, due now, ${count}` }
   }

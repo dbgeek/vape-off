@@ -334,8 +334,7 @@ export function TrackScreen({
   const live = useLiveRecord(source, clock)
   const { record, view, now, loaded } = live
   const currentGap = view.currentGap === undefined ? undefined : formatCurrentGap(view.currentGap)
-  const spacing =
-    view.spacing === undefined ? undefined : formatSpacing(view.spacing.dueInMs, view.spacing.puffs)
+  const spacing = view.spacing === undefined ? undefined : formatSpacing(view.spacing)
   const [restoreDoorOpen, setRestoreDoorOpen] = useState(false)
   const [editor, setEditor] = useState<EditorState>()
   const timeZone = clock.timeZone()

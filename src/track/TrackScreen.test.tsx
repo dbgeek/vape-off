@@ -1358,7 +1358,7 @@ describe('the Current Gap', () => {
 describe('Spacing', () => {
   afterEach(() => vi.restoreAllMocks())
 
-  it("prints the next sitting on the Current Gap's row, as a plain line in words", async () => {
+  it("prints Spacing on the Current Gap's row, as a plain line in words", async () => {
     const record = {
       ...emptyRecord,
       // A habit of 5 at the first Target is sittings of 4: 19 left is five of
