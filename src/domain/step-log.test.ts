@@ -26,6 +26,7 @@ describe('the Ratchet Step log', () => {
     const log = stepLog([])
 
     expect(log.targetOn('2026-08-25')).toBeUndefined()
+    expect(log.first()).toBeUndefined()
     expect(log.latest()).toBeUndefined()
     expect(log.changedOn('2026-08-25')).toBe(false)
   })
@@ -34,6 +35,12 @@ describe('the Ratchet Step log', () => {
     const log = stepLog([ratchetStep('2026-08-20', 18), ratchetStep('2026-08-14', 20)])
 
     expect(log.latest()).toMatchObject({ effectiveFrom: '2026-08-20', target: 18 })
+  })
+
+  it("takes the first Step by the Logical Day it takes effect: the Baseline's conclusion", () => {
+    const log = stepLog([ratchetStep('2026-08-20', 18), ratchetStep('2026-08-14', 20)])
+
+    expect(log.first()).toMatchObject({ effectiveFrom: '2026-08-14', target: 20 })
   })
 
   it('holds a Target that a later Step has not yet reached, and answers for the Step ahead', () => {

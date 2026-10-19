@@ -131,7 +131,7 @@ describe('the Track view', () => {
     expect(closed.openSession).toBeUndefined()
   })
 
-  it('keeps only the Pace slots still ahead, and none during the Baseline', () => {
+  it('keeps only the Spacing slots still ahead, and none during the Baseline', () => {
     const record = {
       ...emptyRecord,
       puffSessions: [session('morning', '2026-08-29', '2026-08-29T10:00:00.000Z', 2)],
@@ -141,9 +141,9 @@ describe('the Track view', () => {
 
     const view = buildTrackView(record, now, 'UTC')
 
-    expect(view.paceSlots.length).toBeGreaterThan(0)
+    expect(view.spacingSlots.length).toBeGreaterThan(0)
     expect(
-      view.paceSlots.every((slot) => Date.parse(slot) > now.getTime()),
+      view.spacingSlots.every((slot) => Date.parse(slot) > now.getTime()),
     ).toBe(true)
 
     const baseline = buildTrackView(
@@ -152,7 +152,62 @@ describe('the Track view', () => {
       'UTC',
     )
 
-    expect(baseline.paceSlots).toEqual([])
+    expect(baseline.spacingSlots).toEqual([])
+    expect(baseline.spacing).toBeUndefined()
+  })
+
+  describe('Spacing', () => {
+    /** Five sittings of five before today: the habit Spacing scales. */
+    const habitOfFive = ['2026-08-24', '2026-08-25', '2026-08-26', '2026-08-27', '2026-08-28'].map(
+      (logicalDay) => session(`habit-${logicalDay}`, logicalDay, `${logicalDay}T12:00:00.000Z`, 5),
+    )
+
+    it('carries the wait until the next sitting and its count, with a slot per sitting', () => {
+      const record = {
+        ...emptyRecord,
+        puffSessions: habitOfFive,
+        ratchetSteps: [step('2026-08-20', 223)],
+      }
+
+      const view = buildTrackView(record, new Date('2026-08-29T07:00:00.000Z'), 'UTC')
+
+      // 56 sittings of four across 16 hours: the first is due at 07:17:08.571.
+      expect(view.spacing).toEqual({ dueInMs: 1_028_571, puffs: 4 })
+      expect(view.spacingSlots).toHaveLength(56)
+    })
+
+    it('leaves the line to the readout while a sitting is still being logged, but not the slots', () => {
+      const record = {
+        ...emptyRecord,
+        puffSessions: [
+          ...habitOfFive,
+          session('open', '2026-08-29', '2026-08-29T19:00:00.000Z', 5, '2026-08-29T19:01:00.000Z'),
+        ],
+        ratchetSteps: [step('2026-08-20', 24)],
+      }
+
+      const open = buildTrackView(record, new Date('2026-08-29T19:02:00.000Z'), 'UTC')
+      const closed = buildTrackView(record, new Date('2026-08-29T19:05:00.000Z'), 'UTC')
+
+      expect(open.openSession?.id).toBe('open')
+      expect(open.spacing).toBeUndefined()
+      expect(open.spacingSlots.length).toBeGreaterThan(0)
+      expect(closed.spacing).toMatchObject({ puffs: 4 })
+    })
+
+    it('stands without the Current Gap, which an Unknown Logical Day silences', () => {
+      const record = {
+        ...emptyRecord,
+        // The 27th and 28th are Unknown, so the stretch since the 26th is not eligible.
+        puffSessions: habitOfFive.slice(0, 3),
+        ratchetSteps: [step('2026-08-20', 24)],
+      }
+
+      const view = buildTrackView(record, new Date('2026-08-29T12:00:00.000Z'), 'UTC')
+
+      expect(view.currentGap).toBeUndefined()
+      expect(view.spacing).toMatchObject({ puffs: 4 })
+    })
   })
 
   it('carries the Current Gap once a Target is in force, and none during the Baseline', () => {

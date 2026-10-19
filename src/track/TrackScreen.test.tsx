@@ -141,7 +141,7 @@ describe('Track', () => {
     expect(screen.getByLabelText('Resisted Urge at 14:00')).toBeInTheDocument()
     expect(screen.getByText('Open session · 2 puffs')).toHaveClass('open-session')
     expect(screen.getByRole('button', { name: '+1 → 3' })).toBeInTheDocument()
-    expect(screen.getAllByLabelText(/Pace slot at/).length).toBeGreaterThan(0)
+    expect(screen.getAllByLabelText(/Spacing slot at/).length).toBeGreaterThan(0)
 
     fireEvent.click(screen.getByRole('button', { name: '+1 → 3' }))
     await waitFor(() => expect(trackSource.logPuff).toHaveBeenCalledTimes(1))
@@ -1352,5 +1352,97 @@ describe('the Current Gap', () => {
 
     expect(screen.queryByText(/Open session/)).not.toBeInTheDocument()
     expect(screen.getByText('Current Gap · 2m')).toBeInTheDocument()
+  })
+})
+
+describe('Spacing', () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it("prints the next sitting on the Current Gap's row, as a plain line in words", async () => {
+    const record = {
+      ...emptyRecord,
+      // A habit of 5 at the first Target is sittings of 4: 19 left is five of
+      // them across the eleven hours to 23:00, the first due at 12:12.
+      puffSessions: [session('morning', '2026-08-29T10:00:00.000Z', 5)],
+      ratchetSteps: [target(24)],
+    }
+
+    render(
+      <TrackScreen
+        source={source(record)}
+        clock={{ now: () => new Date('2026-08-29T12:00:00.000Z'), timeZone: () => 'UTC' }}
+      />,
+    )
+
+    const printed = await screen.findByText('Next in 12m · 4 puffs')
+    const spoken = screen.getByText('Spacing, next in 12 minutes, 4 puffs')
+    expect(printed.closest('.spacing')).not.toBeNull()
+    expect(screen.getByText('Current Gap · 2h 0m')).toBeInTheDocument()
+    // It changes every minute on its own: never an `<output>`, never live.
+    expect(printed.closest('[aria-live], output')).toBeNull()
+    expect(spoken.closest('[aria-live], output')).toBeNull()
+    expect(printed.closest('.track-actions')).toBeNull()
+    expect(
+      within(timelineElement('.track-actions')).getAllByRole('button').map((one) => one.textContent),
+    ).toEqual(['Resisted', 'PUFF'])
+  })
+
+  it('leaves while a sitting is still being logged, with the slots still drawn', async () => {
+    const record = {
+      ...emptyRecord,
+      puffSessions: [session('open', '2026-08-29T19:00:00.000Z', 5, '2026-08-29T19:01:00.000Z')],
+      ratchetSteps: [target(24)],
+    }
+
+    render(
+      <TrackScreen
+        source={source(record)}
+        clock={{ now: () => new Date('2026-08-29T19:02:00.000Z'), timeZone: () => 'UTC' }}
+      />,
+    )
+
+    expect(await screen.findByText('Open session · 5 puffs')).toBeInTheDocument()
+    expect(screen.queryByText(/^Next/)).not.toBeInTheDocument()
+    expect(screen.getAllByLabelText(/Spacing slot at/).length).toBeGreaterThan(0)
+  })
+
+  it('stands on its own side when the Current Gap is silent, reading now once due', async () => {
+    const record = {
+      ...emptyRecord,
+      // The 27th and 28th are Unknown, so the stretch since the 26th is not
+      // eligible — and the morning went unlogged, so the first sitting was due
+      // at 08:50.
+      puffSessions: [sessionOn('2026-08-26', 'earlier', '2026-08-26T12:00:00.000Z', 5)],
+      ratchetSteps: [target(24)],
+    }
+
+    render(
+      <TrackScreen
+        source={source(record)}
+        clock={{ now: () => new Date('2026-08-29T12:00:00.000Z'), timeZone: () => 'UTC' }}
+      />,
+    )
+
+    expect(await screen.findByText('Next · now · 4 puffs')).toBeInTheDocument()
+    expect(screen.getByText('Spacing, due now, 4 puffs')).toBeInTheDocument()
+    expect(screen.queryByText(/^Current Gap ·/)).not.toBeInTheDocument()
+  })
+
+  it('is absent during the Baseline', async () => {
+    const record = {
+      ...emptyRecord,
+      puffSessions: [session('morning', '2026-08-29T10:00:00.000Z', 5)],
+    }
+
+    render(
+      <TrackScreen
+        source={source(record)}
+        clock={{ now: () => new Date('2026-08-29T12:00:00.000Z'), timeZone: () => 'UTC' }}
+      />,
+    )
+
+    expect(await screen.findByLabelText('Puff Session, 5 puffs at 10:00')).toBeInTheDocument()
+    expect(screen.queryByText(/^Next/)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/Spacing slot at/)).not.toBeInTheDocument()
   })
 })
