@@ -14,6 +14,8 @@ round(x) = Math.floor(x + 0.5)      // half away from zero; JS Math.round for po
 
 This is not incidental. It is what reproduces [ADR 0002](../adr/0002-the-quit-horizon-simulates-the-ratchet.md)'s published step counts exactly, and those counts are the fixtures in §12. Banker's rounding gives different answers.
 
+§8a's `floor` and `ceil` are not exceptions to this: they are bounds, not rounding, and say so where they stand.
+
 ## 1. Time
 
 ```
@@ -194,6 +196,49 @@ pace():
 - Recompute on every write and on a one-minute tick while Track is visible.
 
 At **Target 1** the `16h ÷ 1` reading is kept: it says *hold out until the end of the day*, the only useful thing Pace can say there. At **Target 0** Pace is permanently silent.
+
+**Pace is not drawn.** Track's ghost slots are §8a's, which spreads the same remainder in sittings. Pace stays the rule §8a is built on: its window, anchor and silences are Spacing's, and at a sitting of one puff the two are the same reading.
+
+## 8a. Spacing
+
+> Numbered `8a` for the reason `12a` is. It belongs beside §8, which it counts in sittings.
+
+A reading, not a mechanism, and nothing about it is stored ([ADR 0018](../adr/0018-spacing-scales-your-recent-sitting.md)).
+
+```
+SPACING_HABIT_DAYS = 14                 // the Kicks Marked window (§12a)
+
+spacing():
+    t = currentTarget()
+    if t is NONE:                        return SILENT      // the Baseline
+    remaining = t - dayTotal(today())
+    if remaining <= 0:                   return SILENT      // nothing left; permanent at Target 0
+    if now < open or now >= close:       return SILENT      // outside the Pace Window
+
+    firstDay = today() shifted back 13 Logical Days
+    counts   = count of every puffSession where firstDay <= logicalDay <= today(), ascending
+    if counts is empty:                  return SILENT      // no habit to scale
+    habit    = counts[floor((length(counts) - 1) / 2)]      // the lower median
+
+    origin   = first(ratchetSteps by effectiveFrom).target / 0.9   // the Baseline Average, as frozen
+    size     = max(1, floor(habit * t / origin))
+    sittings = ceil(remaining / size)
+    interval = (close - now) / sittings
+    if interval < MIN_INTERVAL:          return SILENT
+
+    anchor = max(open, at of the latest puffSession with logicalDay == today())
+    slots  = [anchor + k * interval for k in 1..sittings]
+    return { interval, nextDue: slots[0], puffs: min(size, remaining), slots }
+```
+
+- **Pace, counted in sittings.** Same window, same anchor, same `MIN_INTERVAL`, and §8's notes on the anchor, past-due slots and the drifting morning hold here unchanged. `sittings <= remaining`, so Spacing's interval is never shorter than Pace's and it speaks on some evenings Pace has gone quiet on. **At `size == 1` the two are identical**: `sittings == remaining`, and the slots are Pace's.
+- **The origin is the Baseline Average as it was frozen**, not `baselineAverage()`. §3's function is recomputed, so it moves when a Puff Session is backfilled into the Baseline window and is 0 for a Baseline of seven Clear Days. The frozen figure is the first Step's `target`, which is `max(1, round(0.9 × average))`, so dividing it by 0.9 recovers the average to within 0.56 puffs and is never below 1.11. A consequence: **at the first Target the size is `floor(0.9 × habit)`** — a habit of 5 reads `4 puffs`.
+- **Floor and ceil, not §0's `round`.** They are bounds, not rounding. The floor keeps the size at or below the Ratchet's own proportion, so Spacing never recommends a sitting the Target does not support; the ceil counts the day's last, smaller sitting, which `puffs: min(size, remaining)` then prints.
+- **The habit includes today**, and an Unknown Logical Day adds nothing to it. A large sitting today can raise it before the day is out.
+- **The habit is rolling, and following Spacing shrinks it.** Hold a Target of 223 and log exactly what Spacing says: about every 14 days the size steps `4 → 3 → 2 → 1`, and at 07:00 with 223 left the interval goes `17m → 12.8m → 8.6m`. At size 2 it is under `MIN_INTERVAL` and Spacing is silent. Drift back to your habit and the median climbs until it speaks again. **The loop ends in silence, not pressure, and is accepted** ([ADR 0018](../adr/0018-spacing-scales-your-recent-sitting.md)).
+- **It reads the Target and the first Step, and nothing reads it.** Not Met, not Momentum, not the Ratchet, not the badge. It ignores Kicks.
+- **The rule computes; the screen gates.** `spacing()` answers inside an open Merge Window. Whether it is *printed* there is [screens.md](./screens.md#spacing)'s to say.
+- Derived, so a Correction moves it. Recompute on every write and on the one-minute tick while Track is visible.
 
 ## 9. Steps Remaining
 

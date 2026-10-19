@@ -1,8 +1,8 @@
 # The build order
 
-Twenty-four slices, each sized for one agent session. Build them in order — every slice depends on the ones above it and none depends on the ones below.
+Twenty-five slices, each sized for one agent session. Build them in order — every slice depends on the ones above it and none depends on the ones below.
 
-S1–S11 are the v1 build and have shipped. Three later maps added slices at the end of this file: **[the Track timeline rebuild](#the-track-timeline-rebuild)** adds five, **[the Kick](#the-kick)** adds four, and **[entering a count](#entering-a-count)** adds three. One grilling added **[the Current Gap](#the-current-gap)**, a single slice. Start at whichever of the five you are building — they are strictly ordered among themselves and the later four do not revisit each other, except that the count's hold borrows the Kick's `LONG_PRESS_MS` and changes nothing the Kick built, and the Current Gap takes the slot the count's readout stands in.
+S1–S11 are the v1 build and have shipped. Three later maps added slices at the end of this file: **[the Track timeline rebuild](#the-track-timeline-rebuild)** adds five, **[the Kick](#the-kick)** adds four, and **[entering a count](#entering-a-count)** adds three. Two grillings added **[the Current Gap](#the-current-gap)** and **[Spacing](#spacing)**, a single slice each. Start at whichever of the six you are building — they are strictly ordered among themselves and the later five do not revisit each other, except that the count's hold borrows the Kick's `LONG_PRESS_MS` and changes nothing the Kick built, the Current Gap takes the slot the count's readout stands in, and Spacing shares the Current Gap's row and takes over the timeline's ghost slots.
 
 **Every slice:** read [`CONTEXT.md`](../../CONTEXT.md) and [`README.md`](./README.md)'s invariants first, use the glossary's vocabulary in names and tests, and do not invent behaviour this spec does not describe. If you find a genuine gap, say so in the PR rather than filling it silently — the only one known in advance is flagged in the README.
 
@@ -329,3 +329,47 @@ One slice from [the Current Gap](https://github.com/dbgeek/vape-off/issues/138),
 
 - **On a real iPhone at `Target 1` with the handover offer up**: the offer clear of the slot, and both readable.
 - **Take a Backup after a fortnight and compare it with one from before**: Known Logical Days per week, and the daily total. The record cannot prove under-reporting. But a drop in Known days in the week this ships is the one signature of the incentive [ADR 0010](../adr/0010-logging-is-never-punished.md) names that the record *could* show.
+
+---
+
+# Spacing
+
+One slice from a grilling, cut after **G1**. It adds one pure function, puts one line on Track, and re-points the ghost slots. **It changes nothing in the record**: no field, no index, no `version(n)`, no Backup line, no `formatVersion`. It blocks on nothing.
+
+**Read first:** [`CONTEXT.md`](../../CONTEXT.md)'s `Spacing` and `Pace` entries, [rules.md §8 and §8a](./rules.md#8a-spacing), [screens.md § Spacing](./screens.md#spacing) and [ADR 0018](../adr/0018-spacing-scales-your-recent-sitting.md). **Spacing touches no mechanism.** It reads the Target in force and the first Ratchet Step and nothing else of the programme; if the slice reads `Met`, `Momentum` or the `Ratchet`'s decisions, or writes anything, it has gone wrong.
+
+## SP1 · Spacing
+
+[rules.md §8a](./rules.md#8a-spacing), [screens.md § Spacing](./screens.md#spacing), [ADR 0018](../adr/0018-spacing-scales-your-recent-sitting.md).
+
+**The rule, test-first:**
+
+- `spacing(record, now, timeZone)` in `readouts.ts` beside `pace`, with `pace`'s signature, returning `{ intervalMs, nextDue, puffs, slots }` or `undefined`. Share the window, anchor and `MIN_PACE_INTERVAL_MS` with `pace` rather than copying them; **`pace` itself does not change** and its tests pass unchanged.
+- **The habit window is `DIAL_WINDOW_DAYS`**, through `isInDialWindow`, the window `kicksMarked` already uses. Lower median: `counts[floor((n - 1) / 2)]` of the ascending counts.
+- **The origin is `firstStep.target / 0.9`, not `baselineAverage()`.** The function is recomputed and can be 0; the first Step is the frozen copy. Do not write the 0.9 a second time: take it from wherever `firstTarget` in `ratchet.ts` gets it, so the two cannot drift.
+- `size = max(1, floor(habit × target / origin))`, `sittings = ceil(remaining / size)`, `puffs = min(size, remaining)`. Floor and ceil are bounds; §0's `round` is not used here.
+
+**Track:**
+
+- `TrackView.paceSlots` becomes `spacingSlots`, from `spacing()`, future slots only, exactly as today. **Not gated on an open Merge Window.**
+- `TrackView` gains `spacing: { dueInMs, puffs } | undefined`, present if and only if `spacing()` is present and no session is open. **The gate lives in `buildTrackView`**, as G1's does.
+- **`Next in 1h 20m · 4 puffs`, left-aligned on the Current Gap's row**, at its `bottom`, above `Resisted`. One line; never a second line above the slot. Each reading keeps its side whether or not the other is present. Muted style, `0.72rem`, never amber.
+- **The formatter rounds up to the minute**: `14m`; `2h 0m`, two units from an hour on; never days. At or past `nextDue` it reads `Next · now · 4 puffs`. `1 puff` in the singular.
+- A plain element: **not an `<output>` and not `aria-live`**. Accessible text *Spacing, next in 1 hour 20 minutes, 4 puffs*, and *Spacing, due now, 4 puffs* at zero. Outside `.track-actions`, which holds exactly `Resisted` and `PUFF`.
+- **Nothing in a control.** The `…` sheet still opens empty, the arc still offers only its fixed counts, and nothing marks `+5` or `+10`.
+
+**Done when** tests cover:
+
+- **The fixture from the record**: habit 5, first Step 223, Target 223, nothing logged, at 07:00 → size 4, 56 sittings, `intervalMs` 17m 8.57s, `puffs` 4.
+- **At size 1 it is Pace**: same `intervalMs` and the same slots as `pace()` on the same record.
+- **The last sitting**: 3 left, size 4 → `puffs` 3, one slot.
+- **Silences**: the Baseline; `Target 0`; nothing left; before 07:00 and from 23:00; an interval under 10 minutes; no Puff Session in the 14 most recent Logical Days — and a session 14 Logical Days back is outside the window, 13 back inside it.
+- **The habit includes today**, takes the lower median on an even count, and a Correction that re-counts a session in the window moves it.
+- **The origin is frozen**: a session backfilled into the Baseline window after the first Step does not change `size`.
+- **The line**: absent while a Merge Window is open with the ghost slots still drawn; shown when the Current Gap is absent; `0m 30s` left reads `Next in 1m`; past due reads `now`.
+- `.track-actions` still holds exactly `Resisted` and `PUFF`; every existing `pace` and Current Gap test passes unchanged.
+
+## Before Spacing is done
+
+- **On a real iPhone SE width (375px)**: `Next in 15h 59m · 12 puffs` and `Current Gap · 23h 59m` on one row without wrapping or touching, clear of `.track-offers` with `Declare today a Clear Day` up, and clear of the handover offer at `Target 1`.
+- **Take a Backup after four weeks and read the median sitting week by week.** A step down with the Target unchanged is the loop in [ADR 0018](../adr/0018-spacing-scales-your-recent-sitting.md) running; it is accepted, and this is how to see it.

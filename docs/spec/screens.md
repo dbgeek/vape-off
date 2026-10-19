@@ -61,7 +61,7 @@ Yesterday sits to the left of today. **Both lanes fan right**, so the reading di
 
 **Resisted Urges are hollow rings on the same track, fixed at 14px.** They carry no count, so they have no sizing rule to obey. Against the smallest 20px solid mark they read as a different kind of thing by shape as well as by size.
 
-**Ghost slots** sit in the empty part of the day ahead — `pace().slots` that are still in the future. Ambient, not a countdown. **Live lane only.** Absent during the Baseline and whenever Pace is silent ([rules.md §8](./rules.md#8-pace)).
+**Ghost slots** sit in the empty part of the day ahead — `spacing().slots` that are still in the future, one per recommended sitting. Ambient, not a countdown: the countdown is [Spacing](#spacing)'s line, and the slots stay the shape of the rest of the day. **Live lane only.** Absent during the Baseline and whenever Spacing is silent ([rules.md §8a](./rules.md#8a-spacing)). They were Pace's, one per puff, and Pace is no longer drawn: one slot per puff drew 20 hollow rings for what the record says will be four or five sittings, and a ghost at `+24m` beside a line reading `Next in 1h 36m` would be two readings disagreeing on one screen. **An open Merge Window does not hide them** — the line is gated there, the slots are not — so they re-spread live as the sitting's count grows, as Pace's did.
 
 > **Derived, not decided.** The live lane now carries two hollow things: a Resisted Urge ring and a ghost slot. They never coincide, because a Resisted Urge on the live lane is always at or before `now` and a ghost slot is always after it — the now-line is what tells them apart, and no ticket decided that it should have to. If the two ever read as one vocabulary on a device, the slot is the one that changes shape.
 >
@@ -115,7 +115,7 @@ Under a uniform 24-hour axis a 20px mark covers roughly 55 minutes, so collision
 
 The previous Logical Day, drawn dim on today's exact axis, so equal height is equal time of day on both days and the comparison is literal rather than shape-against-shape. It draws the **whole** completed Logical Day, full height, always — truncating it at `now` would both restore the empty morning and draw a day that is still being compared identically to one that genuinely ended early ([#63](https://github.com/dbgeek/vape-off/issues/63), [#67](https://github.com/dbgeek/vape-off/issues/67)).
 
-**Not "the ghost".** *Ghost slots* already names Pace's future slots, and the two sit in adjacent lanes both dim; one word on both is one word too few in the one place they are hardest to tell apart. They are told apart by **shape and lane, not by dimness** — slots hollow and ambient on the live lane, yesterday solid-but-dim in its own.
+**Not "the ghost".** *Ghost slots* already names Spacing's future slots, and the two sit in adjacent lanes both dim; one word on both is one word too few in the one place they are hardest to tell apart. They are told apart by **shape and lane, not by dimness** — slots hollow and ambient on the live lane, yesterday solid-but-dim in its own.
 
 - **The lane is always yesterday**, never the most recent Known Logical Day. A lane whose identity depends on where your gaps are changes the comparison silently underneath the reader, and would put a third Logical Day on Track in all but name.
 - **The lane is read-only, hard.** Not a premise of convenience: a tappable second lane roughly doubles the tap targets on the one screen whose thesis is that logging costs under a second, and the wrong tap there is a mis-log on *today*. A Correction is deliberate by definition; that gesture belongs on a surface about the record, not on a glanceable comparison. The inconsistency is real — a mark you can tap today and cannot tap in the lane — and dimness is what has to carry it.
@@ -155,9 +155,9 @@ The rule is stated forward-looking because candidates keep being proposed, and e
 
 - **A Kick count** — refused by this rule before it was proposed, and it is the third candidate the rule was stated forward-looking for. A Kicked mark shows **state** and carries no number; the reading is `Kicks Marked` and it lives on Stats. *3 of 9 delivered* on the header, at a lane's head, or anywhere else on this screen is out.
 
-- **What is left of the Target** — the fourth, and refused on reasoning of its own: the first three would have been redundant or poor readings, and this one would be **a number about a whole Logical Day placed inside a control that writes** ([#118](https://github.com/dbgeek/vape-off/issues/118)). It is not on Track today. The header carries the count *so far*; the remainder is printed only on the badge, outside the app ([rules.md §14](./rules.md#14-the-badge)), and ghost slots cannot be counted for it. So pre-filling the `…` sheet with `9`, or offering `+9` on the arc, would print it here **for the first time**, as the number your thumb lands on. It cannot claim the single-session exemption below: `target − dayTotal(today())` is computed from two facts about the day and none about the sitting. Arithmetic refused it before the rule did — on **83%** of Puff Sessions logged under a Target, what was left was 50 or more, and no sitting in the record has ever exceeded 23. **The sheet therefore opens empty**, at every hour and every Target ([Entering a count](#entering-a-count)).
+- **What is left of the Target** — the fourth, and refused on reasoning of its own: the first three would have been redundant or poor readings, and this one would be **a number about a whole Logical Day placed inside a control that writes** ([#118](https://github.com/dbgeek/vape-off/issues/118)). It is not on Track today, but for one case. The header carries the count *so far*; the remainder is printed on the badge, outside the app ([rules.md §14](./rules.md#14-the-badge)), and ghost slots cannot be counted for it. **The case is [Spacing](#spacing)'s last sitting of the day**, whose count is `min(size, remaining)` and so *is* the remainder once it falls below the size. Accepted, because it is the side of #118's line that line left open: printed beside a duration, about the next Puff Session, and never in a control that writes. So pre-filling the `…` sheet with `9`, or offering `+9` on the arc, would print it here **for the first time**, as the number your thumb lands on. It cannot claim the single-session exemption below: `target − dayTotal(today())` is computed from two facts about the day and none about the sitting. Arithmetic refused it before the rule did — on **83%** of Puff Sessions logged under a Target, what was left was 50 or more, and no sitting in the record has ever exceeded 23. **The sheet therefore opens empty**, at every hour and every Target ([Entering a count](#entering-a-count)).
 
-The rule is about **whole Logical Days**. It does not touch numbers about a single Puff Session: the open session's running count, the `+1 → 3` button below and the `+5` `+10` beside the readout are the Merge Window making itself visible, and they stay. **Nor does it touch [the Current Gap](#the-current-gap)**, a number about the time since a single Puff Session — the latest — which takes the readout's slot whenever no window is open ([#138](https://github.com/dbgeek/vape-off/issues/138)).
+The rule is about **whole Logical Days**. It does not touch numbers about a single Puff Session: the open session's running count, the `+1 → 3` button below and the `+5` `+10` beside the readout are the Merge Window making itself visible, and they stay. **Nor does it touch [the Current Gap](#the-current-gap)**, a number about the time since a single Puff Session — the latest — which takes the readout's slot whenever no window is open ([#138](https://github.com/dbgeek/vape-off/issues/138)). **Nor [Spacing](#spacing)**, numbers about a single Puff Session — the next — on the same row.
 
 ### The timeline's floor, and the chrome budget
 
@@ -277,7 +277,7 @@ The window is measured from the stored `lastTapAt`, so it survives a cold start 
 | no eligible stretch | absent |
 
 - **Absent during the Baseline, because a timer is pressure.** The Baseline measures how much you vape before anything leans on it, and its average is the frozen origin of every Target. A Current Gap pulling those seven days below your real habit would start the programme from a week you were already resisting. Pace is absent there too, for its own reason.
-- **At `Target 0` it is Track's only reading of time**, Pace being permanently silent there.
+- **At `Target 0` it is Track's only reading of time**, Pace and Spacing being permanently silent there.
 - **Absent without explanation** when the stretch is ineligible. After a whole Logical Day with nothing on it, it goes silent at 04:00, and the catch-up strip arrives in the same moment with that day's chip — the one moment the slot has nothing to show is the one with something to do. A line saying *why* would be a second channel of copy on Track, and the Yesterday lane's rule holds here as well: **Track asserts only what the app knows.**
 
 **How it reads:**
@@ -306,6 +306,42 @@ The window is measured from the stored `lastTapAt`, so it survives a cold start 
 5. **Any colour, size or weight that grows with the gap.**
 
 *The slot* is a label in this file and must not enter `CONTEXT.md`; `Current Gap` is the term.
+
+### Spacing
+
+**`Next in 1h 20m · 4 puffs`, left-aligned on the Current Gap's row, above `Resisted`** ([rules.md §8a](./rules.md#8a-spacing), [ADR 0018](../adr/0018-spacing-scales-your-recent-sitting.md)). The Current Gap keeps the right of the row. Each reading is one line and keeps its own side whether or not the other is present, so neither moves when the other comes and goes.
+
+- **On the row, not a second line above the slot.** The band between the controls' top (`6.7rem`) and the timeline's floor (`7.5rem`) is `0.65rem` against a `0.72rem` line, which already overhangs by about 3px. A second line would paint ~17px over the live lane's bottom-right — 02:10–04:00 on an iPhone SE's 224px timeline — and meet the handover offer at `8.4rem`. Reserving that height instead takes it from [the timeline's 14rem floor](#the-timelines-floor-and-the-chrome-budget), which is derived and on the SE already exactly met.
+- **Not one string with the Current Gap.** Two durations on one line blur into one, the reason the gap is not on the header.
+- **It fits the SE's width.** The widest pair, `Next in 15h 59m · 12 puffs` and `Current Gap · 23h 59m`, is estimated at about 300px of the row's 335. The row stands above `.track-offers` — `Add past event`, and `Declare today a Clear Day` on a day with nothing logged — and must stay clear of it at its tallest.
+- **Here for the reason the Current Gap is here**: this is where an urge arrives, beside `Resisted`.
+
+**When it shows:**
+
+| | Spacing |
+| --- | --- |
+| during the Baseline | absent |
+| `Target 0`, or nothing left of the Target | absent |
+| outside the Pace Window | absent |
+| its interval under 10 minutes | absent |
+| no Puff Session in the 14 most recent Logical Days | absent |
+| a Merge Window open | absent — the sitting is still being logged; the ghost slots stay |
+| the Current Gap absent | shown, on its own side |
+
+The silences are identical on screen and carry no copy, for §8's reason.
+
+**How it reads:**
+
+- **`Next in 14m`, `Next in 2h 0m`**: the Current Gap's coarsening, two units always from an hour on, and never days, since the interval is at most 16 hours. **Rounded up to the minute**, the opposite of the Current Gap's floor and for the same reason: neither says more time has passed than has.
+- **`Next · now · 4 puffs`** at and after the due time, until you log. Never negative, never *late*, and it does not leave: a wait you overran is not a debt ([ADR 0010](../adr/0010-logging-is-never-punished.md)), and a reading that vanished at zero would look like a silence.
+- **`1 puff`** in the singular. The count is `spacing().puffs`, so the day's last sitting reads what is left.
+- **A countdown, chosen.** Ghost slots were made ambient rather than a countdown, and the Current Gap has no seconds for that reason. This line is a countdown on purpose — at minute resolution, with no seconds, on the existing 60-second tick and on every write — and that is all it is: nothing fires and nothing changes at zero.
+- **The readout's muted style**, never amber, nothing that grows or shrinks with the wait.
+- **A plain element, not a live region**, for the Current Gap's reason. Accessible text: *Spacing, next in 1 hour 20 minutes, 4 puffs*; at zero, *Spacing, due now, 4 puffs*.
+
+**It is printed, never offered.** The count is never pre-filled into the `…` sheet, never offered as `+4` on the arc, and never marks `+5` or `+10`. That is the design [#118](https://github.com/dbgeek/vape-off/issues/118) refused, and Spacing recommending a sitting below your habit is acceptable only because it stays on this side of the control ([ADR 0018](../adr/0018-spacing-scales-your-recent-sitting.md)).
+
+*The row* is a label in this file and must not enter `CONTEXT.md`; `Spacing` is the term.
 
 ### Marking a Kick
 
